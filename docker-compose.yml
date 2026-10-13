@@ -1,0 +1,22 @@
+
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: meditec_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: meditec_its
+      MYSQL_USER: meditec_user
+      MYSQL_PASSWORD: meditecpassword
+    ports:
+      - "3307:3307"
+    volumes:
+      # Guarda los datos físicamente para no perderlos al apagar el contenedor
+      - mysql_data:/var/lib/mysql
+      # Ejecuta tu script automáticamente al crear el contenedor por primera vez
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  mysql_data:

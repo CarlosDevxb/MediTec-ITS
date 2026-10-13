@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+/* Respeta la preferencia de movimiento reducido del sistema */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================
+   MEDITEC-ITS · DESIGN TOKENS (Tailwind v4 · CSS-first)
+   Paleta institucional azul consolidada desde los componentes.
+   Uso: bg-brand-950, text-brand-600, border-brand-500, etc.
+   ============================================================ */
+@theme {
+  /* --- Azul institucional MediTec (950 = más oscuro) --- */
+  --color-brand-950: #0a335c; /* Sidebar / hover de acción principal */
+  --color-brand-900: #113f70; /* Hover de ítems de menú */
+  --color-brand-800: #15467a; /* Menú activo / botón primario */
+  --color-brand-700: #1e4f8a; /* Avatar / acentos sobre fondo oscuro */
+  --color-brand-600: #2a62a3; /* Borde de acento */
+  --color-brand-500: #416a9c; /* Botón secundario de marca */
+  --color-brand-400: #5a7f9e; /* Paneles / fondos medios */
+  --color-brand-300: #8fb0cd;
+  --color-brand-200: #b9cee1;
+  --color-brand-100: #dbe5ef;
+  --color-brand-50: #eff4f9; /* Fondos sutiles (hover fantasma, rings) */
+}

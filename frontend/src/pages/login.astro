@@ -1,0 +1,16 @@
+---
+import Login from '../components/sesion/Login.tsx';
+import '../styles/global.css';
+---
+
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Iniciar Sesión | MediTec-ITS</title>
+  </head>
+  <!-- Reseteamos el body para que el componente Login tome el control del layout -->
+  <body class="m-0 p-0 overflow-x-hidden">
+    <Login client:load />
+  </body>
+</html>

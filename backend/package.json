@@ -1,0 +1,25 @@
+{
+  "name": "backend",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6"
+  },
+  "peerDependencies": {
+    "typescript": "^7"
+  },
+  "scripts": {
+  "dev": "bun --watch src/index.ts",
+  "build:linux": "bun build ./src/index.ts --compile --target=bun-linux-x64 --outfile=meditec-api",
+  "build:windows": "bun build ./src/index.ts --compile --target=bun-windows-x64 --outfile=meditec-api.exe"
+},
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.3",
+    "express": "^5.2.1",
+    "mysql2": "^3.24.4"
+  }
+}

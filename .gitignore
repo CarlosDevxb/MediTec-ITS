@@ -1,0 +1,50 @@
+# =========================
+# Dependencias
+# =========================
+node_modules/
+bun.lockb
+package-lock.json
+
+# =========================
+# Variables de entorno y secretos
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Frontend (Astro + React)
+# =========================
+/frontend/dist/
+/frontend/.astro/
+/frontend/.vercel/
+/frontend/.netlify/
+
+# =========================
+# Backend (Bun + TypeScript)
+# =========================
+# Ejecutables generados (archivos binarios compilados)
+/backend/meditec-api
+/backend/meditec-api.exe
+/backend/dist/
+/backend/build/
+
+# =========================
+# Base de datos local (Docker)
+# =========================
+# Ignorar los volúmenes de datos mapeados localmente si los llegas a crear fuera de Docker
+/mysql_data/
+/data/
+
+# =========================
+# Archivos del sistema y editores
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
