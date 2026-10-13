@@ -4,7 +4,7 @@ import PageHeader from '../ui/PageHeader';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { Field, Input, Select } from '../ui/Input';
-import { PACIENTES, MOTIVOS_CITA, type Cita, type EstatusCita } from './datos';
+import { PACIENTES, MOTIVOS_CITA, PERSONAL_SESION, type Cita, type EstatusCita } from './datos';
 
 /* ============================================================
    FORMULARIO DE CITA · alta y edición (subpágina de Citas)
@@ -41,6 +41,8 @@ export default function CitaForm({ modo, cita, onCancelar, onGuardar }: CitaForm
       hora,
       motivo,
       estatus,
+      profesional: PERSONAL_SESION.nombre,
+      tipo: 'Programada',
     });
   };
 
@@ -97,6 +99,18 @@ export default function CitaForm({ modo, cita, onCancelar, onGuardar }: CitaForm
                   </option>
                 ))}
               </Select>
+            </Field>
+
+            <Field
+              label="Profesional asignado"
+              hint="Se asigna según tu sesión."
+              className="md:col-span-2"
+            >
+              <Input
+                value={`${PERSONAL_SESION.nombre} · ${PERSONAL_SESION.especialidad}`}
+                disabled
+                className="bg-gray-50 text-gray-500"
+              />
             </Field>
 
             {modo === 'editar' && (

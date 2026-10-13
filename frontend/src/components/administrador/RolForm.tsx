@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Save, X, CheckSquare } from 'lucide-react';
+import { ShieldCheck, Save, X } from 'lucide-react';
 import PageHeader from '../ui/PageHeader';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { Field, Input, Textarea } from '../ui/Input';
-import { PERMISOS, type Rol } from './tipos';
+import { type Rol } from './tipos';
 
 /* ============================================================
    FORMULARIO DE ROL · alta y edición (subpágina)
@@ -20,14 +20,7 @@ export interface RolFormProps {
 export default function RolForm({ modo, rol, onCancelar, onGuardar }: RolFormProps) {
   const [nombre, setNombre] = useState(rol?.nombre ?? '');
   const [descripcion, setDescripcion] = useState(rol?.descripcion ?? '');
-  const [permisos, setPermisos] = useState<string[]>([]);
   const [error, setError] = useState('');
-
-  const alternarPermiso = (permiso: string) => {
-    setPermisos((prev) =>
-      prev.includes(permiso) ? prev.filter((p) => p !== permiso) : [...prev, permiso]
-    );
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,25 +66,6 @@ export default function RolForm({ modo, rol, onCancelar, onGuardar }: RolFormPro
                 placeholder="Ej. Captura signos vitales y apoya la atención..."
               />
             </Field>
-          </div>
-        </Card>
-
-        <Card title="Permisos" icon={CheckSquare} description="Marca lo que este rol podrá hacer.">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {PERMISOS.map((permiso) => (
-              <label
-                key={permiso}
-                className="flex items-center gap-3 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 cursor-pointer hover:border-brand-300 transition-colors"
-              >
-                <input
-                  type="checkbox"
-                  checked={permisos.includes(permiso)}
-                  onChange={() => alternarPermiso(permiso)}
-                  className="w-4 h-4 rounded accent-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
-                />
-                {permiso}
-              </label>
-            ))}
           </div>
         </Card>
 

@@ -26,6 +26,8 @@ export default function UsuarioForm({
   const [nombre, setNombre] = useState(usuario?.nombre ?? '');
   const [numeroControl, setNumeroControl] = useState(usuario?.numeroControl ?? '');
   const [correo, setCorreo] = useState(usuario?.correo ?? '');
+  const [fechaNacimiento, setFechaNacimiento] = useState(usuario?.fechaNacimiento ?? '');
+  const [genero, setGenero] = useState<'Femenino' | 'Masculino' | 'Otro'>(usuario?.genero ?? 'Femenino');
   const [rol, setRol] = useState(usuario?.rol ?? OPCIONES_ROL[1]);
   const [estatus, setEstatus] = useState<'Activo' | 'Inactivo'>(usuario?.estatus ?? 'Activo');
   const [contrasena, setContrasena] = useState('');
@@ -38,6 +40,10 @@ export default function UsuarioForm({
 
     if (!nombre.trim() || !numeroControl.trim() || !correo.trim()) {
       setError('Completa nombre, número de control y correo institucional.');
+      return;
+    }
+    if (!fechaNacimiento) {
+      setError('Registra la fecha de nacimiento.');
       return;
     }
     if (modo === 'alta') {
@@ -61,6 +67,8 @@ export default function UsuarioForm({
       nombre: nombre.trim(),
       numeroControl: numeroControl.trim(),
       correo: correo.trim(),
+      fechaNacimiento,
+      genero,
       rol,
       estatus,
     });
@@ -102,6 +110,21 @@ export default function UsuarioForm({
                 onChange={(e) => setCorreo(e.target.value)}
                 placeholder="nombre@meditec.mx"
               />
+            </Field>
+            <Field label="Fecha de nacimiento">
+              <Input
+                type="date"
+                value={fechaNacimiento}
+                onChange={(e) => setFechaNacimiento(e.target.value)}
+                className="tabular-nums"
+              />
+            </Field>
+            <Field label="Género">
+              <Select value={genero} onChange={(e) => setGenero(e.target.value as 'Femenino' | 'Masculino' | 'Otro')}>
+                <option value="Femenino">Femenino</option>
+                <option value="Masculino">Masculino</option>
+                <option value="Otro">Otro</option>
+              </Select>
             </Field>
           </div>
         </Card>

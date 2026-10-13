@@ -1,29 +1,35 @@
 import React, { useState } from 'react';
-import { Activity, Stethoscope, FileSignature, Save, X } from 'lucide-react';
+import { Activity, Stethoscope, FileSignature, Calendar, Save, X } from 'lucide-react';
 import PageHeader from '../ui/PageHeader';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import Aviso from '../ui/Aviso';
 import { useAviso } from '../ui/useAviso';
-import { Field, Input, Textarea } from '../ui/Input';
-import { type Paciente, type SignosVitales } from './datos';
+import { Field, Input, Select, Textarea } from '../ui/Input';
+import { CITAS_DEMO, type Consulta, type Paciente, type SignosVitales } from './datos';
 import SelectorPaciente from './SelectorPaciente';
 
 /* ============================================================
-   NUEVA CONSULA · Alta de consulta (flujo directo al formulario)
-   1) Seleccionar paciente  2) Signos vitales
-   3) Evaluación clínica    4) Diagnóstico y receta
+   NUEVA CONSULTA · Alta de consulta (flujo directo al formulario)
+   1) Seleccionar paciente + cita vinculada  2) Signos vitales
+   3) Evaluación clínica  4) Diagnóstico y receta
    ============================================================ */
 
 const VITALES_VACIOS: SignosVitales = {
   ta: '', fc: '', fr: '', temp: '', peso: '', talla: '',
 };
 
-export default function NuevaConsulta() {
+interface Props {
+  /** Payload completo listo para persistir (tabla `consulta` + `signos_vitales`) */
+  onGuardar?: (consulta: Consulta) => void;
+}
+
+export default function NuevaConsulta({ onGuardar }: Props) {
   const { aviso, mostrar, cerrar } = useAviso();
 
-  // Paciente
+  // Paciente y cita vinculada (la BD exige que toda consulta derive de una cita)
   const [paciente, setPaciente] = useState<Paciente | null>(null);
+  const [citaId, setCitaId] = useState('');
 
   // Contenido clínico
   const [vitales, setVitales] = useState<SignosVitales>(VITALES_VACIOS);
@@ -33,8 +39,18 @@ export default function NuevaConsulta() {
   const [tratamiento, setTratamiento] = useState('');
   const [error, setError] = useState('');
 
+  // Citas abiertas del paciente seleccionado
+  const citasDelPaciente = paciente
+    ? CITAS_DEMO.filter(
+        (cita) =>
+          cita.pacienteId === paciente.id &&
+          (cita.estatus === 'Pendiente' || cita.estatus === 'Confirmada')
+      )
+    : [];
+
   const limpiar = () => {
     setPaciente(null);
+    setCitaId('');
     setVitales(VITALES_VACIOS);
     setMotivo('');
     setExploracion('');
@@ -52,6 +68,10 @@ export default function NuevaConsulta() {
       setError('Selecciona el paciente de la consulta.');
       return;
     }
+    if (!citaId) {
+      setError('Selecciona la cita vinculada o registra la consulta como urgencia.');
+      return;
+    }
     if (!motivo.trim()) {
       setError('Escribe el motivo de la consulta.');
       return;
@@ -61,6 +81,21 @@ export default function NuevaConsulta() {
       return;
     }
     setError('');
+
+    // Payload listo para `consulta` (motivo → sintomas) + `signos_vitales`
+    const consulta: Consulta = {
+      id: Date.now(),
+      citaId: citaId === 'emergencia' ? null : Number(citaId),
+      pacienteId: paciente.id,
+      fecha: new Date().toISOString(),
+      motivo: motivo.trim(),
+      exploracion: exploracion.trim(),
+      diagnostico: diagnostico.trim(),
+      tratamiento: tratamiento.trim(),
+      vitales,
+    };
+    onGuardar?.(consulta);
+
     mostrar(`Consulta de ${paciente.nombre} registrada en su expediente.`);
     limpiar();
   };
@@ -83,15 +118,42 @@ export default function NuevaConsulta() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         
-                <SelectorPaciente
+        {/* TARJETA 1: Selección de paciente */}
+        <SelectorPaciente
           paciente={paciente}
           onChange={(p) => {
             setPaciente(p);
-            setError("");
+            setCitaId('');
+            setError('');
           }}
         />
 
-        {/* TARJETA 2: Signos Vitales */}
+        {/* TARJETA 2: Cita vinculada (obligatoria en la BD) */}
+        <Card
+          title="Cita vinculada"
+          icon={Calendar}
+          description="Toda consulta se registra sobre una cita; si el paciente llega sin cita previa, se registra como urgencia."
+        >
+          <Field label="Cita" hint="Solo se muestran las citas pendientes o confirmadas del paciente.">
+            <Select
+              value={citaId}
+              onChange={(e) => setCitaId(e.target.value)}
+              disabled={!paciente}
+            >
+              <option value="">
+                {paciente ? 'Selecciona una cita...' : 'Primero selecciona un paciente'}
+              </option>
+              {citasDelPaciente.map((cita) => (
+                <option key={cita.id} value={cita.id}>
+                  {cita.fecha} · {cita.hora} · {cita.motivo}
+                </option>
+              ))}
+              <option value="emergencia">Consulta de urgencia (crear cita)</option>
+            </Select>
+          </Field>
+        </Card>
+
+        {/* TARJETA 3: Signos Vitales */}
         <Card title="Signos vitales" icon={Activity}>
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
             <Field label="T. Arterial (mmHg)" variant="compact">

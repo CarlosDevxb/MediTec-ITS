@@ -4,7 +4,15 @@ import PageHeader from '../ui/PageHeader';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { Field, Input, Select, Textarea } from '../ui/Input';
-import { PACIENTES, TIPOS_SANGRE, type Paciente, type TipoSangre } from './datos';
+import {
+  PACIENTES,
+  TIPOS_SANGRE,
+  TIPOS_PACIENTE,
+  CARRERAS,
+  type Paciente,
+  type TipoSangre,
+  type TipoPaciente,
+} from './datos';
 
 /* ============================================================
    FORMULARIO DE PACIENTE · alta y edición (subpágina)
@@ -31,7 +39,9 @@ export default function PacienteForm({
   );
   const [nombre, setNombre] = useState(paciente?.nombre ?? '');
   const [fechaNacimiento, setFechaNacimiento] = useState(paciente?.fechaNacimiento ?? '');
-  const [genero, setGenero] = useState<'Femenino' | 'Masculino'>(paciente?.genero ?? 'Femenino');
+  const [genero, setGenero] = useState<'Femenino' | 'Masculino' | 'Otro'>(paciente?.genero ?? 'Femenino');
+  const [tipoPaciente, setTipoPaciente] = useState<TipoPaciente>(paciente?.tipoPaciente ?? 'Alumno');
+  const [carrera, setCarrera] = useState(paciente?.carrera ?? '');
   const [tipoSangre, setTipoSangre] = useState<TipoSangre>(paciente?.tipoSangre ?? 'O+');
   const [telefono, setTelefono] = useState(paciente?.telefono ?? '');
   const [correo, setCorreo] = useState(paciente?.correo ?? '');
@@ -56,6 +66,10 @@ export default function PacienteForm({
       setError('Agrega un teléfono de contacto.');
       return;
     }
+    if (tipoPaciente === 'Alumno' && !carrera) {
+      setError('Selecciona la carrera del alumno.');
+      return;
+    }
     setError('');
     onGuardar({
       id: paciente?.id ?? Date.now(),
@@ -63,6 +77,8 @@ export default function PacienteForm({
       nombre: nombre.trim(),
       fechaNacimiento,
       genero,
+      tipoPaciente,
+      carrera: tipoPaciente === 'Alumno' ? carrera : undefined,
       telefono: telefono.trim(),
       correo: correo.trim(),
       alergias: alergias.trim() || 'Ninguna',
@@ -100,9 +116,29 @@ export default function PacienteForm({
               <Input type="date" value={fechaNacimiento} onChange={(e) => setFechaNacimiento(e.target.value)} className="tabular-nums" />
             </Field>
             <Field label="Género">
-              <Select value={genero} onChange={(e) => setGenero(e.target.value as 'Femenino' | 'Masculino')}>
+              <Select
+                value={genero}
+                onChange={(e) => setGenero(e.target.value as 'Femenino' | 'Masculino' | 'Otro')}
+              >
                 <option value="Femenino">Femenino</option>
                 <option value="Masculino">Masculino</option>
+                <option value="Otro">Otro</option>
+              </Select>
+            </Field>
+            <Field label="Tipo de paciente">
+              <Select
+                value={tipoPaciente}
+                onChange={(e) => {
+                  const nuevo = e.target.value as TipoPaciente;
+                  setTipoPaciente(nuevo);
+                  if (nuevo !== 'Alumno') setCarrera('');
+                }}
+              >
+                {TIPOS_PACIENTE.map((tipo) => (
+                  <option key={tipo} value={tipo}>
+                    {tipo}
+                  </option>
+                ))}
               </Select>
             </Field>
             <Field label="Tipo de sangre">
@@ -114,6 +150,18 @@ export default function PacienteForm({
                 ))}
               </Select>
             </Field>
+            {tipoPaciente === 'Alumno' && (
+              <Field label="Carrera" hint="Obligatoria para alumnos.">
+                <Select value={carrera} onChange={(e) => setCarrera(e.target.value)}>
+                  <option value="">Selecciona una carrera...</option>
+                  {CARRERAS.map((opcion) => (
+                    <option key={opcion} value={opcion}>
+                      {opcion}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
           </div>
         </Card>
 

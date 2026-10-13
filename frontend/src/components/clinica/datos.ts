@@ -5,12 +5,16 @@
 
 export type TipoSangre = 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
 
+export type TipoPaciente = 'Alumno' | 'Docente' | 'Administrativo' | 'Enfermería';
+
 export interface Paciente {
   id: number;
   expediente: string;
   nombre: string;
   fechaNacimiento: string; // ISO: 1998-04-12
-  genero: 'Femenino' | 'Masculino';
+  genero: 'Femenino' | 'Masculino' | 'Otro';
+  tipoPaciente: TipoPaciente;
+  carrera?: string; // Solo si el tipo de paciente es Alumno
   telefono: string;
   correo: string;
   alergias: string;
@@ -31,6 +35,8 @@ export interface SignosVitales {
 
 export interface Consulta {
   id: number;
+  /** null = consulta de urgencia (se crea una cita tipo Emergencia) */
+  citaId: number | null;
   pacienteId: number;
   fecha: string; // ISO datetime
   motivo: string;
@@ -49,10 +55,24 @@ export interface Cita {
   hora: string; // 09:00
   motivo: string;
   estatus: EstatusCita;
+  /** Personal médico asignado (obligatorio en la BD) */
+  profesional?: string;
+  /** Programada o Emergencia (ENUM de la tabla `cita`) */
+  tipo?: 'Programada' | 'Emergencia';
 }
 
 /* ---------------- Catálogos ---------------- */
 export const TIPOS_SANGRE: TipoSangre[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+export const TIPOS_PACIENTE: TipoPaciente[] = ['Alumno', 'Docente', 'Administrativo', 'Enfermería'];
+
+export const CARRERAS = [
+  'Ing. en Sistemas Computacionales',
+  'Ing. Industrial',
+  'Ing. en Gestión Empresarial',
+  'Ing. Química',
+  'Lic. en Administración',
+];
 
 export const MOTIVOS_CITA = [
   'Consulta de seguimiento',
@@ -63,11 +83,19 @@ export const MOTIVOS_CITA = [
   'Control de placa',
 ];
 
+/** Personal médico autenticado en la sesión (demo) */
+export const PERSONAL_SESION = {
+  id: 1,
+  nombre: 'Dra. Paola Janeth',
+  especialidad: 'Odontología',
+};
+
 /* ---------------- Pacientes (expedientes) ---------------- */
 export const PACIENTES: Paciente[] = [
   {
     id: 1, expediente: 'EXP-1024', nombre: 'Lucía Torres',
     fechaNacimiento: '1998-04-12', genero: 'Femenino',
+    tipoPaciente: 'Alumno', carrera: 'Ing. en Sistemas Computacionales',
     telefono: '55 1234 8891', correo: 'lucia.torres@correo.mx',
     alergias: 'Penicilina', enfermedadesCronicas: 'Ninguna',
     tipoSangre: 'O+', antecedentes: 'Ortodoncia en 2022. Sin cirugías previas.',
@@ -76,6 +104,7 @@ export const PACIENTES: Paciente[] = [
   {
     id: 2, expediente: 'EXP-1025', nombre: 'Miguel Herrera',
     fechaNacimiento: '1985-11-03', genero: 'Masculino',
+    tipoPaciente: 'Docente',
     telefono: '55 2345 1122', correo: 'miguel.herrera@correo.mx',
     alergias: 'Ninguna', enfermedadesCronicas: 'Hipertensión leve',
     tipoSangre: 'A+', antecedentes: 'Tratamiento de hipertensión con Losartán.',
@@ -84,6 +113,7 @@ export const PACIENTES: Paciente[] = [
   {
     id: 3, expediente: 'EXP-1026', nombre: 'Sofía Mendoza',
     fechaNacimiento: '2001-07-25', genero: 'Femenino',
+    tipoPaciente: 'Alumno', carrera: 'Lic. en Administración',
     telefono: '55 3456 7788', correo: 'sofia.mendoza@correo.mx',
     alergias: 'Ninguna', enfermedadesCronicas: 'Ninguna',
     tipoSangre: 'B+', antecedentes: 'Blanqueamiento profesional en 2025.',
@@ -92,6 +122,7 @@ export const PACIENTES: Paciente[] = [
   {
     id: 4, expediente: 'EXP-1027', nombre: 'Diego Ramírez',
     fechaNacimiento: '1979-02-18', genero: 'Masculino',
+    tipoPaciente: 'Administrativo',
     telefono: '55 4567 3344', correo: 'diego.ramirez@correo.mx',
     alergias: 'Látex', enfermedadesCronicas: 'Diabetes tipo 2',
     tipoSangre: 'O-', antecedentes: 'Control glucémico mensual. Retención de prótesis parcial.',
@@ -100,6 +131,7 @@ export const PACIENTES: Paciente[] = [
   {
     id: 5, expediente: 'EXP-1028', nombre: 'Valeria Cruz',
     fechaNacimiento: '2010-09-05', genero: 'Femenino',
+    tipoPaciente: 'Alumno', carrera: 'Ing. en Gestión Empresarial',
     telefono: '55 5678 9900', correo: 'valeria.cruz@correo.mx',
     alergias: 'Ninguna', enfermedadesCronicas: 'Ninguna',
     tipoSangre: 'AB+', antecedentes: 'Paciente pediátrica. Aparatología en evaluación.',
@@ -108,6 +140,7 @@ export const PACIENTES: Paciente[] = [
   {
     id: 6, expediente: 'EXP-1029', nombre: 'Andrés Gil',
     fechaNacimiento: '1993-12-30', genero: 'Masculino',
+    tipoPaciente: 'Docente',
     telefono: '55 6789 2233', correo: 'andres.gil@correo.mx',
     alergias: 'Ibuprofeno', enfermedadesCronicas: 'Ninguna',
     tipoSangre: 'A-', antecedentes: 'Exodoncia de molar inferior en 2024.',
@@ -118,7 +151,7 @@ export const PACIENTES: Paciente[] = [
 /* ---------------- Consultas registradas ---------------- */
 export const CONSULTAS: Consulta[] = [
   {
-    id: 1, pacienteId: 1, fecha: '2026-09-12T10:30',
+    id: 1, citaId: 1, pacienteId: 1, fecha: '2026-09-12T10:30',
     motivo: 'Dolor en molar superior derecho al masticar',
     exploracion: 'Caries profunda en pieza 16. Movilidad leve. Encías sin inflamación.',
     diagnostico: 'Caries oclusal pieza 16 (K02.9)',
@@ -126,7 +159,7 @@ export const CONSULTAS: Consulta[] = [
     vitales: { ta: '110/70', fc: '72', fr: '18', temp: '36.6', peso: '58', talla: '1.64' },
   },
   {
-    id: 2, pacienteId: 1, fecha: '2026-05-02T09:00',
+    id: 2, citaId: 2, pacienteId: 1, fecha: '2026-05-02T09:00',
     motivo: 'Control post-ortodoncia',
     exploracion: 'Oclusión estable. Retenedor íntegro.',
     diagnostico: 'Seguimiento de ortodoncia (Z46.4)',
@@ -134,7 +167,7 @@ export const CONSULTAS: Consulta[] = [
     vitales: { ta: '108/68', fc: '70', fr: '16', temp: '36.5', peso: '57', talla: '1.64' },
   },
   {
-    id: 3, pacienteId: 4, fecha: '2026-07-15T15:00',
+    id: 3, citaId: 3, pacienteId: 4, fecha: '2026-07-15T15:00',
     motivo: 'Prótesis parcial incómoda',
     exploracion: 'Ajuste necesario en zona de apoyo 46. Mucosa íntegra.',
     diagnostico: 'Prótesis mal ajustada (K08.40)',
