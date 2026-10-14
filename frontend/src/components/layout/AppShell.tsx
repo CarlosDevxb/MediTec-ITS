@@ -13,6 +13,8 @@ export interface AppShellProps {
   activo: string;
   onNavigate: (label: string) => void;
   perfil: SidebarPerfil;
+  /** Acción del botón de cerrar sesión */
+  onCerrarSesion?: () => void;
   sidebarId?: string;
   children: React.ReactNode;
 }
@@ -22,6 +24,7 @@ export default function AppShell({
   activo,
   onNavigate,
   perfil,
+  onCerrarSesion,
   sidebarId,
   children,
 }: AppShellProps) {
@@ -33,6 +36,7 @@ export default function AppShell({
         activo={activo}
         onNavigate={onNavigate}
         perfil={perfil}
+        onCerrarSesion={onCerrarSesion}
       />
       <main className="flex-1 overflow-y-auto">{children}</main>
     </div>

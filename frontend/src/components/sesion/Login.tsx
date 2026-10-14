@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { PasswordInput } from '../ui/Input';
+import { iniciarSesion } from '../../services/auth.service';
+import { rutaSegunRol } from '../../services/sesion';
+import { mensajeDeError } from '../../services/api';
 
 export default function Login() {
   const [numeroControl, setNumeroControl] = useState('');
   const [contrasena, setContrasena] = useState('');
   const [error, setError] = useState('');
+  const [cargando, setCargando] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!numeroControl.trim() || !contrasena.trim()) {
@@ -15,7 +19,16 @@ export default function Login() {
     }
     
     setError('');
-    console.log('Enviando datos al backend:', { numeroControl, contrasena });
+    setCargando(true);
+    try {
+      const datos = await iniciarSesion(numeroControl.trim(), contrasena);
+      // Entra al panel que corresponde a su rol
+      window.location.href = rutaSegunRol(datos.usuario.rol);
+    } catch (err) {
+      // Muestra el mensaje de la API (credenciales, cuenta deshabilitada…)
+      setError(mensajeDeError(err));
+      setCargando(false);
+    }
   };
 
   return (
@@ -71,9 +84,10 @@ export default function Login() {
 
               <button 
                 type="submit" 
-                className="w-full bg-brand-500 hover:bg-brand-700 text-white font-medium py-3 sm:py-3.5 xl:py-4 px-4 rounded-lg text-base xl:text-lg transition-colors border border-gray-600 shadow-md mt-4 xl:mt-6"
+                disabled={cargando}
+                className="w-full bg-brand-500 hover:bg-brand-700 text-white font-medium py-3 sm:py-3.5 xl:py-4 px-4 rounded-lg text-base xl:text-lg transition-colors border border-gray-600 shadow-md mt-4 xl:mt-6 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Iniciar Sesion
+                {cargando ? 'Iniciando sesión...' : 'Iniciar Sesion'}
               </button>
             </form>
           </div>

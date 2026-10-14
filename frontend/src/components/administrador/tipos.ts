@@ -12,6 +12,9 @@ export interface Usuario {
   genero: 'Femenino' | 'Masculino' | 'Otro';
   rol: string;
   estatus: 'Activo' | 'Inactivo';
+  /** Requeridos cuando el rol es Personal médico o Enfermería (tabla `personal_medico`) */
+  cedula?: string;
+  especialidad?: string;
 }
 
 export interface Rol {
@@ -53,9 +56,9 @@ export const OPCIONES_PERSONAL = [
 
 /* ---------------- Datos de demostración ---------------- */
 export const USUARIOS_DEMO: Usuario[] = [
-  { id: 1, nombre: 'Dra. Paola Janeth', numeroControl: 'PM-0012', correo: 'paola.janeth@meditec.mx', fechaNacimiento: '1987-03-14', genero: 'Femenino', rol: 'Personal médico', estatus: 'Activo' },
-  { id: 2, nombre: 'Dr. Miguel Sandoval', numeroControl: 'PM-0018', correo: 'miguel.sandoval@meditec.mx', fechaNacimiento: '1980-11-22', genero: 'Masculino', rol: 'Personal médico', estatus: 'Activo' },
-  { id: 3, nombre: 'Enf. Lucía Ramos', numeroControl: 'EF-0043', correo: 'lucia.ramos@meditec.mx', fechaNacimiento: '1994-06-08', genero: 'Femenino', rol: 'Enfermería', estatus: 'Activo' },
+  { id: 1, nombre: 'Dra. Paola Janeth', numeroControl: 'PM-0012', correo: 'paola.janeth@meditec.mx', fechaNacimiento: '1987-03-14', genero: 'Femenino', rol: 'Personal médico', estatus: 'Activo', cedula: 'CED-1234567', especialidad: 'Odontología' },
+  { id: 2, nombre: 'Dr. Miguel Sandoval', numeroControl: 'PM-0018', correo: 'miguel.sandoval@meditec.mx', fechaNacimiento: '1980-11-22', genero: 'Masculino', rol: 'Personal médico', estatus: 'Activo', cedula: 'CED-2345678', especialidad: 'Medicina general' },
+  { id: 3, nombre: 'Enf. Lucía Ramos', numeroControl: 'EF-0043', correo: 'lucia.ramos@meditec.mx', fechaNacimiento: '1994-06-08', genero: 'Femenino', rol: 'Enfermería', estatus: 'Activo', cedula: 'CED-3456789', especialidad: 'Enfermería' },
   { id: 4, nombre: 'Carlos Herrera', numeroControl: 'RC-0007', correo: 'carlos.herrera@meditec.mx', fechaNacimiento: '1992-01-30', genero: 'Masculino', rol: 'Recepción', estatus: 'Activo' },
   { id: 5, nombre: 'Ana Villalobos', numeroControl: 'RC-0011', correo: 'ana.villalobos@meditec.mx', fechaNacimiento: '1997-09-17', genero: 'Femenino', rol: 'Recepción', estatus: 'Inactivo' },
   { id: 6, nombre: 'Administrador', numeroControl: 'AD-0001', correo: 'admin@meditec.mx', fechaNacimiento: '1985-02-05', genero: 'Otro', rol: 'Administrador', estatus: 'Activo' },

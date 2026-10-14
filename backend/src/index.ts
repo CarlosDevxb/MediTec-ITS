@@ -1,35 +1,33 @@
 import express from 'express';
+import helmet from 'helmet';
 import cors from 'cors';
-import pool from './db/pool'; // <-- Importamos nuestra conexión
+import { ENV } from './config/env';
+import rutas from './routes';
+import { limitadorGlobal } from './middleware/limitadorAuth';
+import { manejarErrores, noEncontrado } from './middleware/manejarErrores';
 
 const app = express();
-const port = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(express.json());
+/* ================= SEGURIDAD ================= */
+// Cabeceras HTTP seguras (X-Frame, HSTS, XSS, etc.)
+app.use(helmet());
 
-// Endpoint de prueba inicial
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'MediTec-ITS Backend Operativo en Linux' });
-});
+// CORS restringido a los orígenes configurados (nunca comodín)
+app.use(cors({ origin: ENV.corsOrigen, credentials: true }));
 
-// Nuevo endpoint para probar la base de datos
-app.get('/api/roles', async (req, res) => {
-  try {
-    // Ejecutamos SQL puro. 
-    // Desestructuramos [rows] porque mysql2 devuelve un arreglo donde el primer elemento son los datos.
-    const [rows] = await pool.query('SELECT * FROM roles');
-    
-    res.json({
-      mensaje: '¡Conexión exitosa a MySQL!',
-      datos: rows
-    });
-  } catch (error) {
-    console.error('Error conectando a MySQL:', error);
-    res.status(500).json({ error: 'Error interno de la base de datos' });
-  }
-});
+// Cuerpo JSON con límite de tamaño (evita payloads abusivos)
+app.use(express.json({ limit: '1mb' }));
 
-app.listen(port, () => {
-  console.log(`Servidor ejecutándose en http://localhost:${port}`);
+// Límite general de peticiones por IP
+app.use('/api', limitadorGlobal);
+
+/* ================= RUTAS ================= */
+app.use('/api', rutas);
+
+/* ================= MANEJO DE ERRORES ================= */
+app.use(noEncontrado);
+app.use(manejarErrores);
+
+app.listen(ENV.puerto, () => {
+  console.log(`MediTec-ITS API escuchando en http://localhost:${ENV.puerto}`);
 });

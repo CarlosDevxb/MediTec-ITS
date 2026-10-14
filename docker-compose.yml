@@ -11,7 +11,7 @@ services:
       MYSQL_USER: meditec_user
       MYSQL_PASSWORD: meditecpassword
     ports:
-      - "3307:3307"
+      - "3307:3306"
     volumes:
       # Guarda los datos físicamente para no perderlos al apagar el contenedor
       - mysql_data:/var/lib/mysql

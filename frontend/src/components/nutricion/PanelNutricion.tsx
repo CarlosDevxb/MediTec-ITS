@@ -10,6 +10,7 @@ import Pacientes from '../clinica/Pacientes';
 import Configuracion from '../clinica/Configuracion';
 import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
+import { obtenerSesion, cerrarSesion, inicialesDe } from '../../services/sesion';
 import { PLANES_DEMO, type Plan } from './datos';
 
 /* ================= MENÚ DE NUTRICIÓN ================= */
@@ -66,7 +67,16 @@ export default function PanelNutricion() {
       sections={MENU}
       activo={vista}
       onNavigate={setVista}
-      perfil={{ iniciales: 'SS', nombre: 'Nut. Sofia Star', rol: 'Nutrición y dietética' }}
+      onCerrarSesion={cerrarSesion}
+      perfil={(() => {
+        const sesion = obtenerSesion();
+        const nombre = sesion?.usuario.nombre ?? 'Nut. Sofia Star';
+        return {
+          iniciales: inicialesDe(nombre),
+          nombre,
+          rol: sesion?.usuario.rol ?? 'Nutrición y dietética',
+        };
+      })()}
     >
       {vista === 'Inicio' ? (
         <InicioNutricion planes={planes} onNavigate={setVista} />

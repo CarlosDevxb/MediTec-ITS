@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Stethoscope, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react';
+import { Stethoscope, ChevronLeft, ChevronRight, LogOut, type LucideIcon } from 'lucide-react';
 
 /* ============================================================
    SIDEBAR · Layout compartido (clínica y administrador)
@@ -29,6 +29,8 @@ export interface SidebarProps {
   activo: string;
   onNavigate: (label: string) => void;
   perfil?: SidebarPerfil;
+  /** Acción del botón de cerrar sesión */
+  onCerrarSesion?: () => void;
   id?: string;
 }
 
@@ -37,6 +39,7 @@ export default function Sidebar({
   activo,
   onNavigate,
   perfil,
+  onCerrarSesion,
   id = 'menu-lateral',
 }: SidebarProps) {
   const [colapsado, setColapsado] = useState(false);
@@ -139,10 +142,21 @@ export default function Sidebar({
               {perfil.iniciales}
             </div>
             {!colapsado && (
-              <div>
-                <p className="text-base font-semibold">{perfil.nombre}</p>
-                <p className="text-sm text-brand-300">{perfil.rol}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-base font-semibold truncate">{perfil.nombre}</p>
+                <p className="text-sm text-brand-300 truncate">{perfil.rol}</p>
               </div>
+            )}
+            {onCerrarSesion && (
+              <button
+                type="button"
+                onClick={onCerrarSesion}
+                aria-label="Cerrar sesión"
+                title="Cerrar sesión"
+                className="w-9 h-9 flex items-center justify-center rounded-lg text-brand-300 hover:text-white hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300/60 shrink-0"
+              >
+                <LogOut size={18} />
+              </button>
             )}
           </div>
         </div>

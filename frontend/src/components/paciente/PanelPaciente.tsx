@@ -18,6 +18,7 @@ import MiInformacion from './MiInformacion';
 import Configuracion from '../clinica/Configuracion';
 import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
+import { obtenerSesion, cerrarSesion, inicialesDe } from '../../services/sesion';
 import { PACIENTE_ACTUAL, CITAS_PACIENTE, type CitaPaciente } from './datos';
 import type { Paciente } from '../clinica/datos';
 
@@ -62,11 +63,16 @@ export default function PanelPaciente() {
       items={MENU}
       activo={vista}
       onNavigate={setVista}
-      perfil={{
-        iniciales: paciente.nombre.split(' ').map((p) => p[0]).slice(0, 2).join(''),
-        nombre: paciente.nombre,
-        detalle: `Paciente · ${paciente.expediente}`,
-      }}
+      onCerrarSesion={cerrarSesion}
+      perfil={(() => {
+        const sesion = obtenerSesion();
+        const nombre = paciente.nombre;
+        return {
+          iniciales: inicialesDe(nombre),
+          nombre: sesion?.usuario.nombre ?? nombre,
+          detalle: `Paciente · ${paciente.expediente}`,
+        };
+      })()}
     >
       {vista === 'Inicio' ? (
         <InicioPaciente paciente={paciente} citas={citas} onNavigate={setVista} />

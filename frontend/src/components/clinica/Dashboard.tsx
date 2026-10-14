@@ -25,6 +25,7 @@ import type { BadgeStatus } from '../ui/Badge';
 import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
 import { saludoDelDia } from './datos';
+import { obtenerSesion, cerrarSesion, inicialesDe } from '../../services/sesion';
 
 /* ================= DATOS DEL MENÚ (agrupado por contexto) ================= */
 const MENU: SidebarSection[] = [
@@ -72,7 +73,16 @@ export default function Dashboard() {
       sections={MENU}
       activo={vistaActiva}
       onNavigate={setVistaActiva}
-      perfil={{ iniciales: 'PJ', nombre: 'Dra. Paola Janeth', rol: 'Personal médico' }}
+      onCerrarSesion={cerrarSesion}
+      perfil={(() => {
+        const sesion = obtenerSesion();
+        const nombre = sesion?.usuario.nombre ?? 'Dra. Paola Janeth';
+        return {
+          iniciales: inicialesDe(nombre),
+          nombre,
+          rol: sesion?.usuario.rol ?? 'Personal médico',
+        };
+      })()}
     >
       {vistaActiva === 'Inicio' ? (
           <VistaInicio onNavigate={setVistaActiva} />

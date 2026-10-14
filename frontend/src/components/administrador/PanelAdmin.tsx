@@ -9,6 +9,7 @@ import Medicamentos from './Medicamentos';
 import Reportes from './Reportes';
 import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
+import { obtenerSesion, cerrarSesion, inicialesDe } from '../../services/sesion';
 
 /* ================= MENÚ DEL ADMINISTRADOR ================= */
 const MENU_ADMIN: SidebarSection[] = [
@@ -45,7 +46,16 @@ export default function PanelAdmin() {
       sections={MENU_ADMIN}
       activo={vista}
       onNavigate={setVista}
-      perfil={{ iniciales: 'AD', nombre: 'Administrador', rol: 'Acceso total' }}
+      onCerrarSesion={cerrarSesion}
+      perfil={(() => {
+        const sesion = obtenerSesion();
+        const nombre = sesion?.usuario.nombre ?? 'Administrador';
+        return {
+          iniciales: inicialesDe(nombre),
+          nombre,
+          rol: sesion?.usuario.rol ?? 'Acceso total',
+        };
+      })()}
     >
       {vista === 'Roles' ? (
           <Roles />

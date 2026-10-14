@@ -1,19 +1,22 @@
 import mysql from 'mysql2/promise';
-import dotenv from 'dotenv';
+import { ENV } from '../config/env';
 
-// Carga las variables del .env
-dotenv.config();
-
-// Crea el pool de conexiones apuntando al puerto 3307
+/**
+ * Pool de conexiones MySQL (promesas).
+ * Se usa SQL nativo: no hay ORM en este proyecto.
+ */
 const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT), // <-- Leemos el puerto del .env
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  host: ENV.db.host,
+  port: ENV.db.puerto,
+  user: ENV.db.usuario,
+  password: ENV.db.password,
+  database: ENV.db.nombre,
+  // Codificación explícita: sin esto, identificadores como
+  // `contraseña` o datos con acentos se corrompen en la conexión
+  charset: 'utf8mb4',
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
 });
 
 export default pool;

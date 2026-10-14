@@ -1,5 +1,5 @@
 import React from 'react';
-import { Stethoscope, type LucideIcon } from 'lucide-react';
+import { Stethoscope, LogOut, type LucideIcon } from 'lucide-react';
 
 /* ============================================================
    TOP BAR SHELL · Layout del portal del paciente
@@ -21,6 +21,8 @@ export interface TopBarShellProps {
     nombre: string;
     detalle: string;
   };
+  /** Acción del botón de cerrar sesión */
+  onCerrarSesion?: () => void;
   children: React.ReactNode;
 }
 
@@ -29,6 +31,7 @@ export default function TopBarShell({
   activo,
   onNavigate,
   perfil,
+  onCerrarSesion,
   children,
 }: TopBarShellProps) {
   return (
@@ -84,6 +87,17 @@ export default function TopBarShell({
               <p className="text-sm font-semibold text-gray-900">{perfil.nombre}</p>
               <p className="text-xs text-gray-500">{perfil.detalle}</p>
             </div>
+            {onCerrarSesion && (
+              <button
+                type="button"
+                onClick={onCerrarSesion}
+                aria-label="Cerrar sesión"
+                title="Cerrar sesión"
+                className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-800 hover:bg-brand-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
+              >
+                <LogOut size={18} />
+              </button>
+            )}
           </div>
         </div>
       </header>

@@ -29,6 +29,8 @@ export default function UsuarioForm({
   const [fechaNacimiento, setFechaNacimiento] = useState(usuario?.fechaNacimiento ?? '');
   const [genero, setGenero] = useState<'Femenino' | 'Masculino' | 'Otro'>(usuario?.genero ?? 'Femenino');
   const [rol, setRol] = useState(usuario?.rol ?? OPCIONES_ROL[1]);
+  const [cedula, setCedula] = useState(usuario?.cedula ?? '');
+  const [especialidad, setEspecialidad] = useState(usuario?.especialidad ?? 'Odontología');
   const [estatus, setEstatus] = useState<'Activo' | 'Inactivo'>(usuario?.estatus ?? 'Activo');
   const [contrasena, setContrasena] = useState('');
   const [confirmarContrasena, setConfirmarContrasena] = useState('');
@@ -44,6 +46,11 @@ export default function UsuarioForm({
     }
     if (!fechaNacimiento) {
       setError('Registra la fecha de nacimiento.');
+      return;
+    }
+    const esPersonal = rol === 'Personal médico' || rol === 'Enfermería';
+    if (esPersonal && !cedula.trim()) {
+      setError('Captura la cédula profesional del personal médico.');
       return;
     }
     if (modo === 'alta') {
@@ -71,6 +78,8 @@ export default function UsuarioForm({
       genero,
       rol,
       estatus,
+      cedula: rol === 'Personal médico' || rol === 'Enfermería' ? cedula.trim() : undefined,
+      especialidad: rol === 'Personal médico' || rol === 'Enfermería' ? especialidad : undefined,
     });
   };
 
@@ -150,6 +159,27 @@ export default function UsuarioForm({
                 <option value="Inactivo">Inactivo</option>
               </Select>
             </Field>
+
+            {/* Datos del personal médico (tabla `personal_medico`) */}
+            {(rol === 'Personal médico' || rol === 'Enfermería') && (
+              <>
+                <Field label="Cédula profesional" hint="Requerida para el personal médico.">
+                  <Input
+                    value={cedula}
+                    onChange={(e) => setCedula(e.target.value)}
+                    placeholder="Ej. CED-1234567"
+                  />
+                </Field>
+                <Field label="Especialidad">
+                  <Select value={especialidad} onChange={(e) => setEspecialidad(e.target.value)}>
+                    <option>Odontología</option>
+                    <option>Medicina general</option>
+                    <option>Nutrición</option>
+                    <option>Enfermería</option>
+                  </Select>
+                </Field>
+              </>
+            )}
 
             {modo === 'alta' ? (
               <>
