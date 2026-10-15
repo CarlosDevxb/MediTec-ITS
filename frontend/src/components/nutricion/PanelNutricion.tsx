@@ -11,6 +11,7 @@ import Configuracion from '../clinica/Configuracion';
 import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
 import { obtenerSesion, cerrarSesion, inicialesDe } from '../../services/sesion';
+import { useProtegerSesion } from '../../hooks/useProtegerSesion';
 import { PLANES_DEMO, type Plan } from './datos';
 
 /* ================= MENÚ DE NUTRICIÓN ================= */
@@ -41,6 +42,9 @@ const MENU: SidebarSection[] = [
    Ruta: /nutricion
    ============================================================ */
 export default function PanelNutricion() {
+  // Sin sesión iniciada, regresa al login
+  useProtegerSesion();
+
   const [vista, setVista] = useState('Inicio');
   const [planes, setPlanes] = useState<Plan[]>(PLANES_DEMO);
   // Paciente seleccionado en Pacientes → Historial nutricional

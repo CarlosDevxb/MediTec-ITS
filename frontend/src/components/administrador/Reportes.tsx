@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Activity,
   CalendarCheck,
@@ -14,7 +14,8 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import StatCard from '../ui/StatCard';
 import { Select } from '../ui/Input';
-import { ROLES_DEMO, MEDICAMENTOS_DEMO, HORARIOS_DEMO } from './tipos';
+import { MEDICAMENTOS_DEMO, HORARIOS_DEMO } from './tipos';
+import { listarRoles, type Rol } from '../../services/administracion.service';
 import { generarReportePDF, type ReportePDF } from './reportesPdf';
 
 /* ============================================================
@@ -114,13 +115,29 @@ function Barra({
 
 export default function Reportes() {
   const [reporte, setReporte] = useState<TipoReporte>('actividad');
+  /** Los roles se cargan de la API: el conteo de cuentas es información real */
+  const [roles, setRoles] = useState<Rol[]>([]);
+
+  useEffect(() => {
+    let vigente = true;
+    listarRoles()
+      .then((datos) => {
+        if (vigente) setRoles(datos);
+      })
+      .catch(() => {
+        if (vigente) setRoles([]);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, []);
 
   const mesActual = new Date()
     .toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })
     .replace(/^\w/, (c) => c.toUpperCase());
 
   /* ---- Datos calculados ---- */
-  const maxUsuarios = Math.max(...ROLES_DEMO.map((rol) => rol.usuarios));
+  const maxUsuarios = Math.max(...roles.map((rol) => rol.usuarios), 1);
   const maxStock = Math.max(...MEDICAMENTOS_DEMO.map((m) => m.stock));
   const medicamentosBajos = MEDICAMENTOS_DEMO.filter((m) => m.stock <= STOCK_BAJO).length;
 
@@ -147,7 +164,7 @@ export default function Reportes() {
           secciones: [
             {
               titulo: 'Cuentas por rol',
-              items: ROLES_DEMO.map((rol) => ({
+              items: roles.map((rol) => ({
                 etiqueta: rol.nombre,
                 valor: `${rol.usuarios} cuenta${rol.usuarios === 1 ? '' : 's'}`,
                 proporcion: rol.usuarios / maxUsuarios,
@@ -341,10 +358,10 @@ export default function Reportes() {
         <Card
           title="Cuentas por rol"
           icon={Users}
-          description={`${ROLES_DEMO.reduce((suma, rol) => suma + rol.usuarios, 0)} cuentas registradas en el sistema`}
+          description={`${roles.reduce((suma, rol) => suma + rol.usuarios, 0)} cuentas registradas en el sistema`}
         >
           <ul className="space-y-5 pt-2">
-            {ROLES_DEMO.map((rol) => (
+            {roles.map((rol) => (
               <Barra
                 key={rol.id}
                 etiqueta={rol.nombre}

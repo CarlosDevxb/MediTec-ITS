@@ -1,6 +1,8 @@
 import { Router } from 'express';
-import pool from '../db/pool';
 import authRoutes from './auth.routes';
+import rolesRoutes from './roles.routes';
+import usuariosRoutes from './usuarios.routes';
+import catalogosRoutes from './catalogos.routes';
 
 const rutas = Router();
 
@@ -9,19 +11,12 @@ rutas.get('/health', (_req, res) => {
   res.json({ status: 'MediTec-ITS Backend Operativo' });
 });
 
-/**
- * Prueba de conexión a MySQL (temporal, se sustituirá por los módulos reales).
- */
-rutas.get('/roles', async (_req, res, next) => {
-  try {
-    const [filas] = await pool.query('SELECT * FROM roles');
-    res.json({ mensaje: 'Conexión exitosa a MySQL', datos: filas });
-  } catch (error) {
-    next(error); // lo maneja el middleware central
-  }
-});
-
-/** Módulo de autenticación: POST /api/auth/login */
+/** Módulo de autenticación: POST /api/auth/login · GET /api/auth/perfil */
 rutas.use('/auth', authRoutes);
+
+/** Administración · roles, usuarios y catálogos (CRUD completo) */
+rutas.use('/roles', rolesRoutes);
+rutas.use('/usuarios', usuariosRoutes);
+rutas.use('/catalogos', catalogosRoutes);
 
 export default rutas;

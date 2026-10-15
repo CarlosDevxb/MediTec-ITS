@@ -19,6 +19,7 @@ import Configuracion from '../clinica/Configuracion';
 import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
 import { obtenerSesion, cerrarSesion, inicialesDe } from '../../services/sesion';
+import { useProtegerSesion } from '../../hooks/useProtegerSesion';
 import { PACIENTE_ACTUAL, CITAS_PACIENTE, type CitaPaciente } from './datos';
 import type { Paciente } from '../clinica/datos';
 
@@ -38,6 +39,9 @@ const MENU: TopNavItem[] = [
    Ruta: /paciente
    ============================================================ */
 export default function PanelPaciente() {
+  // Sin sesión iniciada, regresa al login
+  useProtegerSesion();
+
   const [vista, setVista] = useState('Inicio');
   const [paciente, setPaciente] = useState<Paciente>(PACIENTE_ACTUAL);
   const [citas, setCitas] = useState<CitaPaciente[]>(CITAS_PACIENTE);

@@ -8,6 +8,10 @@ import { manejarErrores, noEncontrado } from './middleware/manejarErrores';
 
 const app = express();
 
+// Detrás de un proxy inverso (nginx / servidor externo) esto permite
+// que el rate limiting identifique la IP real del cliente
+app.set('trust proxy', 1);
+
 /* ================= SEGURIDAD ================= */
 // Cabeceras HTTP seguras (X-Frame, HSTS, XSS, etc.)
 app.use(helmet());

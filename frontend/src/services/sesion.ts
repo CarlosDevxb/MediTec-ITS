@@ -60,7 +60,7 @@ export function rutaSegunRol(rol: string): string {
       return '/paciente';
     // Personal médico, Enfermería y Recepción operan el panel clínico
     default:
-      return '/';
+      return '/clinica';
   }
 }
 

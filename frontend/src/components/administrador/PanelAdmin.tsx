@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Users, Clock, Pill, BarChart3, FileText } from 'lucide-react';
+import { ShieldCheck, Users, Tags, Clock, Pill, BarChart3, FileText } from 'lucide-react';
 import type { SidebarSection } from '../layout/Sidebar';
 import AppShell from '../layout/AppShell';
 import Roles from './Roles';
 import Usuarios from './Usuarios';
+import Catalogos from './Catalogos';
 import Horarios from './Horarios';
 import Medicamentos from './Medicamentos';
 import Reportes from './Reportes';
 import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
 import { obtenerSesion, cerrarSesion, inicialesDe } from '../../services/sesion';
+import { useProtegerSesion } from '../../hooks/useProtegerSesion';
 
 /* ================= MENÚ DEL ADMINISTRADOR ================= */
 const MENU_ADMIN: SidebarSection[] = [
@@ -18,6 +20,7 @@ const MENU_ADMIN: SidebarSection[] = [
     items: [
       { label: 'Roles', icon: ShieldCheck },
       { label: 'Usuarios', icon: Users },
+      { label: 'Catálogos', icon: Tags },
     ],
   },
   {
@@ -34,10 +37,13 @@ const MENU_ADMIN: SidebarSection[] = [
 ];
 
 /* ============================================================
-   PANEL DEL ADMINISTRADOR · Shell con las 5 secciones
+   PANEL DEL ADMINISTRADOR · Shell con las 6 secciones
    Ruta: /admin
    ============================================================ */
 export default function PanelAdmin() {
+  // Sin sesión iniciada, regresa al login
+  useProtegerSesion();
+
   const [vista, setVista] = useState('Roles');
 
   return (
@@ -61,6 +67,8 @@ export default function PanelAdmin() {
           <Roles />
         ) : vista === 'Usuarios' ? (
           <Usuarios />
+        ) : vista === 'Catálogos' ? (
+          <Catalogos />
         ) : vista === 'Horarios' ? (
           <Horarios />
         ) : vista === 'Medicamentos' ? (

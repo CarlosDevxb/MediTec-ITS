@@ -30,6 +30,7 @@ export default function IconButton({
       className={[
         'inline-flex items-center justify-center w-9 h-9 rounded-lg transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40',
+        'disabled:opacity-40 disabled:cursor-not-allowed',
         tone === 'danger'
           ? 'text-gray-400 hover:text-red-600 hover:bg-red-50'
           : 'text-gray-400 hover:text-brand-800 hover:bg-brand-50',

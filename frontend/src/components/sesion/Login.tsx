@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { PasswordInput } from '../ui/Input';
 import { iniciarSesion } from '../../services/auth.service';
-import { rutaSegunRol } from '../../services/sesion';
+import { obtenerSesion, rutaSegunRol } from '../../services/sesion';
 import { mensajeDeError } from '../../services/api';
 
 export default function Login() {
@@ -9,6 +9,12 @@ export default function Login() {
   const [contrasena, setContrasena] = useState('');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
+
+  // Si ya hay sesión iniciada, entra directo a su panel
+  useEffect(() => {
+    const sesion = obtenerSesion();
+    if (sesion) window.location.replace(rutaSegunRol(sesion.usuario.rol));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

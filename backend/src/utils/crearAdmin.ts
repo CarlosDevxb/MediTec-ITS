@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import pool from '../db/pool';
 import { hashearContrasena } from './contrasenas';
+import { ROLES_BASE } from '../config/roles';
 
 /* ============================================================
    UTILIDAD · crearAdmin.ts
@@ -18,14 +19,7 @@ import { hashearContrasena } from './contrasenas';
    se muestra una sola vez en consola.
    ============================================================ */
 
-/** Roles que todo el sistema necesita para funcionar */
-const ROLES_BASE = [
-  { nombre: 'Administrador', descripcion: 'Acceso total a la configuración del sistema' },
-  { nombre: 'Personal médico', descripcion: 'Registra consultas, diagnósticos y recetas' },
-  { nombre: 'Enfermería', descripcion: 'Captura signos vitales y apoya la atención' },
-  { nombre: 'Recepción', descripcion: 'Gestiona la agenda y los datos de pacientes' },
-  { nombre: 'Paciente', descripcion: 'Consulta su información y gestiona sus citas' },
-];
+/** Roles que todo el sistema necesita para funcionar (ver config/roles.ts) */
 
 const GENEROS = ['Masculino', 'Femenino', 'Otro'] as const;
 

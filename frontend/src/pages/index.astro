@@ -1,21 +1,24 @@
 ---
 import '../styles/global.css';
-import Dashboard from '../components/clinica/Dashboard';
-import PanelAdmin from '../components/administrador/PanelAdmin.tsx';
-import PanelNutricion from '../components/nutricion/PanelNutricion.tsx';
-import PanelPaciente from '../components/paciente/PanelPaciente.tsx';
-import Login from '../components/sesion/Login.tsx';
-
 ---
 
 <html lang="es">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
-    <title>Dashboard | MediTec-ITS</title>
+    <title>MediTec-ITS</title>
+    <script>
+      // Punto de entrada de la aplicación: si hay sesión iniciada
+      // entra al panel que corresponde al rol; si no, va al login.
+      import { obtenerSesion, rutaSegunRol } from '../services/sesion';
+
+      const sesion = obtenerSesion();
+      window.location.replace(sesion ? rutaSegunRol(sesion.usuario.rol) : '/login');
+    </script>
   </head>
-  <!-- Reseteamos el body para que el Dashboard tome el control del layout -->
-  <body class="m-0 p-0 overflow-x-hidden">
-    <Login client:load />
+  <body class="m-0 p-0">
+    <div class="min-h-screen flex items-center justify-center bg-brand-50 font-sans">
+      <p class="text-gray-500 text-base">Redirigiendo a MediTec-ITS…</p>
+    </div>
   </body>
 </html>

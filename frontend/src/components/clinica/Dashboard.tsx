@@ -26,6 +26,7 @@ import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
 import { saludoDelDia } from './datos';
 import { obtenerSesion, cerrarSesion, inicialesDe } from '../../services/sesion';
+import { useProtegerSesion } from '../../hooks/useProtegerSesion';
 
 /* ================= DATOS DEL MENÚ (agrupado por contexto) ================= */
 const MENU: SidebarSection[] = [
@@ -58,6 +59,9 @@ const AGENDA = [
 ];
 
 export default function Dashboard() {
+  // Sin sesión iniciada, regresa al login
+  useProtegerSesion();
+
   // Estado para controlar qué pantalla se está viendo
   const [vistaActiva, setVistaActiva] = useState('Inicio');
   // Paciente seleccionado en Pacientes → Historial clínico

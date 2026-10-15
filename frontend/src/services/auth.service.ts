@@ -21,7 +21,7 @@ export async function iniciarSesion(
   numeroControl: string,
   contrasena: string
 ): Promise<RespuestaLogin> {
-  const datos = await apiFetch<RespuestaLogin>('/api/auth/login', {
+  const datos = await apiFetch<RespuestaLogin>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ numeroControl, contrasena }),
   });

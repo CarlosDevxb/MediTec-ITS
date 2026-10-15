@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react';
 
 /* ============================================================
-   useAviso · Hook de confirmaciones con auto-cierre
-   devuelve { aviso, mostrar(mensaje), cerrar() }
+   useAviso · Confirmaciones y errores con auto-cierre
+   devuelve { aviso, tipo, mostrar(mensaje, tipo?), cerrar() }
+
+   tipo: 'exito' | 'error' | 'info'
    ============================================================ */
 
-export function useAviso(duracion = 4000) {
+export type TipoAviso = 'exito' | 'error' | 'info';
+
+export function useAviso(duracion = 5000) {
   const [aviso, setAviso] = useState('');
+  const [tipo, setTipo] = useState<TipoAviso>('exito');
 
   useEffect(() => {
     if (!aviso) return;
@@ -14,5 +19,14 @@ export function useAviso(duracion = 4000) {
     return () => clearTimeout(timer);
   }, [aviso, duracion]);
 
-  return { aviso, mostrar: setAviso, cerrar: () => setAviso('') };
+  return {
+    aviso,
+    tipo,
+    /** Muestra el aviso; por defecto es de éxito */
+    mostrar: (mensaje: string, nuevoTipo: TipoAviso = 'exito') => {
+      setTipo(nuevoTipo);
+      setAviso(mensaje);
+    },
+    cerrar: () => setAviso(''),
+  };
 }
