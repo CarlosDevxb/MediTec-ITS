@@ -1,13 +1,13 @@
 /* ============================================================
-   TIPOS Y DATOS · Sección del administrador
+   TIPOS Y DATOS · Fixtures de demostración de Reportes
 
-   Los tipos de Rol y Usuario viven ahora en
-   `src/services/administracion.service.ts` (una sola fuente de
-   verdad, compartida con la API) y se importan desde ahí.
+   IMPORTANTE: estos datos solo los consume `Reportes.tsx` (módulo
+   Análisis, todavía sin conectar a la API). Las secciones de
+   Horarios y Medicamentos ya NO viven aquí: usan datos reales de
+   `/api/horarios` y `/api/medicamentos` vía
+   `src/services/operacion.service.ts`.
 
-   Los datos de demostración que quedan aquí pertenecen a las
-   secciones que todavía NO tienen backend (Horarios y
-   Medicamentos). Se eliminarán cuando se conecten.
+   Este archivo se elimina cuando se conecte Reportes.
    ============================================================ */
 
 export interface Horario {
@@ -26,18 +26,6 @@ export interface Medicamento {
   stock: number;
   descripcion: string;
 }
-
-/* ---------------- Catálogos para selects ---------------- */
-
-export const OPCIONES_DIA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-
-export const OPCIONES_UNIDAD = ['cápsulas', 'comprimidos', 'bolsas', 'ml', 'gramos'];
-
-export const OPCIONES_PERSONAL = [
-  { nombre: 'Dra. Paola Janeth', especialidad: 'Odontología' },
-  { nombre: 'Dr. Miguel Sandoval', especialidad: 'Medicina general' },
-  { nombre: 'Enf. Lucía Ramos', especialidad: 'Enfermería' },
-];
 
 /* ---------------- Datos de demostración (pendientes de API) ---------------- */
 

@@ -21,6 +21,7 @@ cd frontend && npm run dev           # Web en http://localhost:4321 (o astro dev
 | `ui-astro` | Pantallas y componentes en `frontend/` (Astro + React + Tailwind v4) |
 | `db-mysql` | `database/init.sql`, tablas, catálogos, seeds y MySQL en Docker |
 | `seguridad-clinica` | Auth, roles, permisos y cualquier manejo de expedientes |
+| `ux-calidad` | Estándar UX: modales de confirmación y validación en tiempo real (duplicados, formatos) al crear o retocar pantallas y formularios |
 
 También aplica `frontend/AGENTS.md` (servidor Astro en segundo plano) si trabajas
 en la interfaz.
@@ -48,13 +49,19 @@ en la interfaz.
 
 ## Estado actual (referencia)
 
-**Con backend ya conectado:** `/api/roles`, `/api/usuarios` y `/api/catalogos` (CRUD
-completo). Las secciones Roles, Usuarios y Catálogos del panel `/admin` leen y
+**Con backend ya conectado:** `/api/roles`, `/api/usuarios`, `/api/catalogos`,
+`/api/personal-medico`, `/api/horarios` y `/api/medicamentos`. Las secciones
+Roles, Usuarios, Catálogos, Horarios y Medicamentos del panel `/admin` leen y
 escriben en MySQL; no usan datos de demostración.
 
-**Pendientes de conectar:** Horarios y Medicamentos siguen con datos locales
-(`tipos.ts`, marcados como demo) y el resto de paneles (clínica, nutrición,
-paciente) también funciona con datos de ejemplo.
+Reglas de negocio del módulo Operación ya implementadas: la clínica solo opera
+de lunes a viernes, los turnos duplicados exactos (mismo personal, día y rango)
+se rechazan y los medicamentos no se eliminan — el stock en 0 los deja no
+disponibles para consultas futuras.
+
+**Pendientes de conectar:** Reportes aún usa fixtures locales (`tipos.ts`,
+marcados como demo) y el resto de paneles (clínica, nutrición, paciente)
+también funciona con datos de ejemplo.
 
 **Regla al conectar una sección nueva:** empieza por el servicio (SQL), sigue por el
 controlador y la ruta, y al final sustituye el fixture de la vista. Usa `apiFetch`

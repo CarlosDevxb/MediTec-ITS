@@ -3,6 +3,9 @@ import authRoutes from './auth.routes';
 import rolesRoutes from './roles.routes';
 import usuariosRoutes from './usuarios.routes';
 import catalogosRoutes from './catalogos.routes';
+import personalRoutes from './personal.routes';
+import horariosRoutes from './horarios.routes';
+import medicamentosRoutes from './medicamentos.routes';
 
 const rutas = Router();
 
@@ -18,5 +21,10 @@ rutas.use('/auth', authRoutes);
 rutas.use('/roles', rolesRoutes);
 rutas.use('/usuarios', usuariosRoutes);
 rutas.use('/catalogos', catalogosRoutes);
+
+/** Operación · personal clínico, horarios e inventario de medicamentos */
+rutas.use('/personal-medico', personalRoutes);
+rutas.use('/horarios', horariosRoutes);
+rutas.use('/medicamentos', medicamentosRoutes);
 
 export default rutas;

@@ -51,6 +51,10 @@ No recrees controles: usa los existentes.
 - **Todo en español**: nombres de componentes (`CuestionarioSalud.tsx`), variables,
   estados, textos de UI y mensajes de error.
 - Componentes función con `interface XxxProps` tipada y **export default**.
+- **Hooks siempre antes de cualquier `return` temprano** (subpáginas, estados de
+  carga…): un render con menos hooks que el anterior lanza una excepción de
+  React y deja la pantalla en blanco. Calcula los `useMemo`/`useState` arriba y
+  deja los `if (...) return ...` después de todos los hooks.
 - Encabezado de bloque en cada archivo:
   `/* ==== NOMBRE · descripción breve ==== */` (una línea de `=` por lado).
 - Clases Tailwind compuestas, siguiendo el patrón existente:
