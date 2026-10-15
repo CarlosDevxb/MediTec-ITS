@@ -6,6 +6,9 @@ import catalogosRoutes from './catalogos.routes';
 import personalRoutes from './personal.routes';
 import horariosRoutes from './horarios.routes';
 import medicamentosRoutes from './medicamentos.routes';
+import pacientesRoutes from './pacientes.routes';
+import citasRoutes from './citas.routes';
+import consultasRoutes from './consultas.routes';
 
 const rutas = Router();
 
@@ -26,5 +29,10 @@ rutas.use('/catalogos', catalogosRoutes);
 rutas.use('/personal-medico', personalRoutes);
 rutas.use('/horarios', horariosRoutes);
 rutas.use('/medicamentos', medicamentosRoutes);
+
+/** Atención clínica · expedientes, agenda de citas y consultas */
+rutas.use('/pacientes', pacientesRoutes);
+rutas.use('/citas', citasRoutes);
+rutas.use('/consultas', consultasRoutes);
 
 export default rutas;

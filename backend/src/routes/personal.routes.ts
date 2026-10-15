@@ -9,11 +9,17 @@ import * as controlador from '../controllers/personal.controller';
  *   GET /api/personal-medico → personal activo (cuentas habilitadas)
  *
  * Solo lectura: las fichas se crean y editan desde la sección Usuarios
- * (roles con cédula: Personal médico y Enfermería). La lista incluye datos
- * del personal, así que es exclusiva del rol Administrador.
+ * (roles con cédula: Personal médico y Enfermería). La lista acompaña datos
+ * del personal, por lo que es exclusiva del personal clínico y del
+ * Administrador (la agenda de citas necesita saber a quién asignarla).
  */
 const rutas = Router();
 
-rutas.get('/', verificarToken, requerirRol('Administrador'), controlador.listarPersonal);
+rutas.get(
+  '/',
+  verificarToken,
+  requerirRol('Administrador', 'Personal médico', 'Enfermería'),
+  controlador.listarPersonal,
+);
 
 export default rutas;

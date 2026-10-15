@@ -29,6 +29,11 @@ export function errorNoEncontrado(mensaje: string): ErrorHttp {
   return new ErrorHttp(404, mensaje);
 }
 
+/** 403 · la cuenta no tiene permiso para esta operación */
+export function errorProhibido(mensaje: string): ErrorHttp {
+  return new ErrorHttp(403, mensaje);
+}
+
 /** 409 · conflicto con el estado actual (duplicado o registro en uso) */
 export function errorConflicto(mensaje: string): ErrorHttp {
   return new ErrorHttp(409, mensaje);

@@ -56,6 +56,35 @@ export async function asegurarPersonalActivo(personalMedicoId: number): Promise<
   }
 }
 
+/**
+ * Busca la ficha de personal de una cuenta (quien atiende).
+ * Doctor y enfermería tienen ficha por su rol; si no existe, la cuenta no
+ * puede registrar consultas.
+ */
+export async function buscarPersonalPorUsuario(
+  usuarioId: number,
+): Promise<PersonalMedico | null> {
+  const [filas] = await pool.query(
+    `SELECT pm.id_personal_medico AS id,
+            u.nombre             AS nombre,
+            pm.especialidad      AS especialidad,
+            pm.cedula            AS cedula
+       FROM personal_medico pm
+       JOIN usuarios u ON u.id_usuarios = pm.usuarios_id_usuarios
+      WHERE pm.usuarios_id_usuarios = ?
+      LIMIT 1`,
+    [usuarioId],
+  );
+  const fila = (filas as Array<Record<string, unknown>>)[0];
+  if (!fila) return null;
+  return {
+    id: Number(fila['id']),
+    nombre: String(fila['nombre'] ?? ''),
+    especialidad: String(fila['especialidad'] ?? ''),
+    cedula: String(fila['cedula'] ?? ''),
+  };
+}
+
 /** Busca una ficha de personal por id (para armar respuestas y mensajes) */
 export async function buscarPersonal(personalMedicoId: number): Promise<PersonalMedico> {
   const [filas] = await pool.query(

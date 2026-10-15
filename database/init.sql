@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`cita` (
   `fecha` DATE NOT NULL,
   `hora` TIME NOT NULL,
   `motivo` VARCHAR(255) NOT NULL,
-  `tipo_cita` ENUM('Programada', 'Emergencia') NOT NULL DEFAULT 'Programada',
+  `tipo_cita` ENUM('Programada', 'Emergencia', 'Atención directa') NOT NULL DEFAULT 'Programada' COMMENT 'Atención directa = cita creada automáticamente al atender sin cita previa (doctor y enfermería)',
   `estatus` ENUM('Pendiente', 'Confirmada', 'Cancelada', 'Completada') NULL DEFAULT 'Pendiente',
   PRIMARY KEY (`id_cita`),
   INDEX `personal_medico_id_personal_medico` (`personal_medico_id_personal_medico` ASC) VISIBLE,

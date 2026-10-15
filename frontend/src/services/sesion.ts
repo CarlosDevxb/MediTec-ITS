@@ -58,9 +58,14 @@ export function rutaSegunRol(rol: string): string {
       return '/admin';
     case 'Paciente':
       return '/paciente';
-    // Personal médico, Enfermería y Recepción operan el panel clínico
+    case 'Personal médico':
+      return '/doctor';
+    case 'Enfermería':
+      return '/enfermeria';
+    // Recepción opera de momento el panel de enfermería (altas y agenda);
+    // tendrá su propio panel cuando exista la agenda pública
     default:
-      return '/clinica';
+      return '/enfermeria';
   }
 }
 

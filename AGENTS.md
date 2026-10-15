@@ -50,24 +50,33 @@ en la interfaz.
 ## Estado actual (referencia)
 
 **Con backend ya conectado:** `/api/roles`, `/api/usuarios`, `/api/catalogos`,
-`/api/personal-medico`, `/api/horarios` y `/api/medicamentos` (incluyen alta
-masiva vía `/importar` desde Excel). Las secciones Roles, Usuarios, Catálogos,
-Horarios, Medicamentos y Reportes del panel `/admin` leen y escriben en MySQL;
-no usan datos de demostración.
+`/api/personal-medico`, `/api/horarios`, `/api/medicamentos`, `/api/pacientes`,
+`/api/citas` y `/api/consultas` (las tres de inventario incluyen alta masiva
+vía `/importar` desde Excel). Los paneles `/admin`, `/doctor` y `/enfermeria`
+leen y escriben en MySQL; no usan datos de demostración.
 
-Reglas de negocio del módulo Operación ya implementadas: la clínica solo opera
-de lunes a viernes, los turnos duplicados exactos (mismo personal, día y rango)
-se rechazan y los medicamentos no se eliminan — el stock en 0 los deja no
-disponibles para consultas futuras.
+Reglas de negocio ya implementadas: la clínica solo opera de lunes a viernes,
+los turnos duplicados exactos se rechazan, los medicamentos no se eliminan (el
+stock en 0 los deja no disponibles para consultas) y **toda consulta deriva de
+una cita**: al atender sin cita previa (doctor y enfermería) el alta crea antes
+la auto-cita `Atención directa` y enseguida la consulta, en una transacción con
+descuento de insumos.
+
+**Paneles por rol:** `/doctor` (Personal médico: resumen, nueva consulta,
+agenda y expedientes) y `/enfermeria` (Enfermería: resumen, altas de pacientes
+y agenda; Recepción entra aquí de forma provisional). Los componentes clínicos
+compartidos viven en `frontend/src/components/atencion/` y el cliente API en
+`src/services/atencion.service.ts`.
 
 Importación / exportación en Excel (`frontend/src/services/excel.service.ts` +
 `ImportadorExcel.tsx`): plantilla descargable, avisos previos de captura,
 confirmación con modal y resultado por fila; las contraseñas no se exportan
 nunca y las temporales del alta masiva se muestran una sola vez.
 
-**Pendientes de conectar:** el reporte "Actividad de la clínica" sigue con datos
-de demostración (falta el módulo de consultas) y los paneles de clínica,
-nutrición y paciente funcionan con datos de ejemplo.
+**Pendientes de conectar:** el reporte "Actividad de la clínica" (ahora puede
+calcularse con las consultas reales), los planes de nutrición y el portal del
+paciente siguen con datos de ejemplo; los componentes demo que comparten están
+en `frontend/src/components/clinica/` (solo los usan nutrición y paciente).
 
 **Regla al conectar una sección nueva:** empieza por el servicio (SQL), sigue por el
 controlador y la ruta, y al final sustituye el fixture de la vista. Usa `apiFetch`
