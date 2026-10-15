@@ -1,5 +1,5 @@
 import pool from '../db/pool';
-import { hashearContrasena } from '../utils/contrasenas';
+import { generarContrasenaTemporal, hashearContrasena } from '../utils/contrasenas';
 import { requiereCedula, esRolPaciente, requiereCarrera } from '../config/roles';
 import { errorConflicto, errorNoEncontrado, errorValidacion } from '../utils/erroresHttp';
 
@@ -440,6 +440,31 @@ export async function actualizarUsuario(
  * fuera del sistema. Tampoco se puede desactivar al último administrador
  * activo, o nadie podría volver a administrar el sistema.
  */
+/**
+ * Restablece la contraseña de una cuenta (contraseñas perdidas).
+ * Si no se proporciona contraseña, se genera una temporal que se devuelve
+ * una sola vez para entregársela a la persona.
+ */
+export async function restablecerContrasena(
+  id: number,
+  contrasena?: string,
+): Promise<{ nombre: string; contrasenaTemporal?: string }> {
+  const actual = await buscarUsuario(id);
+  if (!actual) throw errorNoEncontrado('El usuario no existe.');
+
+  const contrasenaPropia = contrasena?.trim();
+  const nueva = contrasenaPropia || generarContrasenaTemporal();
+  const hash = await hashearContrasena(nueva);
+  await pool.query('UPDATE usuarios SET contraseña = ? WHERE id_usuarios = ?', [hash, id]);
+
+  return {
+    nombre: actual.nombre,
+    // Solo se muestra la temporal: una contraseña capturada por el
+    // administrador nunca se devuelve en las respuestas
+    ...(contrasenaPropia ? {} : { contrasenaTemporal: nueva }),
+  };
+}
+
 export async function cambiarEstatus(
   id: number,
   activo: boolean,

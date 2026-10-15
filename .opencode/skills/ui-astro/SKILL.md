@@ -44,6 +44,7 @@ No recrees controles: usa los existentes.
 | `IconButton` | Acción iconográfica, requiere `aria-label` |
 | `Aviso` / `useAviso` | Toasts en línea: `mostrar(mensaje, 'exito' | 'error' | 'info')` |
 | `Modal` | Diálogo de confirmación: cierra con Escape, fondo y botón; recibe `acciones` como pie |
+| `ModalResultado` | Confirmación visible de que una acción ya se hizo (usuario deshabilitado, rol eliminado…): modal de resultado con `titulo`, `mensaje` y `tipo` |
 | `EstadoVista` | Envuelve una sección y muestra por sí sola el estado "cargando" o el de error, con botón de reintentar |
 
 ## Convenciones

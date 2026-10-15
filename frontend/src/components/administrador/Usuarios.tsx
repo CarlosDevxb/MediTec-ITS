@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Pencil, UserX, UserCheck, Trash2, CircleAlert, Download, Upload } from 'lucide-react';
+import { Plus, Search, Pencil, UserX, UserCheck, Trash2, CircleAlert, Download, Upload, KeyRound } from 'lucide-react';
 import PageHeader from '../ui/PageHeader';
 import Button from '../ui/Button';
 import Aviso from '../ui/Aviso';
@@ -8,8 +8,9 @@ import Badge from '../ui/Badge';
 import EstadoVista from '../ui/EstadoVista';
 import DataTable from '../ui/DataTable';
 import Modal from '../ui/Modal';
+import ModalResultado from '../ui/ModalResultado';
 import type { Column } from '../ui/DataTable';
-import { Input, Select } from '../ui/Input';
+import { Field, Input, Select } from '../ui/Input';
 import { useAviso } from '../ui/useAviso';
 import { mensajeDeError } from '../../services/api';
 import { descargarExcel, nombreArchivo } from '../../services/excel.service';
@@ -22,6 +23,7 @@ import {
   cambiarEstatusUsuario,
   eliminarUsuario,
   importarUsuarios,
+  restablecerContrasena,
   type Rol,
   type Usuario,
 } from '../../services/administracion.service';
@@ -111,6 +113,17 @@ export default function Usuarios() {
 
   const [subvista, setSubvista] = useState<Subvista>({ modo: 'lista' });
   const [pendiente, setPendiente] = useState<Pendiente | null>(null);
+  /** Resultado visible de la última acción (modal de confirmación) */
+  const [resultado, setResultado] = useState<{
+    titulo: string;
+    mensaje: string;
+    tipo: 'exito' | 'error';
+  } | null>(null);
+  /** Restablecimiento de contraseña en curso */
+  const [pendienteReset, setPendienteReset] = useState<Usuario | null>(null);
+  const [resetContrasena, setResetContrasena] = useState('');
+  /** Contraseña temporal generada (se muestra una sola vez) */
+  const [temporal, setTemporal] = useState<{ nombre: string; contrasena: string } | null>(null);
   const { aviso, tipo, mostrar, cerrar } = useAviso();
 
   const [busqueda, setBusqueda] = useState('');
@@ -184,21 +197,53 @@ export default function Usuarios() {
     try {
       if (pendiente.tipo === 'eliminar') {
         await eliminarUsuario(pendiente.usuario.id);
-        mostrar(`Usuario "${pendiente.usuario.nombre}" eliminado.`);
         setUsuarios((prev) => prev.filter((u) => u.id !== pendiente.usuario.id));
+        setResultado({
+          titulo: 'Usuario eliminado',
+          mensaje: `La cuenta de ${pendiente.usuario.nombre} se eliminó del sistema.`,
+          tipo: 'exito',
+        });
       } else {
         const usuario = await cambiarEstatusUsuario(pendiente.usuario.id, pendiente.activo);
-        mostrar(
-          pendiente.activo
-            ? `Cuenta de ${usuario.nombre} habilitada.`
-            : `Cuenta de ${usuario.nombre} deshabilitada.`,
-        );
         setUsuarios((prev) => prev.map((u) => (u.id === usuario.id ? usuario : u)));
+        setResultado({
+          titulo: pendiente.activo ? 'Cuenta habilitada' : 'Cuenta deshabilitada',
+          mensaje: pendiente.activo
+            ? `${usuario.nombre} ya puede volver a iniciar sesión.`
+            : `${usuario.nombre} ya no puede iniciar sesión; sus registros se conservan.`,
+          tipo: 'exito',
+        });
       }
       setPendiente(null);
     } catch (e) {
       mostrar(mensajeDeError(e), 'error');
       setPendiente(null);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  /* ---------- Restablecimiento de contraseña ---------- */
+  const ejecutarReset = async () => {
+    if (!pendienteReset) return;
+    setGuardando(true);
+    try {
+      const datos = await restablecerContrasena(pendienteReset.id, resetContrasena || undefined);
+      setPendienteReset(null);
+      setResetContrasena('');
+      if (datos.contrasenaTemporal) {
+        // Se muestra una sola vez, para entregársela a la persona
+        setTemporal({ nombre: datos.nombre, contrasena: datos.contrasenaTemporal });
+      } else {
+        setResultado({
+          titulo: 'Contraseña actualizada',
+          mensaje: `Se definió una nueva contraseña para ${datos.nombre}.`,
+          tipo: 'exito',
+        });
+      }
+    } catch (e) {
+      mostrar(mensajeDeError(e), 'error');
+      setPendienteReset(null);
     } finally {
       setGuardando(false);
     }
@@ -380,6 +425,14 @@ export default function Usuarios() {
               onClick={() => setSubvista({ modo: 'editar', usuario })}
             />
             <IconButton
+              icon={KeyRound}
+              label={`Restablecer contraseña de ${usuario.nombre}`}
+              onClick={() => {
+                setResetContrasena('');
+                setPendienteReset(usuario);
+              }}
+            />
+            <IconButton
               icon={usuario.estatus === 'Activo' ? UserX : UserCheck}
               label={
                 esMiCuenta
@@ -551,6 +604,71 @@ export default function Usuarios() {
             </p>
           )}
         </Modal>
+      )}
+
+      {/* Restablecimiento de contraseña (contraseñas perdidas) */}
+      {pendienteReset && (
+        <Modal
+          titulo={`¿Restablecer la contraseña de ${pendienteReset.nombre}?`}
+          descripcion="Útil cuando la persona olvidó su contraseña y necesita volver a entrar."
+          icono={KeyRound}
+          onCerrar={() => setPendienteReset(null)}
+          acciones={
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => setPendienteReset(null)}
+                disabled={guardando}
+              >
+                Cancelar
+              </Button>
+              <Button icon={KeyRound} loading={guardando} onClick={() => void ejecutarReset()}>
+                Restablecer
+              </Button>
+            </>
+          }
+        >
+          <Field label="Nueva contraseña" hint="Opcional: si la dejas vacía, se genera una temporal que se mostrará una sola vez.">
+            <Input
+              type="text"
+              value={resetContrasena}
+              onChange={(e) => setResetContrasena(e.target.value)}
+              placeholder="Mínimo 8 caracteres"
+              minLength={8}
+            />
+          </Field>
+        </Modal>
+      )}
+
+      {/* Contraseña temporal generada (se muestra una sola vez) */}
+      {temporal && (
+        <Modal
+          titulo={`Contraseña temporal de ${temporal.nombre}`}
+          icono={KeyRound}
+          onCerrar={() => setTemporal(null)}
+          acciones={
+            <Button icon={KeyRound} onClick={() => setTemporal(null)}>
+              Entendido
+            </Button>
+          }
+        >
+          <p className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900 mb-4">
+            Guárdala ahora y entrégasela a la persona: no se volverá a mostrar.
+          </p>
+          <p className="font-mono text-lg bg-gray-100 px-4 py-3 rounded-lg text-center">
+            {temporal.contrasena}
+          </p>
+        </Modal>
+      )}
+
+      {/* Confirmación visible de la última acción */}
+      {resultado && (
+        <ModalResultado
+          titulo={resultado.titulo}
+          mensaje={resultado.mensaje}
+          tipo={resultado.tipo}
+          onCerrar={() => setResultado(null)}
+        />
       )}
     </div>
   );

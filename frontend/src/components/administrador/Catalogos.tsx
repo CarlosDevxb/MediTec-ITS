@@ -6,6 +6,7 @@ import IconButton from '../ui/IconButton';
 import EstadoVista from '../ui/EstadoVista';
 import DataTable from '../ui/DataTable';
 import Modal from '../ui/Modal';
+import ModalResultado from '../ui/ModalResultado';
 import type { Column } from '../ui/DataTable';
 import { useAviso } from '../ui/useAviso';
 import { mensajeDeError } from '../../services/api';
@@ -46,6 +47,12 @@ export default function Catalogos() {
 
   const [subvista, setSubvista] = useState<Subvista>({ modo: 'lista' });
   const [aEliminar, setAEliminar] = useState<ValorCatalogo | null>(null);
+  /** Resultado visible de la última acción (modal de confirmación) */
+  const [resultado, setResultado] = useState<{
+    titulo: string;
+    mensaje: string;
+    tipo: 'exito' | 'error';
+  } | null>(null);
   const { aviso, tipo, mostrar, cerrar } = useAviso();
 
   const catalogo = catalogos.find((c) => c.id === catalogoId) ?? null;
@@ -150,7 +157,11 @@ export default function Catalogos() {
       setCatalogos((prev) =>
         prev.map((c) => (c.id === catalogo.id ? { ...c, total: Math.max(0, c.total - 1) } : c)),
       );
-      mostrar(`${catalogo.singular} "${nombre}" eliminado del catálogo.`);
+      setResultado({
+        titulo: 'Valor eliminado',
+        mensaje: `"${nombre}" se quitó del catálogo de ${catalogo.titulo.toLowerCase()}.`,
+        tipo: 'exito',
+      });
       setAEliminar(null);
     } catch (e) {
       // Se mantiene el modal abierto para que el error sea visible y se pueda reintentar
@@ -356,6 +367,16 @@ export default function Catalogos() {
             podrá eliminar hasta que deje de usarse.
           </p>
         </Modal>
+      )}
+
+      {/* Confirmación visible de la última acción */}
+      {resultado && (
+        <ModalResultado
+          titulo={resultado.titulo}
+          mensaje={resultado.mensaje}
+          tipo={resultado.tipo}
+          onCerrar={() => setResultado(null)}
+        />
       )}
     </div>
   );

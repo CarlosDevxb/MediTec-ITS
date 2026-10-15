@@ -7,6 +7,7 @@ import IconButton from '../ui/IconButton';
 import EstadoVista from '../ui/EstadoVista';
 import DataTable from '../ui/DataTable';
 import Modal from '../ui/Modal';
+import ModalResultado from '../ui/ModalResultado';
 import type { Column } from '../ui/DataTable';
 import { useAviso } from '../ui/useAviso';
 import { mensajeDeError } from '../../services/api';
@@ -34,6 +35,12 @@ export default function Roles() {
 
   const [subvista, setSubvista] = useState<Subvista>({ modo: 'lista' });
   const [aEliminar, setAEliminar] = useState<Rol | null>(null);
+  /** Resultado visible de la última acción (modal de confirmación) */
+  const [resultado, setResultado] = useState<{
+    titulo: string;
+    mensaje: string;
+    tipo: 'exito' | 'error';
+  } | null>(null);
   const { aviso, tipo, mostrar, cerrar } = useAviso();
 
   const cargar = useCallback(async () => {
@@ -83,7 +90,11 @@ export default function Roles() {
       await eliminarRol(aEliminar.id);
       const nombre = aEliminar.nombre;
       setRoles((prev) => prev.filter((r) => r.id !== aEliminar.id));
-      mostrar(`Rol "${nombre}" eliminado.`);
+      setResultado({
+        titulo: 'Rol eliminado',
+        mensaje: `El rol "${nombre}" ya no está disponible para asignar cuentas.`,
+        tipo: 'exito',
+      });
       setAEliminar(null);
     } catch (e) {
       mostrar(mensajeDeError(e), 'error');
@@ -223,6 +234,16 @@ export default function Roles() {
             </p>
           )}
         </Modal>
+      )}
+
+      {/* Confirmación visible de la última acción */}
+      {resultado && (
+        <ModalResultado
+          titulo={resultado.titulo}
+          mensaje={resultado.mensaje}
+          tipo={resultado.tipo}
+          onCerrar={() => setResultado(null)}
+        />
       )}
     </div>
   );

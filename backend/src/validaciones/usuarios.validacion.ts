@@ -152,6 +152,23 @@ export const esquemaEstatus = z.object({
   estatus: z.coerce.boolean({ error: 'Indica el estatus de la cuenta.' }),
 });
 
+/**
+ * Restablecimiento de contraseña por el administrador (contraseñas perdidas).
+ * Si no viene contraseña, el sistema genera una temporal que se muestra una
+ * sola vez para entregársela a la persona.
+ */
+export const esquemaNuevaContrasena = z.object({
+  contrasena: z
+    .string()
+    .trim()
+    .min(8, 'La contraseña debe tener al menos 8 caracteres.')
+    .max(72, 'La contraseña no puede exceder 72 caracteres.')
+    .optional()
+    .or(z.literal('')),
+});
+
+export type DatosNuevaContrasena = z.infer<typeof esquemaNuevaContrasena>;
+
 /** Convierte los errores de Zod al formato de la API */
 export function detallesDeZod(error: z.ZodError) {
   return error.issues.map((issue) => ({

@@ -108,6 +108,27 @@ export async function eliminarUsuario(req: Request, res: Response, next: NextFun
 }
 
 /**
+ * PATCH /api/usuarios/:id/contrasena · restablecimiento (contraseñas perdidas).
+ * Sin contraseña en el cuerpo, el sistema genera una temporal y la devuelve
+ * una sola vez para entregársela a la persona.
+ */
+export async function restablecerContrasena(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = leerId(req.params.id);
+    const { contrasena } = req.body as { contrasena?: string };
+    const resultado = await servicio.restablecerContrasena(id, contrasena);
+    res.json({
+      mensaje: resultado.contrasenaTemporal
+        ? `Contraseña temporal generada para ${resultado.nombre}.`
+        : `Contraseña de ${resultado.nombre} actualizada.`,
+      datos: resultado,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * POST /api/usuarios/importar · alta masiva desde un archivo de Excel.
  *
  * La validación de formato se hace fila por fila (no con el middleware

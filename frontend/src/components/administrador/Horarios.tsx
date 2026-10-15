@@ -22,6 +22,7 @@ import EmptyState from '../ui/EmptyState';
 import EstadoVista from '../ui/EstadoVista';
 import DataTable from '../ui/DataTable';
 import Modal from '../ui/Modal';
+import ModalResultado from '../ui/ModalResultado';
 import StatCard from '../ui/StatCard';
 import IconButton from '../ui/IconButton';
 import type { Column } from '../ui/DataTable';
@@ -124,6 +125,12 @@ export default function Horarios() {
   const [subvista, setSubvista] = useState<Subvista>({ modo: 'lista' });
   /** Turno pendiente de borrado (espera confirmación en el modal) */
   const [pendiente, setPendiente] = useState<Horario | null>(null);
+  /** Resultado visible de la última acción (modal de confirmación) */
+  const [resultado, setResultado] = useState<{
+    titulo: string;
+    mensaje: string;
+    tipo: 'exito' | 'error';
+  } | null>(null);
   const [modoVista, setModoVista] = useState<'calendario' | 'lista'>('calendario');
   const { aviso, tipo, mostrar, cerrar } = useAviso();
 
@@ -197,7 +204,13 @@ export default function Horarios() {
     try {
       await eliminarHorario(pendiente.id);
       setHorarios((prev) => prev.filter((h) => h.id !== pendiente.id));
-      mostrar(`Turno de ${pendiente.personal} eliminado.`);
+      setResultado({
+        titulo: 'Turno eliminado',
+        mensaje: `El turno de ${pendiente.personal} (${nombreDeDia(
+          pendiente.diaSemana,
+        )} de ${pendiente.horaInicio} a ${pendiente.horaFin}) ya no aparece en el calendario.`,
+        tipo: 'exito',
+      });
       setPendiente(null);
       setSubvista({ modo: 'lista' });
     } catch (e) {
@@ -268,6 +281,16 @@ export default function Horarios() {
     </Modal>
   ) : null;
 
+  /** Confirmación visible de la última acción (se muestra en ambas vistas) */
+  const modalResultado = resultado ? (
+    <ModalResultado
+      titulo={resultado.titulo}
+      mensaje={resultado.mensaje}
+      tipo={resultado.tipo}
+      onCerrar={() => setResultado(null)}
+    />
+  ) : null;
+
   if (subvista.modo !== 'lista') {
     return (
       <>
@@ -286,6 +309,7 @@ export default function Horarios() {
           }
         />
         {modalBorrado}
+        {modalResultado}
       </>
     );
   }
@@ -746,6 +770,9 @@ export default function Horarios() {
 
       {/* Confirmación de borrado del turno */}
       {modalBorrado}
+
+      {/* Confirmación visible de la última acción */}
+      {modalResultado}
     </div>
   );
 }

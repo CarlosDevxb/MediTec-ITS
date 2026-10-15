@@ -37,10 +37,11 @@ export default function Aviso({ mensaje, tipo = 'exito', onCerrar }: AvisoProps)
   return (
     <div
       role={tipo === 'error' ? 'alert' : 'status'}
-      className={`mb-6 flex items-center justify-between gap-4 border text-base px-4 py-3.5 rounded-lg ${clases}`}
+      aria-live={tipo === 'error' ? 'assertive' : 'polite'}
+      className={`mb-6 flex items-center justify-between gap-4 border text-base font-medium px-5 py-4 rounded-lg shadow-md ${clases}`}
     >
       <span className="flex items-center gap-2.5">
-        <Icono size={18} className="shrink-0" aria-hidden="true" />
+        <Icono size={20} className="shrink-0" aria-hidden="true" />
         {mensaje}
       </span>
       <button

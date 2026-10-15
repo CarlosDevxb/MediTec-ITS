@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 
 export type TipoAviso = 'exito' | 'error' | 'info';
 
-export function useAviso(duracion = 5000) {
+export function useAviso(duracion = 7000) {
   const [aviso, setAviso] = useState('');
   const [tipo, setTipo] = useState<TipoAviso>('exito');
 

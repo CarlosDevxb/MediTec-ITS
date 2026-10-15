@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   Users,
@@ -6,14 +6,13 @@ import {
   Clock,
   Stethoscope,
   Download,
-  CircleAlert,
 } from 'lucide-react';
 import PageHeader from '../ui/PageHeader';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import StatCard from '../ui/StatCard';
 import EstadoVista from '../ui/EstadoVista';
-import { Select } from '../ui/Input';
+import { Input, Select } from '../ui/Input';
 import { mensajeDeError } from '../../services/api';
 import { listarRoles, type Rol } from '../../services/administracion.service';
 import {
@@ -23,16 +22,21 @@ import {
   type Medicamento,
   type Horario,
 } from '../../services/operacion.service';
+import {
+  listarConsultas,
+  fechaCorta,
+  hoyISO,
+  type ConsultaResumen,
+} from '../../services/atencion.service';
 import { generarReportePDF, type ReportePDF } from './reportesPdf';
 
 /* ============================================================
    VISTA: REPORTES · Selector de reportes predeterminados
    Elige un reporte y el panel muestra su visualización.
 
-   Usuarios, inventario y horarios se leen de MySQL (las mismas
-   fuentes que las secciones de administración). El reporte de
-   actividad sigue con datos de demostración hasta que exista el
-   módulo de consultas.
+   Usuarios, inventario, horarios y actividad se leen de MySQL
+   (las mismas fuentes que las secciones del sistema). El reporte
+   de actividad admite un periodo y lo muestra en el PDF.
    ============================================================ */
 
 type TipoReporte = 'actividad' | 'usuarios' | 'inventario' | 'horarios';
@@ -44,8 +48,8 @@ interface ReporteDef {
 
 const REPORTES: Record<TipoReporte, ReporteDef> = {
   actividad: {
-    nombre: 'Actividad de la clínica',
-    descripcion: 'Consultas por mes y diagnósticos más frecuentes',
+    nombre: 'Actividad de la enfermería',
+    descripcion: 'Consultas registradas y diagnósticos más frecuentes en el periodo',
   },
   usuarios: {
     nombre: 'Usuarios por rol',
@@ -61,28 +65,8 @@ const REPORTES: Record<TipoReporte, ReporteDef> = {
   },
 };
 
-/* ---------------- Datos de los reportes ---------------- */
+/* ---------------- Constantes de los reportes ---------------- */
 
-/** Consultas por mes (los últimos 6 meses) */
-const CONSULTAS_MES = [
-  { mes: 'Abr', valor: 96 },
-  { mes: 'May', valor: 112 },
-  { mes: 'Jun', valor: 104 },
-  { mes: 'Jul', valor: 130 },
-  { mes: 'Ago', valor: 121 },
-  { mes: 'Sep', valor: 142 },
-];
-
-/** Diagnósticos más registrados del mes */
-const DIAGNOSTICOS = [
-  { nombre: 'Faringitis aguda', casos: 38 },
-  { nombre: 'Gripe influenza', casos: 27 },
-  { nombre: 'Hipertensión leve', casos: 19 },
-  { nombre: 'Diabetes tipo 2', casos: 14 },
-  { nombre: 'Ansiedad', casos: 9 },
-];
-
-const MAX_CONSULTAS = 150;
 const STOCK_BAJO = 10;
 
 /** Horas de un turno "08:00" – "14:00" → 6 */
@@ -130,6 +114,14 @@ export default function Reportes() {
   const [roles, setRoles] = useState<Rol[]>([]);
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
   const [horarios, setHorarios] = useState<Horario[]>([]);
+  const [consultas, setConsultas] = useState<ConsultaResumen[]>([]);
+  /** Periodo del reporte de actividad (por defecto, los últimos 6 meses) */
+  const [desde, setDesde] = useState(() => {
+    const fecha = new Date();
+    fecha.setMonth(fecha.getMonth() - 6);
+    return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [hasta, setHasta] = useState(() => hoyISO());
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -137,14 +129,16 @@ export default function Reportes() {
     setCargando(true);
     setError(null);
     try {
-      const [listaRoles, listaMedicamentos, listaHorarios] = await Promise.all([
+      const [listaRoles, listaMedicamentos, listaHorarios, listaConsultas] = await Promise.all([
         listarRoles(),
         listarMedicamentos(),
         listarHorarios(),
+        listarConsultas(),
       ]);
       setRoles(listaRoles);
       setMedicamentos(listaMedicamentos);
       setHorarios(listaHorarios);
+      setConsultas(listaConsultas);
     } catch (e) {
       setError(mensajeDeError(e));
     } finally {
@@ -177,9 +171,61 @@ export default function Reportes() {
   const totalHoras = horasPorDia.reduce((suma, d) => suma + d.horas, 0);
   const personalConHorario = new Set(horarios.map((h) => h.personalMedicoId)).size;
 
+  /* ---- Actividad: consultas dentro del periodo seleccionado ---- */
+  // El periodo se ordena por si se capturó al revés
+  const inicio = desde <= hasta ? desde : hasta;
+  const fin = desde <= hasta ? hasta : desde;
+
+  const consultasPeriodo = useMemo(
+    () =>
+      consultas.filter((consulta) => {
+        const fecha = consulta.fechaHora.slice(0, 10);
+        return fecha >= inicio && fecha <= fin;
+      }),
+    [consultas, inicio, fin],
+  );
+
+  /** Meses del periodo con su conteo (incluye los meses en cero) */
+  const consultasPorMes = useMemo(() => {
+    const meses: Array<{ clave: string; mes: string; valor: number }> = [];
+    const [anioInicio, mesInicio] = inicio.split('-').map(Number);
+    const [anioFin, mesFin] = fin.split('-').map(Number);
+    const cursor = new Date(anioInicio, mesInicio - 1, 1);
+    const limite = new Date(anioFin, mesFin - 1, 1);
+    while (cursor <= limite && meses.length < 24) {
+      meses.push({
+        clave: `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`,
+        mes: cursor.toLocaleDateString('es-MX', { month: 'short' }).replace('.', ''),
+        valor: 0,
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    for (const consulta of consultasPeriodo) {
+      const registro = meses.find((m) => m.clave === consulta.fechaHora.slice(0, 7));
+      if (registro) registro.valor += 1;
+    }
+    return meses;
+  }, [consultasPeriodo, inicio, fin]);
+
+  const maxConsultas = Math.max(...consultasPorMes.map((m) => m.valor), 1);
+
+  /** Diagnósticos más frecuentes del periodo (top 5) */
+  const diagnosticosFrecuentes = useMemo(() => {
+    const conteos = new Map<string, { nombre: string; casos: number }>();
+    for (const consulta of consultasPeriodo) {
+      const clave = consulta.diagnostico.trim().toLowerCase();
+      if (!clave) continue;
+      const existente = conteos.get(clave);
+      if (existente) existente.casos += 1;
+      else conteos.set(clave, { nombre: consulta.diagnostico.trim(), casos: 1 });
+    }
+    return [...conteos.values()].sort((a, b) => b.casos - a.casos).slice(0, 5);
+  }, [consultasPeriodo]);
+
+  /** Etiqueta del periodo para la interfaz y el PDF */
+  const periodoTexto = `${fechaCorta(inicio)} – ${fechaCorta(fin)}`;
+
   /* ---- Contenido del PDF según el reporte elegido ---- */
-  // El reporte de actividad es el único con datos de demostración:
-  // falta el módulo de consultas para calcularlo con información real
   const resumenPDF =
     reporte === 'usuarios'
       ? [
@@ -203,9 +249,16 @@ export default function Reportes() {
               `Personal con horario: ${personalConHorario}`,
             ]
           : [
-              'Consultas este mes: 142  (+18% vs. agosto)',
-              'Citas completadas: 89 de 104 agendadas',
-              'Pacientes nuevos en el mes: 23',
+              `Consultas registradas en el periodo: ${consultasPeriodo.length}`,
+              `Promedio mensual: ${(
+                consultasPeriodo.length / Math.max(1, consultasPorMes.length)
+              ).toFixed(1)} consultas`,
+              diagnosticosFrecuentes[0]
+                ? `Diagnóstico más frecuente: ${diagnosticosFrecuentes[0].nombre} (${diagnosticosFrecuentes[0].casos} caso${diagnosticosFrecuentes[0].casos === 1 ? '' : 's'})`
+                : 'Sin diagnósticos registrados en el periodo',
+              `Personal que atendió: ${
+                new Set(consultasPeriodo.map((consulta) => consulta.personal.id)).size
+              }`,
             ];
 
   const construirPDF = (): ReportePDF => {
@@ -264,22 +317,23 @@ export default function Reportes() {
       default:
         return {
           nombre: REPORTES.actividad.nombre,
+          periodo: periodoTexto,
           resumen: resumenPDF,
           secciones: [
             {
               titulo: 'Consultas por mes',
-              items: CONSULTAS_MES.map((d) => ({
-                etiqueta: d.mes,
-                valor: String(d.valor),
-                proporcion: d.valor / MAX_CONSULTAS,
+              items: consultasPorMes.map((dato) => ({
+                etiqueta: dato.mes,
+                valor: `${dato.valor}`,
+                proporcion: dato.valor / maxConsultas,
               })),
             },
             {
-              titulo: 'Diagnosticos frecuentes',
-              items: DIAGNOSTICOS.map((d) => ({
-                etiqueta: d.nombre,
-                valor: `${d.casos} casos`,
-                proporcion: d.casos / DIAGNOSTICOS[0].casos,
+              titulo: 'Diagnósticos frecuentes',
+              items: diagnosticosFrecuentes.map((diagnostico) => ({
+                etiqueta: diagnostico.nombre,
+                valor: `${diagnostico.casos} caso${diagnostico.casos === 1 ? '' : 's'}`,
+                proporcion: diagnostico.casos / (diagnosticosFrecuentes[0]?.casos || 1),
               })),
             },
           ],
@@ -288,7 +342,12 @@ export default function Reportes() {
   };
 
   const descargarPDF = () =>
-    generarReportePDF(`meditec-reporte-${reporte}`, construirPDF());
+    generarReportePDF(
+      reporte === 'actividad'
+        ? `meditec-reporte-${reporte}-${inicio}_a_${fin}`
+        : `meditec-reporte-${reporte}`,
+      construirPDF(),
+    );
 
   return (
     <div className="p-10 xl:p-12 max-w-7xl mx-auto font-sans">
@@ -296,7 +355,7 @@ export default function Reportes() {
         title="Reportes"
         subtitle={REPORTES[reporte].descripcion}
         meta={
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="text-gray-600 bg-white border border-gray-200 px-4 py-2 rounded-lg">
               {mesActual}
             </div>
@@ -312,6 +371,32 @@ export default function Reportes() {
                 </option>
               ))}
             </Select>
+            {reporte === 'actividad' && (
+              <div className="flex items-center gap-2">
+                <label htmlFor="periodo-desde" className="text-sm text-gray-500">
+                  Del
+                </label>
+                <Input
+                  id="periodo-desde"
+                  type="date"
+                  value={desde}
+                  max={hasta}
+                  onChange={(e) => setDesde(e.target.value)}
+                  className="w-44"
+                />
+                <label htmlFor="periodo-hasta" className="text-sm text-gray-500">
+                  al
+                </label>
+                <Input
+                  id="periodo-hasta"
+                  type="date"
+                  value={hasta}
+                  min={desde}
+                  onChange={(e) => setHasta(e.target.value)}
+                  className="w-44"
+                />
+              </div>
+            )}
             <Button icon={Download} onClick={descargarPDF}>
               Descargar PDF
             </Button>
@@ -353,67 +438,70 @@ export default function Reportes() {
 
       {/* ============ REPORTES PREDETERMINADOS ============ */}
 
-      {/* 1. Actividad de la clínica (datos de demostración) */}
+      {/* 1. Actividad de la enfermería (consultas del periodo) */}
       {reporte === 'actividad' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <Card
               title="Consultas por mes"
               icon={Activity}
-              description="Abril – septiembre · el mes en curso se resalta"
+              description={`${periodoTexto} · ${consultasPeriodo.length} consultas registradas`}
             >
-              <p className="mb-4 flex items-start gap-2.5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-                <CircleAlert size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
-                Datos de demostración: el módulo de consultas todavía no está conectado,
-                así que estos números son de ejemplo.
-              </p>
-              <div className="flex items-end gap-3 sm:gap-5 pt-4">
-                {CONSULTAS_MES.map((dato, i) => {
-                  const esActual = i === CONSULTAS_MES.length - 1;
-                  return (
-                    <div key={dato.mes} className="flex-1 flex flex-col items-center gap-2">
+              {consultasPorMes.some((dato) => dato.valor > 0) ? (
+                <div className="flex items-end gap-3 sm:gap-5 pt-4">
+                  {consultasPorMes.map((dato) => (
+                    <div key={dato.clave} className="flex-1 flex flex-col items-center gap-2">
                       <span
                         className={`text-xs tabular-nums ${
-                          esActual ? 'text-brand-800 font-semibold' : 'text-gray-500'
+                          dato.valor > 0 ? 'text-brand-800 font-semibold' : 'text-gray-400'
                         }`}
                       >
                         {dato.valor}
                       </span>
                       <div
                         className={`w-full rounded-t-md ${
-                          esActual ? 'bg-brand-800' : 'bg-brand-400/60'
+                          dato.valor > 0 ? 'bg-brand-800' : 'bg-brand-100'
                         }`}
-                        style={{ height: `${Math.round((dato.valor / MAX_CONSULTAS) * 140)}px` }}
+                        style={{
+                          height: `${Math.max(
+                            dato.valor > 0 ? 6 : 2,
+                            Math.round((dato.valor / maxConsultas) * 140),
+                          )}px`,
+                        }}
                         role="img"
                         aria-label={`${dato.mes}: ${dato.valor} consultas`}
                       />
-                      <span
-                        className={`text-xs ${
-                          esActual ? 'text-gray-900 font-semibold' : 'text-gray-500'
-                        }`}
-                      >
-                        {dato.mes}
-                      </span>
+                      <span className="text-xs text-gray-500 capitalize">{dato.mes}</span>
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="py-10 text-center text-gray-500">
+                  Sin consultas registradas en el periodo seleccionado.
+                </p>
+              )}
             </Card>
           </div>
 
           <div>
-            <Card title="Diagnósticos frecuentes" icon={Stethoscope}>
-              <ul className="space-y-5 pt-2">
-                {DIAGNOSTICOS.map((diagnostico) => (
-                  <Barra
-                    key={diagnostico.nombre}
-                    etiqueta={diagnostico.nombre}
-                    valor={diagnostico.casos}
-                    max={DIAGNOSTICOS[0].casos}
-                    formato={(v) => `${v} casos`}
-                  />
-                ))}
-              </ul>
+            <Card title="Diagnósticos frecuentes" icon={Stethoscope} description="Top 5 del periodo">
+              {diagnosticosFrecuentes.length > 0 ? (
+                <ul className="space-y-5 pt-2">
+                  {diagnosticosFrecuentes.map((diagnostico) => (
+                    <Barra
+                      key={diagnostico.nombre}
+                      etiqueta={diagnostico.nombre}
+                      valor={diagnostico.casos}
+                      max={diagnosticosFrecuentes[0].casos}
+                      formato={(v) => `${v} caso${v === 1 ? '' : 's'}`}
+                    />
+                  ))}
+                </ul>
+              ) : (
+                <p className="py-10 text-center text-gray-500">
+                  Sin diagnósticos registrados en el periodo seleccionado.
+                </p>
+              )}
             </Card>
           </div>
         </div>

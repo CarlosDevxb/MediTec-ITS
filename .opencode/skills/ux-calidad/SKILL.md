@@ -43,6 +43,10 @@ pierden información.
   definitiva a la derecha (`variant="danger"` para destrucción) con `loading`
   mientras se ejecuta y `disabled` en el botón de cancelar durante el guardado.
 - Nunca una eliminación con un solo clic desde la tabla.
+- **Después de ejecutar la acción, confirma el resultado de forma visible** con
+  `ModalResultado` (usuario deshabilitado, rol eliminado…): el usuario debe ver
+  que la operación se hizo, no solo suponerlo. Los cambios no destructivos
+  (crear, editar) pueden confirmarse con `Aviso`.
 - Confirmaciones que no son destructivas (habilitar/deshabilitar) usan el mismo
   patrón con `variant="primary"` en la acción.
 

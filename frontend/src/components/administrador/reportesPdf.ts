@@ -2,8 +2,9 @@ import { jsPDF } from 'jspdf';
 
 /* ============================================================
    GENERADOR DE PDF · Reportes del administrador
-   Documento A4 con la identidad MediTec-ITS (azul institucional),
-   secciones con barras proporcionales y pie de páginas.
+   Documento A4 con la identidad MediTec-ITS: portada de bloque
+   azul, periodo del reporte, resumen destacado, secciones con
+   barras proporcionales y pie de páginas.
    ============================================================ */
 
 export interface ItemPDF {
@@ -22,6 +23,8 @@ export interface SeccionPDF {
 export interface ReportePDF {
   /** Nombre del reporte (título del documento) */
   nombre: string;
+  /** Periodo cubierto por el reporte (se muestra en la portada) */
+  periodo?: string;
   /** Líneas de resumen bajo el título */
   resumen: string[];
   secciones: SeccionPDF[];
@@ -35,7 +38,8 @@ const AMBER: RGB = [217, 119, 6];
 const GRAY: RGB = [107, 114, 128];
 const DARK: RGB = [31, 41, 55];
 const LINE: RGB = [220, 228, 236];
-const TRACK: RGB = [239, 244, 249];
+const TRACK: RGB = [235, 240, 246];
+const PANEL: RGB = [244, 247, 251];
 
 export function generarReportePDF(tipoArchivo: string, reporte: ReportePDF) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -47,64 +51,113 @@ export function generarReportePDF(tipoArchivo: string, reporte: ReportePDF) {
   let y = 0;
 
   const saltar = (espacio: number) => {
-    if (y + espacio > alto - 24) {
+    if (y + espacio > alto - 26) {
       doc.addPage();
       y = 26;
     }
   };
 
-  /* ---------- Encabezado del documento ---------- */
+  /* ---------- Portada: bloque de identidad ---------- */
   doc.setFillColor(...NAVY);
-  doc.rect(0, 0, ancho, 7, 'F');
+  doc.rect(0, 0, ancho, 30, 'F');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(20);
-  doc.setTextColor(...NAVY);
-  doc.text('MediTec-ITS', M, 24);
-
-  doc.setFontSize(13);
-  doc.setTextColor(...BRAND);
-  doc.text(reporte.nombre, M, 32);
+  doc.setFontSize(18);
+  doc.setTextColor(255, 255, 255);
+  doc.text('MediTec-ITS', M, 15);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.setTextColor(...GRAY);
+  doc.setTextColor(210, 222, 236);
+  doc.text('Sistema de gestion clinica', M, 21);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.text('Reporte del administrador', ancho - M, 15, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text('Documento confidencial', ancho - M, 21, { align: 'right' });
+
+  /* ---------- Título del reporte y periodo ---------- */
+  y = 42;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(...NAVY);
+  doc.text(reporte.nombre, M, y);
+  y += 8;
+
   const fecha = new Date().toLocaleDateString('es-MX', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   });
-  doc.text(`Sistema de gestion - generado el ${fecha}`, M, 38);
-  y = 46;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...GRAY);
+  doc.text(`Generado el ${fecha}`, M, y);
+  y += 7;
+
+  // Periodo del reporte en un panel destacado
+  if (reporte.periodo) {
+    doc.setFillColor(...PANEL);
+    doc.setDrawColor(...LINE);
+    doc.rect(M, y - 4.5, anchoUtil, 9, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(...BRAND);
+    doc.text('Periodo del reporte:', M + 4, y + 1);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...DARK);
+    doc.text(reporte.periodo, M + 42, y + 1);
+    y += 12;
+  }
 
   /* ---------- Resumen (indicadores) ---------- */
-  doc.setFontSize(10);
-  doc.setTextColor(...DARK);
-  reporte.resumen.forEach((linea) => {
-    doc.text(linea, M, y);
-    y += 5;
-  });
-  y += 3;
-  doc.setDrawColor(...LINE);
-  doc.line(M, y, ancho - M, y);
-  y += 9;
+  if (reporte.resumen.length > 0) {
+    const altoResumen = reporte.resumen.length * 5.4 + 7;
+    doc.setFillColor(...PANEL);
+    doc.rect(M, y - 4, anchoUtil, altoResumen, 'F');
+    doc.setFillColor(...BRAND);
+    doc.rect(M, y - 4, 1.6, altoResumen, 'F');
+
+    doc.setFontSize(10);
+    reporte.resumen.forEach((linea) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...DARK);
+      doc.text(linea, M + 5, y + 1.2);
+      y += 5.4;
+    });
+    y += 6;
+  }
 
   /* ---------- Secciones ---------- */
   reporte.secciones.forEach((seccion) => {
-    saltar(24);
+    saltar(26);
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
     doc.setTextColor(...NAVY);
     doc.text(seccion.titulo, M, y);
-    y += 2.5;
+    y += 2;
     doc.setDrawColor(...NAVY);
+    doc.setLineWidth(0.5);
     doc.line(M, y, ancho - M, y);
+    doc.setLineWidth(0.2);
     y += 7;
 
+    if (seccion.items.length === 0) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(10);
+      doc.setTextColor(...GRAY);
+      doc.text('Sin datos en el periodo seleccionado.', M, y);
+      y += 9;
+      return;
+    }
+
     seccion.items.forEach((item) => {
-      saltar(item.proporcion !== undefined ? 14 : 9);
+      const conBarra = item.proporcion !== undefined;
+      saltar(conBarra ? 14 : 10);
 
       // Etiqueta (izquierda) + valor (derecha)
       doc.setFont('helvetica', 'normal');
@@ -117,20 +170,23 @@ export function generarReportePDF(tipoArchivo: string, reporte: ReportePDF) {
       else doc.setTextColor(...NAVY);
       doc.text(item.valor, ancho - M, y, { align: 'right' });
 
-      // Barra proporcional
-      if (item.proporcion !== undefined) {
-        const prop = Math.max(0.02, Math.min(1, item.proporcion));
+      if (conBarra) {
+        const prop = Math.max(0.02, Math.min(1, item.proporcion ?? 0));
         doc.setFillColor(...TRACK);
-        doc.rect(M, y + 2, anchoUtil, 2.4, 'F');
+        doc.rect(M, y + 2, anchoUtil, 2.6, 'F');
         doc.setFillColor(...(item.alerta ? AMBER : BRAND));
-        doc.rect(M, y + 2, anchoUtil * prop, 2.4, 'F');
-        y += 8;
+        doc.rect(M, y + 2, anchoUtil * prop, 2.6, 'F');
+        y += 9;
       } else {
-        y += 6;
+        y += 7;
       }
+      // Separación ligera entre renglones
+      doc.setDrawColor(...LINE);
+      doc.line(M, y - 2, ancho - M, y - 2);
+      y += 1.5;
     });
 
-    y += 6;
+    y += 5;
   });
 
   /* ---------- Pie de página en todas las hojas ---------- */
@@ -142,7 +198,7 @@ export function generarReportePDF(tipoArchivo: string, reporte: ReportePDF) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...GRAY);
-    doc.text('MediTec-ITS - Reportes del administrador', M, alto - 10);
+    doc.text('MediTec-ITS · Reportes del administrador · Documento confidencial', M, alto - 10);
     doc.text(`Pagina ${pagina} de ${total}`, ancho - M, alto - 10, { align: 'right' });
   }
 

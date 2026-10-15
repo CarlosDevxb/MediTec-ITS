@@ -6,6 +6,7 @@ import {
   esquemaCrearUsuario,
   esquemaActualizarUsuario,
   esquemaEstatus,
+  esquemaNuevaContrasena,
 } from '../validaciones/usuarios.validacion';
 import { esquemaImportarFilas } from '../validaciones/importacion.validacion';
 import * as controlador from '../controllers/usuarios.controller';
@@ -18,8 +19,9 @@ import * as controlador from '../controllers/usuarios.controller';
  *   POST   /api/usuarios              → alta                   (Administrador)
  *   POST   /api/usuarios/importar     → alta masiva (Excel)    (Administrador)
  *   PUT    /api/usuarios/:id          → edición                (Administrador)
- *   PATCH  /api/usuarios/:id/estatus  → habilitar/suspender    (Administrador)
- *   DELETE /api/usuarios/:id          → eliminación            (Administrador)
+ *   PATCH  /api/usuarios/:id/estatus    → habilitar/suspender    (Administrador)
+ *   PATCH  /api/usuarios/:id/contrasena → restablecer contraseña (Administrador)
+ *   DELETE /api/usuarios/:id            → eliminación            (Administrador)
  *
  * La información de cuentas es sensible, así que todo el módulo es exclusivo
  * del rol Administrador y ninguna respuesta incluye el hash de la contraseña.
@@ -36,6 +38,7 @@ rutas.post('/', validar(esquemaCrearUsuario), controlador.crearUsuario);
 rutas.post('/importar', validar(esquemaImportarFilas), controlador.importarUsuarios);
 rutas.put('/:id', validar(esquemaActualizarUsuario), controlador.actualizarUsuario);
 rutas.patch('/:id/estatus', validar(esquemaEstatus), controlador.cambiarEstatus);
+rutas.patch('/:id/contrasena', validar(esquemaNuevaContrasena), controlador.restablecerContrasena);
 rutas.delete('/:id', controlador.eliminarUsuario);
 
 export default rutas;

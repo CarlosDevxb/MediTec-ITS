@@ -115,6 +115,24 @@ export function cambiarEstatusUsuario(id: number, activo: boolean): Promise<Usua
   }).then((r) => r.datos);
 }
 
+/**
+ * Restablece la contraseña de una cuenta (contraseñas perdidas).
+ * Si no se envía contraseña, el sistema genera una temporal que se devuelve
+ * una sola vez para entregársela a la persona.
+ */
+export function restablecerContrasena(
+  id: number,
+  contrasena?: string,
+): Promise<{ nombre: string; contrasenaTemporal?: string }> {
+  return apiFetch<{ datos: { nombre: string; contrasenaTemporal?: string } }>(
+    `/usuarios/${id}/contrasena`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ contrasena: contrasena?.trim() || '' }),
+    },
+  ).then((r) => r.datos);
+}
+
 export function eliminarUsuario(id: number): Promise<void> {
   return apiFetch<unknown>(`/usuarios/${id}`, { method: 'DELETE' }).then(() => undefined);
 }

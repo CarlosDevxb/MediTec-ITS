@@ -73,10 +73,16 @@ Importación / exportación en Excel (`frontend/src/services/excel.service.ts` +
 confirmación con modal y resultado por fila; las contraseñas no se exportan
 nunca y las temporales del alta masiva se muestran una sola vez.
 
-**Pendientes de conectar:** el reporte "Actividad de la clínica" (ahora puede
-calcularse con las consultas reales), los planes de nutrición y el portal del
-paciente siguen con datos de ejemplo; los componentes demo que comparten están
-en `frontend/src/components/clinica/` (solo los usan nutrición y paciente).
+Reportes del administrador: todos leen de MySQL (usuarios, inventario,
+horarios y **Actividad de la enfermería**, con selector de periodo que se
+imprime en el PDF). El administrador puede **restablecer contraseñas** desde
+Usuarios (`PATCH /api/usuarios/:id/contrasena`); si no captura una, se genera
+temporal y se muestra una sola vez. Las acciones destructivas cierran con un
+`ModalResultado` que confirma el resultado.
+
+**Pendientes de conectar:** los planes de nutrición y el portal del paciente
+siguen con datos de ejemplo; los componentes demo que comparten están en
+`frontend/src/components/clinica/` (solo los usan nutrición y paciente).
 
 **Regla al conectar una sección nueva:** empieza por el servicio (SQL), sigue por el
 controlador y la ruta, y al final sustituye el fixture de la vista. Usa `apiFetch`
