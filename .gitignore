@@ -35,7 +35,8 @@ package-lock.json
 # Ignorar los volúmenes de datos mapeados localmente si los llegas a crear fuera de Docker
 /mysql_data/
 /data/
-
+.opencode/
+AGENTS.md
 # =========================
 # Archivos del sistema y editores
 # =========================

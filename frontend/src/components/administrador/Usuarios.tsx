@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Pencil, UserX, UserCheck, Trash2, CircleAlert } from 'lucide-react';
+import { Plus, Search, Pencil, UserX, UserCheck, Trash2, CircleAlert, Download, Upload } from 'lucide-react';
 import PageHeader from '../ui/PageHeader';
 import Button from '../ui/Button';
 import Aviso from '../ui/Aviso';
@@ -12,6 +12,7 @@ import type { Column } from '../ui/DataTable';
 import { Input, Select } from '../ui/Input';
 import { useAviso } from '../ui/useAviso';
 import { mensajeDeError } from '../../services/api';
+import { descargarExcel, nombreArchivo } from '../../services/excel.service';
 import { obtenerSesion } from '../../services/sesion';
 import {
   listarUsuarios,
@@ -20,10 +21,12 @@ import {
   actualizarUsuario,
   cambiarEstatusUsuario,
   eliminarUsuario,
+  importarUsuarios,
   type Rol,
   type Usuario,
 } from '../../services/administracion.service';
 import UsuarioForm from './UsuarioForm';
+import ImportadorExcel, { type ColumnaImportacion } from './ImportadorExcel';
 
 /* ============================================================
    VISTA: USUARIOS · Lista con búsqueda y filtro + acciones
@@ -33,12 +36,68 @@ import UsuarioForm from './UsuarioForm';
 type Subvista =
   | { modo: 'lista' }
   | { modo: 'alta' }
-  | { modo: 'editar'; usuario: Usuario };
+  | { modo: 'editar'; usuario: Usuario }
+  | { modo: 'importar' };
 
 /** Acción pendiente de confirmación en un modal */
 type Pendiente =
   | { tipo: 'eliminar'; usuario: Usuario }
   | { tipo: 'estatus'; usuario: Usuario; activo: boolean };
+
+/* ---------------- Importación y exportación en Excel ---------------- */
+
+/** Columnas de la plantilla de importación (orden del archivo) */
+const COLUMNAS_IMPORTACION: ColumnaImportacion[] = [
+  { clave: 'nombre', titulo: 'Nombre', ancho: 28 },
+  { clave: 'numeroControl', titulo: 'Número de control', ancho: 20 },
+  { clave: 'correo', titulo: 'Correo', ancho: 30 },
+  { clave: 'telefono', titulo: 'Teléfono', ancho: 16, opcional: true },
+  { clave: 'fechaNacimiento', titulo: 'Fecha de nacimiento', ancho: 20 },
+  { clave: 'genero', titulo: 'Género', ancho: 14 },
+  { clave: 'rol', titulo: 'Rol', ancho: 22 },
+  { clave: 'cedula', titulo: 'Cédula', ancho: 18, opcional: true },
+  { clave: 'especialidad', titulo: 'Especialidad', ancho: 24, opcional: true },
+  { clave: 'tipoPaciente', titulo: 'Tipo de paciente', ancho: 22, opcional: true },
+  { clave: 'carrera', titulo: 'Carrera', ancho: 30, opcional: true },
+  { clave: 'contrasena', titulo: 'Contraseña', ancho: 20, opcional: true },
+];
+
+/** Renglón de ejemplo de la plantilla (datos ficticios) */
+const PLANTILLA_USUARIOS: Array<Record<string, string>> = [
+  {
+    nombre: 'Ana Sofía Rivera',
+    numeroControl: 'AL-0001',
+    correo: 'ana.rivera@meditec.mx',
+    telefono: '5512345678',
+    fechaNacimiento: '2002-04-12',
+    genero: 'Femenino',
+    rol: 'Paciente',
+    cedula: '',
+    especialidad: '',
+    tipoPaciente: 'Alumno',
+    carrera: 'Ing. en Sistemas',
+    contrasena: '',
+  },
+];
+
+/** Columnas del archivo de exportación (sin contraseñas: nunca se exportan) */
+const COLUMNAS_EXPORTAR = [
+  { clave: 'nombre', titulo: 'Nombre', ancho: 28 },
+  { clave: 'numeroControl', titulo: 'Número de control', ancho: 20 },
+  { clave: 'correo', titulo: 'Correo', ancho: 30 },
+  { clave: 'telefono', titulo: 'Teléfono', ancho: 16 },
+  { clave: 'fechaNacimiento', titulo: 'Fecha de nacimiento', ancho: 20 },
+  { clave: 'genero', titulo: 'Género', ancho: 14 },
+  { clave: 'rol', titulo: 'Rol', ancho: 22 },
+  { clave: 'estatus', titulo: 'Estatus', ancho: 14 },
+  { clave: 'cedula', titulo: 'Cédula', ancho: 18 },
+  { clave: 'especialidad', titulo: 'Especialidad', ancho: 24 },
+  { clave: 'tipoPaciente', titulo: 'Tipo de paciente', ancho: 22 },
+  { clave: 'carrera', titulo: 'Carrera', ancho: 30 },
+];
+
+/** Roles que exigen cédula y especialidad (igual que en el alta manual) */
+const ROLES_CON_CEDULA = ['Personal médico', 'Enfermería'];
 
 export default function Usuarios() {
   /** Sesión abierta: nunca se actúa sobre la propia cuenta desde aquí */
@@ -144,6 +203,109 @@ export default function Usuarios() {
       setGuardando(false);
     }
   };
+
+  /* ---------- Exportación a Excel ---------- */
+  const exportarExcel = () => {
+    const filas = usuariosFiltrados.map((usuario) => ({
+      nombre: usuario.nombre,
+      numeroControl: usuario.numeroControl,
+      correo: usuario.correo,
+      telefono: usuario.telefono ?? '',
+      fechaNacimiento: usuario.fechaNacimiento,
+      genero: usuario.genero,
+      rol: usuario.rol,
+      estatus: usuario.estatus,
+      cedula: usuario.cedula ?? '',
+      especialidad: usuario.especialidad ?? '',
+      tipoPaciente: usuario.tipoPaciente ?? '',
+      carrera: usuario.carrera ?? '',
+    }));
+
+    // Nunca se exportan contraseñas ni datos que no vea el administrador
+    descargarExcel(nombreArchivo('usuarios'), COLUMNAS_EXPORTAR, filas)
+      .then(() => mostrar(`Se exportaron ${filas.length} usuario(s) a Excel.`))
+      .catch(() => mostrar('No se pudo generar el archivo. Intenta de nuevo.', 'error'));
+  };
+
+  /* ---------- Avisos previos de la importación (antes de enviar) ---------- */
+  const validarFilaUsuario = (
+    fila: Record<string, string>,
+    indice: number,
+    todas: Array<Record<string, string>>,
+  ): string[] => {
+    const avisos: string[] = [];
+    const texto = (clave: string) => (fila[clave] ?? '').trim();
+
+    if (texto('nombre').length < 3) avisos.push('Falta el nombre (mínimo 3 caracteres).');
+    if (!texto('numeroControl')) avisos.push('Falta el número de control.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(texto('correo'))) avisos.push('El correo no es válido.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(texto('fechaNacimiento'))) {
+      avisos.push('La fecha de nacimiento debe ser AAAA-MM-DD.');
+    }
+    const genero = texto('genero');
+    if (genero && !['masculino', 'femenino', 'otro'].includes(genero.toLowerCase())) {
+      avisos.push('El género debe ser Masculino, Femenino u Otro.');
+    }
+
+    const rol = texto('rol');
+    if (!rol) {
+      avisos.push('Falta el rol.');
+    } else if (roles.length > 0 && !roles.some((r) => r.nombre.toLowerCase() === rol.toLowerCase())) {
+      avisos.push(`El rol "${rol}" no existe en el sistema.`);
+    } else if (ROLES_CON_CEDULA.some((r) => r.toLowerCase() === rol.toLowerCase())) {
+      if (!texto('cedula')) avisos.push('Falta la cédula (obligatoria para ese rol).');
+      if (!texto('especialidad')) avisos.push('Falta la especialidad (obligatoria para ese rol).');
+    } else if (rol.toLowerCase() === 'paciente' && !texto('tipoPaciente')) {
+      avisos.push('Falta el tipo de paciente (obligatorio para Paciente).');
+    }
+
+    if (texto('contrasena') && texto('contrasena').length < 8) {
+      avisos.push('La contraseña debe tener al menos 8 caracteres.');
+    }
+
+    // Duplicados dentro del mismo archivo (contra las filas anteriores)
+    const repetido = (clave: string, etiqueta: string) => {
+      const valor = texto(clave).toLowerCase();
+      if (!valor) return;
+      const otra = todas.findIndex((f, i) => i < indice && (f[clave] ?? '').trim().toLowerCase() === valor);
+      if (otra >= 0) avisos.push(`${etiqueta} repetido en el archivo (fila ${otra + 2}).`);
+    };
+    repetido('numeroControl', 'El número de control');
+    repetido('correo', 'El correo');
+
+    // Duplicados contra el sistema (lo confirma la API al importar)
+    const numeroControl = texto('numeroControl').toLowerCase();
+    const correo = texto('correo').toLowerCase();
+    if (numeroControl && usuarios.some((u) => u.numeroControl.toLowerCase() === numeroControl)) {
+      avisos.push('Ese número de control ya está registrado.');
+    }
+    if (correo && usuarios.some((u) => u.correo.toLowerCase() === correo)) {
+      avisos.push('Ese correo ya está registrado.');
+    }
+
+    return avisos;
+  };
+
+  /* ---------- Subpágina de importación (Excel) ---------- */
+  if (subvista.modo === 'importar') {
+    return (
+      <ImportadorExcel
+        titulo="Importar usuarios"
+        descripcion="Alta masiva de cuentas desde un archivo de Excel"
+        entidad="usuarios"
+        columnas={COLUMNAS_IMPORTACION}
+        plantilla={PLANTILLA_USUARIOS}
+        validarFila={validarFilaUsuario}
+        onImportar={(filas) => importarUsuarios(filas)}
+        onCancelar={() => setSubvista({ modo: 'lista' })}
+        onFinalizar={() => {
+          setSubvista({ modo: 'lista' });
+          void cargar();
+        }}
+        mostrarContrasenas
+      />
+    );
+  }
 
   /* ---------- Subpáginas (alta / edición) ---------- */
   if (subvista.modo !== 'lista') {
@@ -257,9 +419,21 @@ export default function Usuarios() {
         title="Usuarios"
         subtitle="Cuentas de acceso al sistema por rol"
         meta={
-          <Button icon={Plus} onClick={() => setSubvista({ modo: 'alta' })}>
-            Nuevo usuario
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="secondary" icon={Download} onClick={exportarExcel}>
+              Exportar Excel
+            </Button>
+            <Button
+              variant="secondary"
+              icon={Upload}
+              onClick={() => setSubvista({ modo: 'importar' })}
+            >
+              Importar Excel
+            </Button>
+            <Button icon={Plus} onClick={() => setSubvista({ modo: 'alta' })}>
+              Nuevo usuario
+            </Button>
+          </div>
         }
       />
 

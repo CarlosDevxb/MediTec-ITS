@@ -7,6 +7,7 @@ import {
   esquemaActualizarUsuario,
   esquemaEstatus,
 } from '../validaciones/usuarios.validacion';
+import { esquemaImportarFilas } from '../validaciones/importacion.validacion';
 import * as controlador from '../controllers/usuarios.controller';
 
 /**
@@ -15,6 +16,7 @@ import * as controlador from '../controllers/usuarios.controller';
  *   GET    /api/usuarios              → listado                (Administrador)
  *   GET    /api/usuarios/:id          → detalle                (Administrador)
  *   POST   /api/usuarios              → alta                   (Administrador)
+ *   POST   /api/usuarios/importar     → alta masiva (Excel)    (Administrador)
  *   PUT    /api/usuarios/:id          → edición                (Administrador)
  *   PATCH  /api/usuarios/:id/estatus  → habilitar/suspender    (Administrador)
  *   DELETE /api/usuarios/:id          → eliminación            (Administrador)
@@ -31,6 +33,7 @@ rutas.get('/', controlador.listarUsuarios);
 rutas.get('/:id', controlador.obtenerUsuario);
 
 rutas.post('/', validar(esquemaCrearUsuario), controlador.crearUsuario);
+rutas.post('/importar', validar(esquemaImportarFilas), controlador.importarUsuarios);
 rutas.put('/:id', validar(esquemaActualizarUsuario), controlador.actualizarUsuario);
 rutas.patch('/:id/estatus', validar(esquemaEstatus), controlador.cambiarEstatus);
 rutas.delete('/:id', controlador.eliminarUsuario);

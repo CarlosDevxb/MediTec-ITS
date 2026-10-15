@@ -1,6 +1,5 @@
-import crypto from 'crypto';
 import pool from '../db/pool';
-import { hashearContrasena } from './contrasenas';
+import { hashearContrasena, generarContrasenaTemporal } from './contrasenas';
 import { ROLES_BASE } from '../config/roles';
 
 /* ============================================================
@@ -33,10 +32,8 @@ function leerArgumentos(): Record<string, string> {
   return opciones;
 }
 
-/** Contraseña aleatoria segura para cuando no se proporciona una */
-function generarContrasena(): string {
-  return `${crypto.randomBytes(9).toString('base64url')}!aA1`;
-}
+/** Contraseña aleatoria segura para cuando no se proporciona una (ver utils/contrasenas.ts) */
+const generarContrasena = generarContrasenaTemporal;
 
 async function asegurarRoles(): Promise<Map<string, number>> {
   const ids = new Map<string, number>();

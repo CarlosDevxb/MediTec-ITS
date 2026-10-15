@@ -45,3 +45,34 @@ export const esquemaCrearMedicamento = z.object(camposMedicamento);
 export const esquemaActualizarMedicamento = z.object(camposMedicamento);
 
 export type DatosMedicamento = z.infer<typeof esquemaCrearMedicamento>;
+
+/**
+ * Fila de un archivo de importación de medicamentos.
+ * La unidad de medida llega como **nombre** (o abreviatura) porque es lo que
+ * ve quien captura el Excel; el id se resuelve en el servicio. El stock llega
+ * como texto de celda, así que se valida y se convierte aquí.
+ */
+const stockDeFila = z
+  .string({ error: 'Indica el stock.' })
+  .trim()
+  .min(1, 'Indica el stock.')
+  .refine(
+    (valor) => /^-?\d+(\.\d{1,2})?$/.test(valor),
+    'El stock debe ser un número con máximo dos decimales.',
+  )
+  .transform(Number)
+  .refine((valor) => valor >= 0, 'El stock no puede ser negativo.')
+  .refine((valor) => valor <= 99999999.99, 'El stock no puede exceder 99,999,999.99.');
+
+export const esquemaFilaImportarMedicamento = z.object({
+  nombre: camposMedicamento.nombre,
+  unidad: z
+    .string({ error: 'Indica la unidad de medida.' })
+    .trim()
+    .min(1, 'Indica la unidad de medida.')
+    .max(50, 'La unidad de medida no puede exceder 50 caracteres.'),
+  stock: stockDeFila,
+  descripcion: camposMedicamento.descripcion,
+});
+
+export type DatosFilaImportarMedicamento = z.infer<typeof esquemaFilaImportarMedicamento>;

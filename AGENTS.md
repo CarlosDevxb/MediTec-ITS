@@ -50,18 +50,24 @@ en la interfaz.
 ## Estado actual (referencia)
 
 **Con backend ya conectado:** `/api/roles`, `/api/usuarios`, `/api/catalogos`,
-`/api/personal-medico`, `/api/horarios` y `/api/medicamentos`. Las secciones
-Roles, Usuarios, Catálogos, Horarios y Medicamentos del panel `/admin` leen y
-escriben en MySQL; no usan datos de demostración.
+`/api/personal-medico`, `/api/horarios` y `/api/medicamentos` (incluyen alta
+masiva vía `/importar` desde Excel). Las secciones Roles, Usuarios, Catálogos,
+Horarios, Medicamentos y Reportes del panel `/admin` leen y escriben en MySQL;
+no usan datos de demostración.
 
 Reglas de negocio del módulo Operación ya implementadas: la clínica solo opera
 de lunes a viernes, los turnos duplicados exactos (mismo personal, día y rango)
 se rechazan y los medicamentos no se eliminan — el stock en 0 los deja no
 disponibles para consultas futuras.
 
-**Pendientes de conectar:** Reportes aún usa fixtures locales (`tipos.ts`,
-marcados como demo) y el resto de paneles (clínica, nutrición, paciente)
-también funciona con datos de ejemplo.
+Importación / exportación en Excel (`frontend/src/services/excel.service.ts` +
+`ImportadorExcel.tsx`): plantilla descargable, avisos previos de captura,
+confirmación con modal y resultado por fila; las contraseñas no se exportan
+nunca y las temporales del alta masiva se muestran una sola vez.
+
+**Pendientes de conectar:** el reporte "Actividad de la clínica" sigue con datos
+de demostración (falta el módulo de consultas) y los paneles de clínica,
+nutrición y paciente funcionan con datos de ejemplo.
 
 **Regla al conectar una sección nueva:** empieza por el servicio (SQL), sigue por el
 controlador y la ruta, y al final sustituye el fixture de la vista. Usa `apiFetch`

@@ -1,8 +1,14 @@
 import type { Request, Response, NextFunction } from 'express';
 import type { DatosCrearUsuario, DatosActualizarUsuario } from '../validaciones/usuarios.validacion';
+import {
+  esquemaFilaImportarUsuario,
+  type DatosFilaImportarUsuario,
+} from '../validaciones/usuarios.validacion';
 import { errorNoEncontrado, errorValidacion } from '../utils/erroresHttp';
 import { textoObligatorio } from '../utils/parametros';
 import * as servicio from '../services/usuarios.service';
+import * as servicioImportacion from '../services/importacion.service';
+import type { ResultadoFilaImportacion } from '../services/importacion.service';
 
 /**
  * Controlador de usuarios.
@@ -96,6 +102,51 @@ export async function eliminarUsuario(req: Request, res: Response, next: NextFun
     if (!solicitante) throw errorValidacion('No autenticado.');
     const { nombre } = await servicio.eliminarUsuario(id, solicitante);
     res.json({ mensaje: `Usuario "${nombre}" eliminado.` });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/usuarios/importar · alta masiva desde un archivo de Excel.
+ *
+ * La validación de formato se hace fila por fila (no con el middleware
+ * `validar()`) para poder reportar cada problema en su lugar: una fila con
+ * datos inválidos no detiene la importación del resto.
+ */
+export async function importarUsuarios(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { filas } = req.body as { filas: unknown[] };
+
+    const validas: Array<{ fila: number; datos: DatosFilaImportarUsuario }> = [];
+    const resultados: ResultadoFilaImportacion[] = [];
+
+    filas.forEach((fila, indice) => {
+      // La fila 1 del Excel son los encabezados; los datos empiezan en la 2
+      const numeroFila = indice + 2;
+      const parseo = esquemaFilaImportarUsuario.safeParse(fila);
+      if (parseo.success) {
+        validas.push({ fila: numeroFila, datos: parseo.data });
+      } else {
+        resultados.push({
+          fila: numeroFila,
+          estado: 'error',
+          mensaje: parseo.error.issues.map((issue) => issue.message).join(' '),
+        });
+      }
+    });
+
+    if (validas.length > 0) {
+      resultados.push(...(await servicioImportacion.importarUsuarios(validas)));
+    }
+    resultados.sort((a, b) => a.fila - b.fila);
+
+    const creados = resultados.filter((r) => r.estado === 'creado').length;
+    const fallidos = resultados.length - creados;
+    res.status(201).json({
+      mensaje: `Importación terminada: ${creados} cuenta(s) creada(s), ${fallidos} con errores.`,
+      datos: { creados, fallidos, resultados },
+    });
   } catch (error) {
     next(error);
   }

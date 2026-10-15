@@ -1,5 +1,6 @@
 import { apiFetch } from './api';
 import { listarValoresCatalogo, type ValorCatalogo } from './administracion.service';
+import type { ResultadoImportacion } from './excel.service';
 
 /* ============================================================
    OPERACIÓN · Cliente de la API para los horarios del personal
@@ -127,6 +128,19 @@ export function actualizarMedicamento(id: number, datos: DatosMedicamento): Prom
   return apiFetch<{ datos: Medicamento }>(`/medicamentos/${id}`, {
     method: 'PUT',
     body: JSON.stringify(datos),
+  }).then((r) => r.datos);
+}
+
+/**
+ * Alta masiva de medicamentos desde un archivo de Excel.
+ * Recibe las filas ya leídas del archivo y devuelve el resultado por fila.
+ */
+export function importarMedicamentos(
+  filas: Array<Record<string, string>>,
+): Promise<ResultadoImportacion> {
+  return apiFetch<{ datos: ResultadoImportacion }>('/medicamentos/importar', {
+    method: 'POST',
+    body: JSON.stringify({ filas }),
   }).then((r) => r.datos);
 }
 

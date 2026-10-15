@@ -1,26 +1,38 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Activity,
-  CalendarCheck,
-  UserPlus,
   Users,
   Pill,
   Clock,
   Stethoscope,
   Download,
+  CircleAlert,
 } from 'lucide-react';
 import PageHeader from '../ui/PageHeader';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import StatCard from '../ui/StatCard';
+import EstadoVista from '../ui/EstadoVista';
 import { Select } from '../ui/Input';
-import { MEDICAMENTOS_DEMO, HORARIOS_DEMO } from './tipos';
+import { mensajeDeError } from '../../services/api';
 import { listarRoles, type Rol } from '../../services/administracion.service';
+import {
+  listarMedicamentos,
+  listarHorarios,
+  DIAS_SEMANA,
+  type Medicamento,
+  type Horario,
+} from '../../services/operacion.service';
 import { generarReportePDF, type ReportePDF } from './reportesPdf';
 
 /* ============================================================
    VISTA: REPORTES · Selector de reportes predeterminados
    Elige un reporte y el panel muestra su visualización.
+
+   Usuarios, inventario y horarios se leen de MySQL (las mismas
+   fuentes que las secciones de administración). El reporte de
+   actividad sigue con datos de demostración hasta que exista el
+   módulo de consultas.
    ============================================================ */
 
 type TipoReporte = 'actividad' | 'usuarios' | 'inventario' | 'horarios';
@@ -72,7 +84,6 @@ const DIAGNOSTICOS = [
 
 const MAX_CONSULTAS = 150;
 const STOCK_BAJO = 10;
-const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
 /** Horas de un turno "08:00" – "14:00" → 6 */
 const horasDe = (inicio: string, fin: string): number => {
@@ -115,45 +126,87 @@ function Barra({
 
 export default function Reportes() {
   const [reporte, setReporte] = useState<TipoReporte>('actividad');
-  /** Los roles se cargan de la API: el conteo de cuentas es información real */
+  /** Todo lo que se grafica se lee de la API: roles, inventario y horarios */
   const [roles, setRoles] = useState<Rol[]>([]);
+  const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
+  const [horarios, setHorarios] = useState<Horario[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    setError(null);
+    try {
+      const [listaRoles, listaMedicamentos, listaHorarios] = await Promise.all([
+        listarRoles(),
+        listarMedicamentos(),
+        listarHorarios(),
+      ]);
+      setRoles(listaRoles);
+      setMedicamentos(listaMedicamentos);
+      setHorarios(listaHorarios);
+    } catch (e) {
+      setError(mensajeDeError(e));
+    } finally {
+      setCargando(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let vigente = true;
-    listarRoles()
-      .then((datos) => {
-        if (vigente) setRoles(datos);
-      })
-      .catch(() => {
-        if (vigente) setRoles([]);
-      });
-    return () => {
-      vigente = false;
-    };
-  }, []);
+    void cargar();
+  }, [cargar]);
 
   const mesActual = new Date()
     .toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })
     .replace(/^\w/, (c) => c.toUpperCase());
 
-  /* ---- Datos calculados ---- */
+  /* ---- Datos calculados (todos sobre información real) ---- */
+  const totalCuentas = roles.reduce((suma, rol) => suma + rol.usuarios, 0);
   const maxUsuarios = Math.max(...roles.map((rol) => rol.usuarios), 1);
-  const maxStock = Math.max(...MEDICAMENTOS_DEMO.map((m) => m.stock));
-  const medicamentosBajos = MEDICAMENTOS_DEMO.filter((m) => m.stock <= STOCK_BAJO).length;
+  const maxStock = Math.max(...medicamentos.map((m) => m.stock), 1);
+  const medicamentosBajos = medicamentos.filter((m) => m.disponible && m.stock <= STOCK_BAJO).length;
+  const medicamentosAgotados = medicamentos.filter((m) => !m.disponible).length;
 
-  const horasPorDia = DIAS_SEMANA.map((dia) => ({
+  const horasPorDia = DIAS_SEMANA.map((dia, indice) => ({
     dia,
-    horas: HORARIOS_DEMO.filter((h) => h.dia === dia)
-      .reduce((suma, h) => suma + horasDe(h.inicio, h.fin), 0),
+    horas: horarios
+      .filter((h) => h.diaSemana === indice + 1)
+      .reduce((suma, h) => suma + horasDe(h.horaInicio, h.horaFin), 0),
   })).filter((d) => d.horas > 0);
   const maxHoras = Math.max(...horasPorDia.map((d) => d.horas), 1);
+  const totalHoras = horasPorDia.reduce((suma, d) => suma + d.horas, 0);
+  const personalConHorario = new Set(horarios.map((h) => h.personalMedicoId)).size;
 
   /* ---- Contenido del PDF según el reporte elegido ---- */
-  const resumenPDF = [
-    'Consultas este mes: 142  (+18% vs. agosto)',
-    'Citas completadas: 89 de 104 agendadas',
-    'Pacientes nuevos en el mes: 23',
-  ];
+  // El reporte de actividad es el único con datos de demostración:
+  // falta el módulo de consultas para calcularlo con información real
+  const resumenPDF =
+    reporte === 'usuarios'
+      ? [
+          `Cuentas registradas: ${totalCuentas}`,
+          `Roles con cuentas: ${roles.filter((rol) => rol.usuarios > 0).length} de ${roles.length}`,
+          `Rol con más cuentas: ${
+            roles.reduce((mayor, rol) => (rol.usuarios > (mayor?.usuarios ?? 0) ? rol : mayor), roles[0])
+              ?.nombre ?? '—'
+          }`,
+        ]
+      : reporte === 'inventario'
+        ? [
+            `Medicamentos en inventario: ${medicamentos.length}`,
+            `Con stock bajo (≤ ${STOCK_BAJO}): ${medicamentosBajos}`,
+            `Agotados (no disponibles para consultas): ${medicamentosAgotados}`,
+          ]
+        : reporte === 'horarios'
+          ? [
+              `Turnos a la semana: ${horarios.length}`,
+              `Horas programadas: ${totalHoras}`,
+              `Personal con horario: ${personalConHorario}`,
+            ]
+          : [
+              'Consultas este mes: 142  (+18% vs. agosto)',
+              'Citas completadas: 89 de 104 agendadas',
+              'Pacientes nuevos en el mes: 23',
+            ];
 
   const construirPDF = (): ReportePDF => {
     switch (reporte) {
@@ -180,11 +233,13 @@ export default function Reportes() {
           secciones: [
             {
               titulo: 'Existencias por medicamento',
-              items: MEDICAMENTOS_DEMO.map((m) => ({
+              items: medicamentos.map((m) => ({
                 etiqueta: m.nombre,
-                valor: `${m.stock} ${m.unidad}${m.stock <= STOCK_BAJO ? ' - STOCK BAJO' : ''}`,
+                valor: `${m.stock} ${m.unidad}${
+                  !m.disponible ? ' - AGOTADO' : m.stock <= STOCK_BAJO ? ' - STOCK BAJO' : ''
+                }`,
                 proporcion: m.stock / maxStock,
-                alerta: m.stock <= STOCK_BAJO,
+                alerta: !m.disponible || m.stock <= STOCK_BAJO,
               })),
             },
           ],
@@ -264,35 +319,41 @@ export default function Reportes() {
         }
       />
 
-      {/* Panel único de indicadores */}
-      <div className="bg-white rounded-2xl border border-gray-200 grid grid-cols-1 md:grid-cols-3 divide-y divide-gray-100 md:divide-y-0 md:divide-x mb-8">
-        <StatCard
-          variant="band"
-          icon={Stethoscope}
-          label="Consultas este mes"
-          value="142"
-          detail="+18% vs. agosto"
-          highlight
-        />
-        <StatCard
-          variant="band"
-          icon={CalendarCheck}
-          label="Citas completadas"
-          value="89"
-          detail="de 104 agendadas"
-        />
-        <StatCard
-          variant="band"
-          icon={UserPlus}
-          label="Pacientes nuevos"
-          value="23"
-          detail="Altas en el mes"
-        />
-      </div>
+      <EstadoVista cargando={cargando} error={error} onReintentar={() => void cargar()}>
+        <>
+          {/* Panel único de indicadores (información real del sistema) */}
+          <div className="bg-white rounded-2xl border border-gray-200 grid grid-cols-1 md:grid-cols-3 divide-y divide-gray-100 md:divide-y-0 md:divide-x mb-8">
+            <StatCard
+              variant="band"
+              icon={Users}
+              label="Cuentas registradas"
+              value={totalCuentas}
+              detail={`${roles.length} roles en el sistema`}
+            />
+            <StatCard
+              variant="band"
+              icon={Pill}
+              label="Medicamentos"
+              value={medicamentos.length}
+              detail={
+                medicamentosAgotados > 0
+                  ? `${medicamentosAgotados} agotados`
+                  : 'inventario sin faltantes'
+              }
+              highlight={medicamentosAgotados > 0}
+            />
+            <StatCard
+              variant="band"
+              icon={Clock}
+              label="Turnos a la semana"
+              value={horarios.length}
+              detail={`${totalHoras} horas programadas`}
+            />
+          </div>
 
       {/* ============ REPORTES PREDETERMINADOS ============ */}
 
-      {/* 1. Actividad de la clínica */}
+      {/* 1. Actividad de la clínica (datos de demostración) */}
       {reporte === 'actividad' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
@@ -301,6 +362,11 @@ export default function Reportes() {
               icon={Activity}
               description="Abril – septiembre · el mes en curso se resalta"
             >
+              <p className="mb-4 flex items-start gap-2.5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                <CircleAlert size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+                Datos de demostración: el módulo de consultas todavía no está conectado,
+                así que estos números son de ejemplo.
+              </p>
               <div className="flex items-end gap-3 sm:gap-5 pt-4">
                 {CONSULTAS_MES.map((dato, i) => {
                   const esActual = i === CONSULTAS_MES.length - 1;
@@ -386,14 +452,16 @@ export default function Reportes() {
           }
         >
           <ul className="space-y-5 pt-2">
-            {MEDICAMENTOS_DEMO.map((medicamento) => (
+            {medicamentos.map((medicamento) => (
               <Barra
                 key={medicamento.id}
                 etiqueta={medicamento.nombre}
                 valor={medicamento.stock}
                 max={maxStock}
-                tono={medicamento.stock <= STOCK_BAJO ? 'alerta' : 'brand'}
-                formato={(v) => `${v} ${medicamento.unidad}`}
+                tono={!medicamento.disponible || medicamento.stock <= STOCK_BAJO ? 'alerta' : 'brand'}
+                formato={(v) =>
+                  `${v} ${medicamento.unidad}${!medicamento.disponible ? ' · agotado' : ''}`
+                }
               />
             ))}
           </ul>
@@ -420,6 +488,8 @@ export default function Reportes() {
           </ul>
         </Card>
       )}
+        </>
+      </EstadoVista>
     </div>
   );
 }

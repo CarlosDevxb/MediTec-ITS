@@ -1,4 +1,5 @@
 import { apiFetch } from './api';
+import type { ResultadoImportacion } from './excel.service';
 
 /* ============================================================
    ADMINISTRACIÓN · Cliente de la API para roles, usuarios y
@@ -116,6 +117,20 @@ export function cambiarEstatusUsuario(id: number, activo: boolean): Promise<Usua
 
 export function eliminarUsuario(id: number): Promise<void> {
   return apiFetch<unknown>(`/usuarios/${id}`, { method: 'DELETE' }).then(() => undefined);
+}
+
+/**
+ * Alta masiva de usuarios desde un archivo de Excel.
+ * Recibe las filas ya leídas del archivo y devuelve el resultado por fila
+ * (incluidas las contraseñas temporales que haya generado el sistema).
+ */
+export function importarUsuarios(
+  filas: Array<Record<string, string>>,
+): Promise<ResultadoImportacion> {
+  return apiFetch<{ datos: ResultadoImportacion }>('/usuarios/importar', {
+    method: 'POST',
+    body: JSON.stringify({ filas }),
+  }).then((r) => r.datos);
 }
 
 /* ---------------- Catálogos ---------------- */

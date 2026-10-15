@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Pencil, PackageX, TrendingDown, Pill } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  Pencil,
+  PackageX,
+  TrendingDown,
+  Pill,
+  Download,
+  Upload,
+} from 'lucide-react';
 import PageHeader from '../ui/PageHeader';
 import Button from '../ui/Button';
 import Aviso from '../ui/Aviso';
@@ -12,16 +21,19 @@ import StatCard from '../ui/StatCard';
 import type { Column } from '../ui/DataTable';
 import { Input } from '../ui/Input';
 import { mensajeDeError } from '../../services/api';
+import { descargarExcel, nombreArchivo } from '../../services/excel.service';
 import {
   listarMedicamentos,
   crearMedicamento,
   actualizarMedicamento,
+  importarMedicamentos,
   listarUnidadesMedida,
   type Medicamento,
   type DatosMedicamento,
 } from '../../services/operacion.service';
 import type { ValorCatalogo } from '../../services/administracion.service';
 import MedicamentoForm from './MedicamentoForm';
+import ImportadorExcel, { type ColumnaImportacion } from './ImportadorExcel';
 
 /* ============================================================
    VISTA: MEDICAMENTOS · Inventario + subpáginas de alta y edición
@@ -35,10 +47,41 @@ import MedicamentoForm from './MedicamentoForm';
 /** Stock por debajo del cual se marca como bajo */
 const STOCK_BAJO = 10;
 
+/* ---------------- Importación y exportación en Excel ---------------- */
+
+/** Columnas de la plantilla de importación (orden del archivo) */
+const COLUMNAS_IMPORTACION: ColumnaImportacion[] = [
+  { clave: 'nombre', titulo: 'Nombre', ancho: 30 },
+  { clave: 'unidad', titulo: 'Unidad de medida', ancho: 22 },
+  { clave: 'stock', titulo: 'Stock', ancho: 12 },
+  { clave: 'descripcion', titulo: 'Descripción', ancho: 50, opcional: true },
+];
+
+/** Renglón de ejemplo de la plantilla (datos ficticios) */
+const PLANTILLA_MEDICAMENTOS: Array<Record<string, string>> = [
+  {
+    nombre: 'Paracetamol 500 mg',
+    unidad: 'Comprimido',
+    stock: '100',
+    descripcion: 'Analgésico y antipirético',
+  },
+];
+
+/** Columnas del archivo de exportación */
+const COLUMNAS_EXPORTAR = [
+  { clave: 'nombre', titulo: 'Nombre', ancho: 30 },
+  { clave: 'unidad', titulo: 'Unidad de medida', ancho: 22 },
+  { clave: 'abreviatura', titulo: 'Abreviatura', ancho: 14 },
+  { clave: 'stock', titulo: 'Stock', ancho: 12 },
+  { clave: 'disponibilidad', titulo: 'Disponibilidad', ancho: 22 },
+  { clave: 'descripcion', titulo: 'Descripción', ancho: 50 },
+];
+
 type Subvista =
   | { modo: 'lista' }
   | { modo: 'alta' }
-  | { modo: 'editar'; medicamento: Medicamento };
+  | { modo: 'editar'; medicamento: Medicamento }
+  | { modo: 'importar' };
 
 export default function Medicamentos() {
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
@@ -113,6 +156,93 @@ export default function Medicamentos() {
         medicamento.descripcion.toLowerCase().includes(texto),
     );
   }, [medicamentos, busqueda]);
+
+  /* ---------- Exportación a Excel ---------- */
+  const exportarExcel = () => {
+    const filas = medicamentosFiltrados.map((medicamento) => ({
+      nombre: medicamento.nombre,
+      unidad: medicamento.unidad,
+      abreviatura: medicamento.abreviatura,
+      stock: medicamento.stock,
+      disponibilidad: medicamento.disponible ? 'Disponible' : 'Agotado',
+      descripcion: medicamento.descripcion,
+    }));
+
+    descargarExcel(nombreArchivo('medicamentos'), COLUMNAS_EXPORTAR, filas)
+      .then(() => mostrar(`Se exportaron ${filas.length} medicamento(s) a Excel.`))
+      .catch(() => mostrar('No se pudo generar el archivo. Intenta de nuevo.', 'error'));
+  };
+
+  /* ---------- Avisos previos de la importación (antes de enviar) ---------- */
+  const validarFilaMedicamento = (
+    fila: Record<string, string>,
+    indice: number,
+    todas: Array<Record<string, string>>,
+  ): string[] => {
+    const avisos: string[] = [];
+    const texto = (clave: string) => (fila[clave] ?? '').trim();
+
+    const nombre = texto('nombre');
+    if (!nombre) avisos.push('Falta el nombre del medicamento.');
+    else if (nombre.length > 100) avisos.push('El nombre no puede exceder 100 caracteres.');
+    else {
+      const repetidoArchivo = todas.findIndex(
+        (f, i) => i < indice && (f['nombre'] ?? '').trim().toLowerCase() === nombre.toLowerCase(),
+      );
+      if (repetidoArchivo >= 0) {
+        avisos.push(`Nombre repetido en el archivo (fila ${repetidoArchivo + 2}).`);
+      } else if (
+        medicamentos.some((m) => m.nombre.trim().toLowerCase() === nombre.toLowerCase())
+      ) {
+        avisos.push('Ese medicamento ya existe en el inventario.');
+      }
+    }
+
+    const unidad = texto('unidad');
+    if (!unidad) {
+      avisos.push('Falta la unidad de medida.');
+    } else if (
+      unidades.length > 0 &&
+      !unidades.some(
+        (u) =>
+          u.nombre.trim().toLowerCase() === unidad.toLowerCase() ||
+          (u.abreviatura ?? '').toLowerCase() === unidad.toLowerCase(),
+      )
+    ) {
+      avisos.push(`La unidad "${unidad}" no existe; regístrala en Catálogos.`);
+    }
+
+    const stock = texto('stock');
+    if (!/^\d+(\.\d{1,2})?$/.test(stock)) {
+      avisos.push('El stock debe ser un número con máximo dos decimales.');
+    }
+
+    if (texto('descripcion').length > 1000) {
+      avisos.push('La descripción no puede exceder 1000 caracteres.');
+    }
+
+    return avisos;
+  };
+
+  /* ---------- Subpágina de importación (Excel) ---------- */
+  if (subvista.modo === 'importar') {
+    return (
+      <ImportadorExcel
+        titulo="Importar medicamentos"
+        descripcion="Alta masiva de productos del inventario desde un archivo de Excel"
+        entidad="medicamentos"
+        columnas={COLUMNAS_IMPORTACION}
+        plantilla={PLANTILLA_MEDICAMENTOS}
+        validarFila={validarFilaMedicamento}
+        onImportar={(filas) => importarMedicamentos(filas)}
+        onCancelar={() => setSubvista({ modo: 'lista' })}
+        onFinalizar={() => {
+          setSubvista({ modo: 'lista' });
+          void cargar();
+        }}
+      />
+    );
+  }
 
   /* ---------- Subpáginas (alta / edición) ---------- */
   if (subvista.modo !== 'lista') {
@@ -200,9 +330,21 @@ export default function Medicamentos() {
         title="Medicamentos"
         subtitle="Catálogo e inventario de la clínica"
         meta={
-          <Button icon={Plus} onClick={() => setSubvista({ modo: 'alta' })}>
-            Nuevo medicamento
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="secondary" icon={Download} onClick={exportarExcel}>
+              Exportar Excel
+            </Button>
+            <Button
+              variant="secondary"
+              icon={Upload}
+              onClick={() => setSubvista({ modo: 'importar' })}
+            >
+              Importar Excel
+            </Button>
+            <Button icon={Plus} onClick={() => setSubvista({ modo: 'alta' })}>
+              Nuevo medicamento
+            </Button>
+          </div>
         }
       />
 

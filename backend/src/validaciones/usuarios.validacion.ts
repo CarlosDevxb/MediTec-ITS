@@ -39,8 +39,8 @@ const correoValido = z
   .max(150, 'El correo no puede exceder 150 caracteres.')
   .refine((valor) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor), 'Escribe un correo electrónico válido.');
 
-/** Campos comunes al alta y a la edición */
-const camposBase = {
+/** Campos comunes al alta, la edición y la importación desde archivos */
+const camposComunes = {
   nombre: z
     .string({ error: 'El nombre es obligatorio.' })
     .trim()
@@ -61,6 +61,11 @@ const camposBase = {
     .or(z.literal('')),
   fechaNacimiento: fechaValida,
   genero: z.enum(GENEROS, { error: 'Selecciona un género.' }),
+};
+
+/** Campos comunes al alta y a la edición */
+const camposBase = {
+  ...camposComunes,
   rolId: z.coerce
     .number({ error: 'Selecciona un rol.' })
     .int('Selecciona un rol válido.')
@@ -95,6 +100,49 @@ export const esquemaCrearUsuario = z.object({
 
 /** Edición: la contraseña se cambia aparte, nunca desde este endpoint */
 export const esquemaActualizarUsuario = z.object(camposBase);
+
+/**
+ * Fila de un archivo de importación de usuarios.
+ * Cambia respecto al alta en dos cosas: el rol, el tipo de paciente y la
+ * carrera llegan como **nombres** (los catálogos se resuelven en el servicio)
+ * y la contraseña es opcional (si falta, se genera una temporal).
+ */
+const generoDeFila = z
+  .string({ error: 'Indica el género.' })
+  .trim()
+  .transform((valor) => valor.charAt(0).toUpperCase() + valor.slice(1).toLowerCase())
+  .pipe(z.enum(GENEROS, { error: 'El género debe ser Masculino, Femenino u Otro.' }));
+
+const textoOpcional = (maximo: number, etiqueta: string) =>
+  z
+    .string()
+    .trim()
+    .max(maximo, `${etiqueta} no puede exceder ${maximo} caracteres.`)
+    .optional()
+    .or(z.literal(''));
+
+export const esquemaFilaImportarUsuario = z.object({
+  ...camposComunes,
+  genero: generoDeFila,
+  rol: z
+    .string({ error: 'Indica el rol.' })
+    .trim()
+    .min(1, 'Indica el rol.')
+    .max(50, 'El rol no puede exceder 50 caracteres.'),
+  cedula: textoOpcional(50, 'La cédula'),
+  especialidad: textoOpcional(100, 'La especialidad'),
+  tipoPaciente: textoOpcional(50, 'El tipo de paciente'),
+  carrera: textoOpcional(100, 'La carrera'),
+  contrasena: z
+    .string()
+    .trim()
+    .min(8, 'La contraseña debe tener al menos 8 caracteres.')
+    .max(72, 'La contraseña no puede exceder 72 caracteres.')
+    .optional()
+    .or(z.literal('')),
+});
+
+export type DatosFilaImportarUsuario = z.infer<typeof esquemaFilaImportarUsuario>;
 
 export type DatosCrearUsuario = z.infer<typeof esquemaCrearUsuario>;
 export type DatosActualizarUsuario = z.infer<typeof esquemaActualizarUsuario>;
