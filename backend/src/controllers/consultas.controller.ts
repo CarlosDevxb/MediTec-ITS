@@ -41,12 +41,15 @@ export async function crearConsulta(req: Request, res: Response, next: NextFunct
   }
 }
 
-/** GET /api/consultas?pacienteId=N · historial de consultas */
+/** GET /api/consultas?pacienteId=N&personalMedicoId=N · historial de consultas */
 export async function listarConsultas(req: Request, res: Response, next: NextFunction) {
   try {
     const pacienteId = Number(req.query['pacienteId'] ?? 0);
+    const personalMedicoId = Number(req.query['personalMedicoId'] ?? 0);
     const datos = await servicio.listarConsultas({
       pacienteId: Number.isInteger(pacienteId) && pacienteId > 0 ? pacienteId : undefined,
+      personalMedicoId:
+        Number.isInteger(personalMedicoId) && personalMedicoId > 0 ? personalMedicoId : undefined,
     });
     res.json({ datos });
   } catch (error) {

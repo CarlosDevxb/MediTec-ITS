@@ -36,7 +36,9 @@ export async function listarCitas(req: Request, res: Response, next: NextFunctio
 /** POST /api/citas · alta de citas programadas o de emergencia */
 export async function crearCita(req: Request, res: Response, next: NextFunction) {
   try {
-    const cita = await servicio.crearCita(req.body as DatosCrearCita);
+    const usuarioId = req.usuario?.id;
+    if (!usuarioId) throw errorValidacion('No autenticado.');
+    const cita = await servicio.crearCita(req.body as DatosCrearCita, usuarioId);
     res.status(201).json({ mensaje: `Cita creada para ${cita.paciente}.`, datos: cita });
   } catch (error) {
     next(error);
@@ -47,7 +49,9 @@ export async function crearCita(req: Request, res: Response, next: NextFunction)
 export async function cambiarEstatus(req: Request, res: Response, next: NextFunction) {
   try {
     const id = leerId(req.params.id);
-    const cita = await servicio.cambiarEstatusCita(id, req.body as DatosEstatusCita);
+    const usuario = req.usuario;
+    if (!usuario) throw errorValidacion('No autenticado.');
+    const cita = await servicio.cambiarEstatusCita(id, req.body as DatosEstatusCita, usuario);
     res.json({ mensaje: `Cita marcada como ${cita.estatus.toLowerCase()}.`, datos: cita });
   } catch (error) {
     next(error);

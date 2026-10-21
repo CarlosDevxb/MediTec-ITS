@@ -223,10 +223,19 @@ export interface RegistroSeguimiento {
 
 /**
  * Avance de peso y talla del paciente: **solo las mediciones de las sesiones
- * de nutrición** (los signos vitales de cada consulta de la nutrióloga).
+ * de nutrición** (los signos vitales de cada consulta de la nutrióloga). Con
+ * `personalMedicoId` se acota a las sesiones de ese profesional ("solo las
+ * mías").
  */
-export async function listarSeguimiento(pacienteId: number): Promise<RegistroSeguimiento[]> {
+export async function listarSeguimiento(
+  pacienteId: number,
+  personalMedicoId?: number,
+): Promise<RegistroSeguimiento[]> {
   await asegurarPacienteExiste(pacienteId);
+
+  const where = personalMedicoId ? ' AND c.personal_medico_id_personal_medico = ?' : '';
+  const parametros: unknown[] = [pacienteId];
+  if (personalMedicoId) parametros.push(personalMedicoId);
 
   const [filasSesiones] = await pool.query(
     `SELECT co.id_consulta AS consultaId, co.fecha_hora AS fecha, sv.peso, sv.talla
@@ -235,9 +244,9 @@ export async function listarSeguimiento(pacienteId: number): Promise<RegistroSeg
        JOIN cita c ON c.id_cita = co.cita_id_cita
       WHERE c.pacientes_id_paciente = ?
         AND co.tipo_consulta = 'Nutrición'
-        AND (sv.peso IS NOT NULL OR sv.talla IS NOT NULL)
+        AND (sv.peso IS NOT NULL OR sv.talla IS NOT NULL)${where}
       ORDER BY co.fecha_hora ASC`,
-    [pacienteId],
+    parametros,
   );
 
   return (filasSesiones as Array<Record<string, unknown>>).map((fila) => ({

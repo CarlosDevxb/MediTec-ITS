@@ -1,10 +1,10 @@
 import type { PoolConnection } from 'mysql2/promise';
 import pool from '../db/pool';
-import { errorConflicto, errorNoEncontrado, errorValidacion } from '../utils/erroresHttp';
+import { errorConflicto, errorNoEncontrado, errorProhibido, errorValidacion } from '../utils/erroresHttp';
 import { fechaISO, horaCorta } from '../utils/fechas';
 import { NOMBRES_DIA } from '../validaciones/horarios.validacion';
 import { asegurarPacienteExiste } from './pacientes.service';
-import { asegurarPersonalActivo, buscarPersonal } from './personal.service';
+import { asegurarPersonalActivo, buscarPersonal, buscarPersonalPorUsuario } from './personal.service';
 import type { DatosCrearCita, DatosEstatusCita } from '../validaciones/citas.validacion';
 
 /**
@@ -126,10 +126,16 @@ export async function buscarCita(id: number): Promise<Cita | null> {
 }
 
 /**
- * Da de alta una cita capturada por interfaz (agenda de doctor o enfermería).
- * Las citas de tipo 'Atención directa' no se capturan: las crea el sistema.
+ * Da de alta una cita capturada por interfaz (agenda del propio especialista o
+ * de enfermería). Las citas de tipo 'Atención directa' no se capturan: las
+ * crea el sistema.
+ *
+ * El estatus inicial depende de quién la registre: si la agenda el propio
+ * especialista, la cita queda **Confirmada**; si la registra otra persona
+ * (p. ej. enfermería), queda **Pendiente** hasta que el especialista la
+ * confirme.
  */
-export async function crearCita(datos: DatosCrearCita): Promise<Cita> {
+export async function crearCita(datos: DatosCrearCita, usuarioId: number): Promise<Cita> {
   await asegurarPacienteExiste(datos.pacienteId);
   await asegurarPersonalActivo(datos.personalMedicoId);
   await asegurarEspecialidadParaCita(datos.personalMedicoId);
@@ -137,12 +143,16 @@ export async function crearCita(datos: DatosCrearCita): Promise<Cita> {
   await asegurarDisponibilidad(datos.personalMedicoId, datos.fecha, datos.hora);
   await asegurarCitaLibre(datos.pacienteId, datos.fecha, datos.hora);
 
+  // ¿La agenda el propio especialista? Entonces la cita queda confirmada
+  const creador = await buscarPersonalPorUsuario(usuarioId);
+  const esDelPropio = creador?.id === datos.personalMedicoId;
+
   const id = await insertarCita(pool, {
     personalMedicoId: datos.personalMedicoId,
     pacienteId: datos.pacienteId,
     motivo: datos.motivo,
     tipo: datos.tipo,
-    estatus: 'Pendiente',
+    estatus: esDelPropio ? 'Confirmada' : 'Pendiente',
     fecha: datos.fecha,
     hora: datos.hora,
   });
@@ -262,10 +272,15 @@ function hhmm(minutos: number): string {
   return `${String(Math.floor(minutos / 60)).padStart(2, '0')}:${String(minutos % 60).padStart(2, '0')}`;
 }
 
-/** Cambia el estatus de una cita (confirmar, cancelar, completar) */
+/**
+ * Cambia el estatus de una cita (confirmar, cancelar, completar).
+ * Solo puede hacerlo el dueño de la cita o quien gestiona la agenda
+ * (Administrador y Enfermería): nadie marca las citas de otro especialista.
+ */
 export async function cambiarEstatusCita(
   id: number,
   datos: DatosEstatusCita,
+  usuario: { id: number; rol: string },
 ): Promise<Cita> {
   const cita = await buscarCita(id);
   if (!cita) throw errorNoEncontrado('La cita no existe.');
@@ -274,6 +289,14 @@ export async function cambiarEstatusCita(
     throw errorConflicto(
       'Las citas de atención directa se registran como completadas y no cambian de estatus.',
     );
+  }
+
+  const gestionaAgenda = usuario.rol === 'Administrador' || usuario.rol === 'Enfermería';
+  if (!gestionaAgenda) {
+    const propio = await buscarPersonalPorUsuario(usuario.id);
+    if (!propio || propio.id !== cita.personalMedicoId) {
+      throw errorProhibido('Solo puedes modificar tus propias citas.');
+    }
   }
 
   await pool.query('UPDATE cita SET estatus = ? WHERE id_cita = ?', [datos.estatus, id]);

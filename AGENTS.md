@@ -103,13 +103,19 @@ logotipos de empresa y software). El ruteo por **especialidad** vive en
 Reglas de agenda y consultas: las citas programadas solo se agendan con
 **Odontología o Nutrición**, dentro de los horarios registrados del especialista
 (tabla `horarios`) y **sin juntarse ni empalmarse**: cada cita dura 30 minutos
-con 30 de respiro (quedan cada 60 minutos). El **tipo de consulta lo determinan
-el rol y la especialidad**: el personal médico captura diagnóstico y
-tratamiento (todo el inventario como insumo); enfermería captura su
-intervención y no puede usar medicamentos especiales (categoría del inventario
-en `medicamentos.categoria`, que administra el administrador desde
-Medicamentos); nutrición captura diagnóstico nutricional e indicaciones y
-**siempre requiere cita agendada** (igual que odontología).
+con 30 de respiro (quedan cada 60 minutos). El **estatus de la cita sigue su
+ciclo**: al registrar su consulta queda **Completada**; si la agenda el propio
+especialista nace **Confirmada** y si la agenda otra persona (enfermería) nace
+**Pendiente** hasta que el especialista la confirme —el panel le avisa de sus
+citas pendientes al entrar—. Solo se pueden marcar las **citas propias** (o las
+que gestiona Administrador/Enfermería) y los paneles muestran **solo las
+consultas propias** (el expediente del paciente sí conserva su historial
+completo). El **tipo de consulta lo determinan el rol y la especialidad**: el
+personal médico captura diagnóstico y tratamiento (todo el inventario como
+insumo); enfermería captura su intervención y no puede usar medicamentos
+especiales (categoría del inventario en `medicamentos.categoria`, que administra
+el administrador desde Medicamentos); nutrición captura diagnóstico nutricional
+e indicaciones y **siempre requiere cita agendada** (igual que odontología).
 
 Cuestionario de salud (`POST /api/pacientes/:id/cuestionario`): único por
 paciente, se llena al primer acceso del paciente a su portal o antes de su

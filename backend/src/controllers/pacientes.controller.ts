@@ -87,7 +87,11 @@ export async function obtenerSeguimiento(req: Request, res: Response, next: Next
   try {
     const id = leerId(req.params.id);
     await asegurarPropioExpediente(req, id);
-    const datos = await servicio.listarSeguimiento(id);
+    const personalMedicoId = Number(req.query['personalMedicoId'] ?? 0);
+    const datos = await servicio.listarSeguimiento(
+      id,
+      Number.isInteger(personalMedicoId) && personalMedicoId > 0 ? personalMedicoId : undefined,
+    );
     res.json({ datos });
   } catch (error) {
     next(error);

@@ -27,6 +27,7 @@ import StatCard from '../ui/StatCard';
 import type { Column } from '../ui/DataTable';
 import { Field, Input, Textarea } from '../ui/Input';
 import { detallesDe, mensajeDeError } from '../../services/api';
+import { obtenerPerfil } from '../../services/auth.service';
 import {
   listarPlanes,
   crearPlan,
@@ -103,15 +104,23 @@ export default function FichaNutricion({ paciente, onVolver }: FichaNutricionPro
     setCargando(true);
     setError('');
     try {
-      const [listaPlanes, listaSeguimiento, listaConsultas] = await Promise.all([
+      const [perfil, listaPlanes, listaConsultas] = await Promise.all([
+        obtenerPerfil().catch(() => null),
         listarPlanes({ pacienteId: paciente.id }),
-        listarSeguimiento(paciente.id),
         listarConsultas({ pacienteId: paciente.id }),
       ]);
+      const miFicha = perfil?.personalMedicoId ?? null;
       setPlanes(listaPlanes);
-      setSeguimiento(listaSeguimiento);
-      // Sus sesiones: las consultas de nutrición con este paciente
-      setSesiones(listaConsultas.filter((consulta) => consulta.tipo === 'Nutrición'));
+      // Solo mis sesiones de nutrición con este paciente (no las de otras
+      // profesionales con mi misma especialidad)
+      setSesiones(
+        listaConsultas.filter(
+          (consulta) =>
+            consulta.tipo === 'Nutrición' && (!miFicha || consulta.personal.id === miFicha),
+        ),
+      );
+      // El avance se mide con los signos vitales de MIS sesiones
+      setSeguimiento(await listarSeguimiento(paciente.id, miFicha ?? undefined));
     } catch (e) {
       setError(mensajeDeError(e));
     } finally {
@@ -572,7 +581,7 @@ export default function FichaNutricion({ paciente, onVolver }: FichaNutricionPro
         <Card
           title="Avance de peso y talla"
           icon={TrendingUp}
-          description="Medidas del cuestionario de salud y de cada sesión registrada"
+          description="Mediciones capturadas en tus sesiones de nutrición"
         >
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <StatCard icon={TrendingUp} label="Peso actual" value={pesoActual != null ? `${pesoActual} kg` : '—'} />

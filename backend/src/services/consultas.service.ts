@@ -276,6 +276,9 @@ export async function crearConsulta(
       });
     }
 
+    /* ---- 1b) La cita queda completada: su consulta ya se registró ---- */
+    await conexion.query('UPDATE cita SET estatus = ? WHERE id_cita = ?', ['Completada', citaId]);
+
     /* ---- 2) La consulta (una por cita, por la restricción del esquema) ---- */
     const [resultado] = await conexion.query(
       `INSERT INTO consulta
@@ -378,14 +381,21 @@ export async function crearConsulta(
   return creada;
 }
 
-/** Historial de consultas (todas las del personal clínico) */
-export async function listarConsultas(filtro: { pacienteId?: number } = {}): Promise<ConsultaResumen[]> {
+/** Historial de consultas (filtro opcional: personalMedicoId para "solo las mías") */
+export async function listarConsultas(
+  filtro: { pacienteId?: number; personalMedicoId?: number } = {},
+): Promise<ConsultaResumen[]> {
+  const condiciones: string[] = [];
   const parametros: unknown[] = [];
-  let where = '';
   if (filtro.pacienteId) {
-    where = ' WHERE p.id_paciente = ?';
+    condiciones.push('p.id_paciente = ?');
     parametros.push(filtro.pacienteId);
   }
+  if (filtro.personalMedicoId) {
+    condiciones.push('pm.id_personal_medico = ?');
+    parametros.push(filtro.personalMedicoId);
+  }
+  const where = condiciones.length > 0 ? ` WHERE ${condiciones.join(' AND ')}` : '';
 
   const [filas] = await pool.query(
     `${COLUMNAS}${where} ORDER BY co.fecha_hora DESC`,

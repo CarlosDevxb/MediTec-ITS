@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarClock, ClipboardCheck, Stethoscope, RefreshCw } from 'lucide-react';
+import { CalendarClock, ClipboardCheck, Stethoscope, RefreshCw, CircleAlert } from 'lucide-react';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import DataTable from '../ui/DataTable';
@@ -44,6 +44,7 @@ export default function ResumenNutricion({
   onVerAgenda,
   onVerPacientes,
 }: ResumenNutricionProps) {
+  const [todasLasCitas, setTodasLasCitas] = useState<Cita[]>([]);
   const [citas, setCitas] = useState<Cita[]>([]);
   const [planes, setPlanes] = useState<PlanAlimenticio[]>([]);
   const [sesiones, setSesiones] = useState<ConsultaResumen[]>([]);
@@ -57,24 +58,32 @@ export default function ResumenNutricion({
     setCargando(true);
     setError('');
     try {
-      const [perfil, citasHoy, planesHoy, consultas] = await Promise.all([
+      const [perfil, todasCitas, planesHoy, consultas] = await Promise.all([
         obtenerPerfil().catch(() => null),
-        listarCitas({ fecha: hoyISO() }),
+        listarCitas(),
         listarPlanes(),
         listarConsultas(),
       ]);
+      const miFicha = perfil?.personalMedicoId ?? null;
       if (perfil) {
         setNombre(perfil.nombre);
         setEspecialidad(perfil.especialidad ?? '');
-        // Su agenda y sus planes: los de su ficha de personal
-        setCitas(citasHoy.filter((cita) => cita.personalMedicoId === perfil.personalMedicoId));
-        setPlanes(planesHoy.filter((plan) => plan.personalMedicoId === perfil.personalMedicoId));
-      } else {
-        setCitas(citasHoy);
-        setPlanes(planesHoy);
       }
-      // Sus sesiones: consultas de nutrición registradas
-      setSesiones(consultas.filter((consulta) => consulta.tipo === 'Nutrición'));
+      // Solo lo propio: mi agenda, mis planes y mis sesiones
+      const misCitas = miFicha
+        ? todasCitas.filter((cita) => cita.personalMedicoId === miFicha)
+        : todasCitas;
+      setTodasLasCitas(misCitas);
+      setCitas(misCitas.filter((cita) => cita.fecha === hoyISO()));
+      setPlanes(
+        miFicha ? planesHoy.filter((plan) => plan.personalMedicoId === miFicha) : planesHoy,
+      );
+      setSesiones(
+        consultas.filter(
+          (consulta) =>
+            consulta.tipo === 'Nutrición' && (!miFicha || consulta.personal.id === miFicha),
+        ),
+      );
     } catch (e) {
       setError(mensajeDeError(e));
     } finally {
@@ -94,6 +103,11 @@ export default function ResumenNutricion({
   const planesVigentes = useMemo(
     () => planes.filter((plan) => plan.estatus === 'Vigente'),
     [planes],
+  );
+  /** Citas pendientes de confirmar (las que agendó enfermería para ella) */
+  const pendientes = useMemo(
+    () => todasLasCitas.filter((cita) => cita.estatus === 'Pendiente'),
+    [todasLasCitas],
   );
 
   const columnas: Column<Cita>[] = [
@@ -155,6 +169,23 @@ export default function ResumenNutricion({
 
       <EstadoVista cargando={cargando} error={error} onReintentar={() => void cargar()}>
         <>
+          {/* Notificación: citas pendientes de confirmar al entrar al panel */}
+          {pendientes.length > 0 && (
+            <div
+              role="status"
+              className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-amber-200 bg-amber-50 px-5 py-4"
+            >
+              <p className="flex items-center gap-2.5 text-amber-900 font-medium">
+                <CircleAlert size={18} className="shrink-0" aria-hidden="true" />
+                Tienes {pendientes.length} cita(s) pendientes de confirmar
+                {pendientes.some((cita) => cita.fecha !== hoy) ? ' (incluidas de otros días)' : ''}.
+              </p>
+              <Button size="sm" icon={CalendarClock} onClick={onVerAgenda}>
+                Revisar en la agenda
+              </Button>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <StatCard
               icon={CalendarClock}

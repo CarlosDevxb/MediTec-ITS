@@ -8,6 +8,7 @@ import EstadoVista from '../ui/EstadoVista';
 import type { Column } from '../ui/DataTable';
 import { Input } from '../ui/Input';
 import { mensajeDeError } from '../../services/api';
+import { obtenerPerfil } from '../../services/auth.service';
 import {
   listarConsultas,
   obtenerConsulta,
@@ -36,7 +37,15 @@ export default function HistorialConsultas() {
     setCargando(true);
     setError('');
     try {
-      setConsultas(await listarConsultas());
+      const [perfil, lista] = await Promise.all([
+        obtenerPerfil().catch(() => null),
+        listarConsultas(),
+      ]);
+      const miFicha = perfil?.personalMedicoId ?? null;
+      // Solo mis consultas: no las de colegas con mi mismo rol o especialidad
+      setConsultas(
+        miFicha ? lista.filter((consulta) => consulta.personal.id === miFicha) : lista,
+      );
     } catch (e) {
       setError(mensajeDeError(e));
     } finally {
@@ -130,7 +139,7 @@ export default function HistorialConsultas() {
     <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
       <PageHeader
         title="Historial de consultas"
-        subtitle="Todas las atenciones registradas en la clínica"
+        subtitle="Tus consultas registradas (no las de otros profesionales)"
       />
 
       <EstadoVista cargando={cargando} error={error} onReintentar={() => void cargar()}>

@@ -43,7 +43,13 @@ export default function ResumenDoctor({ onNuevaConsulta }: ResumenDoctorProps) {
         listarConsultas(),
         obtenerPerfil().catch(() => null),
       ]);
-      setConsultas(listaConsultas);
+      const miFicha = perfil?.personalMedicoId ?? null;
+      // Solo mis consultas: no las de colegas con mi mismo rol o especialidad
+      setConsultas(
+        miFicha
+          ? listaConsultas.filter((consulta) => consulta.personal.id === miFicha)
+          : listaConsultas,
+      );
       if (perfil) {
         setNombre(perfil.nombre);
         setEspecialidad(perfil.especialidad ?? '');
@@ -129,9 +135,9 @@ export default function ResumenDoctor({ onNuevaConsulta }: ResumenDoctorProps) {
             />
             <StatCard
               icon={Clock}
-              label="Consultas registradas"
+              label="Mis consultas registradas"
               value={consultas.length}
-              detail="historial total de la clínica"
+              detail="historial de tus propias consultas"
             />
           </div>
 

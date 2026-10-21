@@ -283,9 +283,17 @@ export function crearConsulta(datos: DatosAtencion): Promise<ConsultaDetalle> {
   }).then((r) => r.datos);
 }
 
-export function listarConsultas(filtro: { pacienteId?: number } = {}): Promise<ConsultaResumen[]> {
-  const consulta = filtro.pacienteId ? `?pacienteId=${filtro.pacienteId}` : '';
-  return apiFetch<{ datos: ConsultaResumen[] }>(`/consultas${consulta}`).then((r) => r.datos);
+/** Historial de consultas (filtro opcional: personalMedicoId para "solo las mías") */
+export function listarConsultas(
+  filtro: { pacienteId?: number; personalMedicoId?: number } = {},
+): Promise<ConsultaResumen[]> {
+  const parametros = new URLSearchParams();
+  if (filtro.pacienteId) parametros.set('pacienteId', String(filtro.pacienteId));
+  if (filtro.personalMedicoId) parametros.set('personalMedicoId', String(filtro.personalMedicoId));
+  const consulta = parametros.toString();
+  return apiFetch<{ datos: ConsultaResumen[] }>(`/consultas${consulta ? `?${consulta}` : ''}`).then(
+    (r) => r.datos,
+  );
 }
 
 export function obtenerConsulta(id: number): Promise<ConsultaDetalle> {
@@ -390,11 +398,18 @@ export interface RegistroSeguimiento {
   consultaId: number;
 }
 
-/** Avance de peso y talla: solo las mediciones de las sesiones de nutrición */
-export function listarSeguimiento(pacienteId: number): Promise<RegistroSeguimiento[]> {
-  return apiFetch<{ datos: RegistroSeguimiento[] }>(`/pacientes/${pacienteId}/seguimiento`).then(
-    (r) => r.datos,
-  );
+/**
+ * Avance de peso y talla: solo las mediciones de las sesiones de nutrición.
+ * Con `personalMedicoId` se acota a las sesiones de ese profesional.
+ */
+export function listarSeguimiento(
+  pacienteId: number,
+  personalMedicoId?: number,
+): Promise<RegistroSeguimiento[]> {
+  const consulta = personalMedicoId ? `?personalMedicoId=${personalMedicoId}` : '';
+  return apiFetch<{ datos: RegistroSeguimiento[] }>(
+    `/pacientes/${pacienteId}/seguimiento${consulta}`,
+  ).then((r) => r.datos);
 }
 
 /* ---------------- Disponibilidad de agenda ---------------- */
