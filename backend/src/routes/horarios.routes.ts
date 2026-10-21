@@ -18,8 +18,9 @@ import * as controlador from '../controllers/horarios.controller';
  *
  * Solo hay turno de lunes a viernes y no se permiten duplicados exactos
  * (mismo personal, mismo día y mismo rango de horas). La **lectura** también
- * es del personal clínico: la agenda de citas valida la disponibilidad con
- * estos turnos. El alta y la edición siguen siendo del Administrador.
+ * es del personal clínico (la agenda de citas valida la disponibilidad con
+ * estos turnos) y del **paciente** (para elegir día y hora al agendar). El
+ * alta y la edición siguen siendo del Administrador.
  */
 const rutas = Router();
 
@@ -27,7 +28,7 @@ rutas.use(verificarToken);
 
 rutas.get(
   '/',
-  requerirRol('Administrador', 'Personal médico', 'Enfermería'),
+  requerirRol('Administrador', 'Personal médico', 'Enfermería', 'Paciente'),
   controlador.listarHorarios,
 );
 rutas.post('/', requerirRol('Administrador'), validar(esquemaCrearHorarios), controlador.crearHorarios);

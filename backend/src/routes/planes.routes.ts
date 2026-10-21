@@ -19,16 +19,24 @@ import * as controlador from '../controllers/planes.controller';
  *   PATCH /api/planes/:id/estatus   → vigente, finalizado o cancelado
  *
  * Los planes son el trabajo del personal de nutrición sobre cada paciente;
- * el acceso es del personal médico y del Administrador.
+ * el alta y los cambios son del personal médico y del Administrador, y el
+ * **paciente puede consultar el suyo**.
  */
 const rutas = Router();
 
-rutas.use(verificarToken, requerirRol('Administrador', 'Personal médico'));
+rutas.use(verificarToken);
 
-rutas.get('/', controlador.listarPlanes);
-rutas.get('/:id', controlador.obtenerPlan);
-rutas.post('/', validar(esquemaCrearPlan), controlador.crearPlan);
-rutas.put('/:id', validar(esquemaActualizarPlan), controlador.actualizarPlan);
-rutas.patch('/:id/estatus', validar(esquemaEstatusPlan), controlador.cambiarEstatus);
+const GESTION_PLANES = ['Administrador', 'Personal médico'] as const;
+
+rutas.get('/', requerirRol(...GESTION_PLANES, 'Paciente'), controlador.listarPlanes);
+rutas.get('/:id', requerirRol(...GESTION_PLANES, 'Paciente'), controlador.obtenerPlan);
+rutas.post('/', requerirRol(...GESTION_PLANES), validar(esquemaCrearPlan), controlador.crearPlan);
+rutas.put('/:id', requerirRol(...GESTION_PLANES), validar(esquemaActualizarPlan), controlador.actualizarPlan);
+rutas.patch(
+  '/:id/estatus',
+  requerirRol(...GESTION_PLANES),
+  validar(esquemaEstatusPlan),
+  controlador.cambiarEstatus,
+);
 
 export default rutas;

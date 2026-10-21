@@ -7,10 +7,16 @@ import * as servicio from '../services/personal.service';
  */
 
 /** GET /api/personal-medico */
-export async function listarPersonal(_req: Request, res: Response, next: NextFunction) {
+export async function listarPersonal(req: Request, res: Response, next: NextFunction) {
   try {
     const datos = await servicio.listarPersonal();
-    res.json({ datos });
+    // Minimización de datos: el paciente solo necesita nombre y especialidad
+    // para elegir a su especialista al agendar citas
+    const respuesta =
+      req.usuario?.rol === 'Paciente'
+        ? datos.map((persona) => ({ ...persona, cedula: '' }))
+        : datos;
+    res.json({ datos: respuesta });
   } catch (error) {
     next(error);
   }

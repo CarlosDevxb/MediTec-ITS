@@ -49,7 +49,7 @@ rutas.get(
 rutas.post('/', requerirRol('Administrador', 'Enfermería'), validar(esquemaCrearPaciente), controlador.crearPaciente);
 rutas.patch(
   '/:id/expediente',
-  requerirRol('Administrador', 'Enfermería'),
+  requerirRol('Administrador', 'Enfermería', 'Paciente'),
   validar(esquemaActualizarExpediente),
   controlador.actualizarExpediente,
 );

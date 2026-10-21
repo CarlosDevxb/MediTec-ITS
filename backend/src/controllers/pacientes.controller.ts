@@ -117,6 +117,8 @@ export async function crearPaciente(req: Request, res: Response, next: NextFunct
 export async function actualizarExpediente(req: Request, res: Response, next: NextFunction) {
   try {
     const id = leerId(req.params.id);
+    // El paciente solo puede actualizar su propio expediente
+    await asegurarPropioExpediente(req, id);
     const paciente = await servicio.actualizarExpediente(
       id,
       req.body as DatosActualizarExpediente,

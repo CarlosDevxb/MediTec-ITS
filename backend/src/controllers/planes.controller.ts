@@ -7,6 +7,7 @@ import type {
   DatosEstatusPlan,
 } from '../validaciones/planes.validacion';
 import { buscarPersonalPorUsuario } from '../services/personal.service';
+import { buscarPacientePorUsuario } from '../services/pacientes.service';
 import * as servicio from '../services/planes.service';
 
 /**
@@ -37,10 +38,20 @@ async function personalDeSesion(req: Request): Promise<number> {
 /** GET /api/planes?pacienteId=N&personalMedicoId=N */
 export async function listarPlanes(req: Request, res: Response, next: NextFunction) {
   try {
+    const usuario = req.usuario;
+    if (!usuario) throw errorValidacion('No autenticado.');
+
     const pacienteId = Number(req.query['pacienteId'] ?? 0);
     const personalMedicoId = Number(req.query['personalMedicoId'] ?? 0);
+    let filtroPaciente = Number.isInteger(pacienteId) && pacienteId > 0 ? pacienteId : undefined;
+
+    // El paciente solo puede ver su propio plan alimenticio
+    if (usuario.rol === 'Paciente') {
+      filtroPaciente = (await buscarPacientePorUsuario(usuario.id)) ?? -1;
+    }
+
     const datos = await servicio.listarPlanes({
-      pacienteId: Number.isInteger(pacienteId) && pacienteId > 0 ? pacienteId : undefined,
+      pacienteId: filtroPaciente,
       personalMedicoId:
         Number.isInteger(personalMedicoId) && personalMedicoId > 0 ? personalMedicoId : undefined,
     });
@@ -55,6 +66,16 @@ export async function obtenerPlan(req: Request, res: Response, next: NextFunctio
   try {
     const plan = await servicio.buscarPlan(leerId(req.params.id));
     if (!plan) throw servicio.errorPlanNoEncontrado();
+
+    // El paciente solo puede ver su propio plan alimenticio
+    const usuario = req.usuario;
+    if (usuario?.rol === 'Paciente') {
+      const propio = await buscarPacientePorUsuario(usuario.id);
+      if (!propio || propio !== plan.pacienteId) {
+        throw errorProhibido('Solo puedes ver tu propio plan alimenticio.');
+      }
+    }
+
     res.json({ datos: plan });
   } catch (error) {
     next(error);

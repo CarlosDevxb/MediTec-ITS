@@ -1,7 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
-import { errorNoEncontrado, errorValidacion } from '../utils/erroresHttp';
+import { errorProhibido, errorNoEncontrado, errorValidacion } from '../utils/erroresHttp';
 import { textoObligatorio } from '../utils/parametros';
 import type { DatosCrearConsulta } from '../validaciones/consultas.validacion';
+import { buscarPacientePorUsuario } from '../services/pacientes.service';
 import * as servicio from '../services/consultas.service';
 
 /**
@@ -44,10 +45,20 @@ export async function crearConsulta(req: Request, res: Response, next: NextFunct
 /** GET /api/consultas?pacienteId=N&personalMedicoId=N · historial de consultas */
 export async function listarConsultas(req: Request, res: Response, next: NextFunction) {
   try {
+    const usuario = req.usuario;
+    if (!usuario) throw errorValidacion('No autenticado.');
+
     const pacienteId = Number(req.query['pacienteId'] ?? 0);
     const personalMedicoId = Number(req.query['personalMedicoId'] ?? 0);
+    let filtroPaciente = Number.isInteger(pacienteId) && pacienteId > 0 ? pacienteId : undefined;
+
+    // El paciente solo ve sus propias consultas
+    if (usuario.rol === 'Paciente') {
+      filtroPaciente = (await buscarPacientePorUsuario(usuario.id)) ?? -1;
+    }
+
     const datos = await servicio.listarConsultas({
-      pacienteId: Number.isInteger(pacienteId) && pacienteId > 0 ? pacienteId : undefined,
+      pacienteId: filtroPaciente,
       personalMedicoId:
         Number.isInteger(personalMedicoId) && personalMedicoId > 0 ? personalMedicoId : undefined,
     });
@@ -63,6 +74,16 @@ export async function obtenerConsulta(req: Request, res: Response, next: NextFun
     const id = leerId(req.params.id);
     const consulta = await servicio.buscarConsulta(id);
     if (!consulta) throw errorNoEncontrado('La consulta no existe.');
+
+    // El paciente solo puede ver sus propias consultas
+    const usuario = req.usuario;
+    if (usuario?.rol === 'Paciente') {
+      const propio = await buscarPacientePorUsuario(usuario.id);
+      if (!propio || propio !== consulta.paciente.id) {
+        throw errorProhibido('Solo puedes ver tus propias consultas.');
+      }
+    }
+
     res.json({ datos: consulta });
   } catch (error) {
     next(error);

@@ -13,12 +13,14 @@ import * as controlador from '../controllers/citas.controller';
  *   PATCH /api/citas/:id/estatus   → confirmar, cancelar o completar
  *
  * Las citas de tipo 'Atención directa' no se capturan aquí: las crea el
- * sistema al registrar una consulta sin cita previa. Acceso exclusivo del
- * personal clínico (Personal médico y Enfermería).
+ * sistema al registrar una consulta sin cita previa. El personal clínico
+ * gestiona la agenda; el **paciente solo puede agendar para sí mismo y
+ * cancelar sus citas** (siempre quedan Pendientes hasta que el especialista
+ * las confirme).
  */
 const rutas = Router();
 
-rutas.use(verificarToken, requerirRol('Personal médico', 'Enfermería'));
+rutas.use(verificarToken, requerirRol('Personal médico', 'Enfermería', 'Paciente'));
 
 rutas.get('/', controlador.listarCitas);
 rutas.post('/', validar(esquemaCrearCita), controlador.crearCita);

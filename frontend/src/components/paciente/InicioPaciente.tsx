@@ -1,196 +1,228 @@
-import React from 'react';
-import { CalendarDays, FileText, AlertTriangle, CalendarPlus } from 'lucide-react';
-import PageHeader from '../ui/PageHeader';
-import StatCard from '../ui/StatCard';
-import Card from '../ui/Card';
-import Badge from '../ui/Badge';
-import Button from '../ui/Button';
-import { saludoDelDia, fechaCorta } from '../clinica/datos';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  esProxima,
-  fechaLarga,
-  AREA_BADGE,
-  BADGE_POR_ESTATUS,
-  type CitaPaciente,
-} from './datos';
-import type { Paciente } from '../clinica/datos';
+  CalendarClock,
+  FileText,
+  ClipboardCheck,
+  RefreshCw,
+  CircleAlert,
+} from 'lucide-react';
+import Button from '../ui/Button';
+import Badge from '../ui/Badge';
+import DataTable from '../ui/DataTable';
+import EstadoVista from '../ui/EstadoVista';
+import StatCard from '../ui/StatCard';
+import SaludoInicio from '../layout/SaludoInicio';
+import type { Column } from '../ui/DataTable';
+import { mensajeDeError } from '../../services/api';
+import { obtenerSesion } from '../../services/sesion';
+import { obtenerPerfil } from '../../services/auth.service';
+import {
+  listarCitas,
+  listarPlanes,
+  listarConsultas,
+  hoyISO,
+  fechaCorta,
+  type Cita,
+  type ConsultaResumen,
+  type ExpedientePaciente,
+  type PlanAlimenticio,
+} from '../../services/atencion.service';
 
 /* ============================================================
-   INICIO (PORTAL) · Saludo + próxima cita, indicadores y
-   resumen. El hero oscuro es la pieza destacada del portal.
+   INICIO (PACIENTE) · Saludo con su nombre, sus próximas citas
+   y accesos a su expediente y a su plan alimenticio.
    ============================================================ */
 
-interface Props {
-  paciente: Paciente;
-  citas: CitaPaciente[];
-  onNavigate: (vista: string) => void;
+const ESTILOS_ESTATUS: Record<string, 'pending' | 'confirmed' | 'cancelled' | 'completed'> = {
+  Pendiente: 'pending',
+  Confirmada: 'confirmed',
+  Cancelada: 'cancelled',
+  Completada: 'completed',
+};
+
+export interface InicioPacienteProps {
+  expediente: ExpedientePaciente;
+  onVerCitas: () => void;
+  onVerExpediente: () => void;
+  onVerPlan: () => void;
 }
 
-export default function InicioPaciente({ paciente, citas, onNavigate }: Props) {
-  const proximas = citas
-    .filter((cita) => esProxima(cita))
-    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+export default function InicioPaciente({
+  expediente,
+  onVerCitas,
+  onVerExpediente,
+  onVerPlan,
+}: InicioPacienteProps) {
+  const [citas, setCitas] = useState<Cita[]>([]);
+  const [planes, setPlanes] = useState<PlanAlimenticio[]>([]);
+  const [consultas, setConsultas] = useState<ConsultaResumen[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+  const [nombre, setNombre] = useState(() => obtenerSesion()?.usuario.nombre ?? '');
 
-  const atendidas = citas.filter((cita) => cita.estatus === 'Completada');
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    setError('');
+    try {
+      const [perfil, lista, listaPlanes, listaConsultas] = await Promise.all([
+        obtenerPerfil().catch(() => null),
+        listarCitas(),
+        listarPlanes(),
+        listarConsultas(),
+      ]);
+      if (perfil?.nombre) setNombre(perfil.nombre);
+      setCitas(lista);
+      setPlanes(listaPlanes);
+      setConsultas(listaConsultas);
+    } catch (e) {
+      setError(mensajeDeError(e));
+    } finally {
+      setCargando(false);
+    }
+  }, []);
 
-  const ultima = atendidas
-    .slice()
-    .sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
+  useEffect(() => {
+    void cargar();
+  }, [cargar]);
 
-  const proxima = proximas[0];
+  /* ---- Resumen del paciente (solo lo suyo) ---- */
+  const hoy = hoyISO();
+  const proximas = useMemo(
+    () =>
+      citas
+        .filter((cita) => cita.fecha >= hoy && cita.estatus !== 'Cancelada')
+        .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.hora.localeCompare(b.hora)),
+    [citas, hoy],
+  );
+  const pendientes = useMemo(
+    () => citas.filter((cita) => cita.estatus === 'Pendiente'),
+    [citas],
+  );
+  const planVigente = useMemo(
+    () => planes.find((plan) => plan.estatus === 'Vigente') ?? planes[0] ?? null,
+    [planes],
+  );
 
-  const iniciales = paciente.nombre.split(' ').map((p) => p[0]).slice(0, 2).join('');
+  const columnas: Column<Cita>[] = [
+    {
+      key: 'fecha',
+      header: 'Fecha',
+      className: 'w-52',
+      render: (cita) => (
+        <div>
+          <p className="text-gray-900">{fechaCorta(cita.fecha)}</p>
+          <p className="text-sm text-gray-500 tabular-nums">{cita.hora}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'personal',
+      header: 'Con',
+      className: 'w-56',
+      render: (cita) => (
+        <div>
+          <p className="text-gray-800">{cita.personal}</p>
+          <p className="text-sm text-gray-500">{cita.especialidad}</p>
+        </div>
+      ),
+    },
+    { key: 'motivo', header: 'Motivo' },
+    {
+      key: 'estatus',
+      header: 'Estatus',
+      className: 'w-36',
+      render: (cita) => (
+        <Badge status={ESTILOS_ESTATUS[cita.estatus] ?? 'neutral'}>{cita.estatus}</Badge>
+      ),
+    },
+  ];
 
   return (
-    <div className="p-8 xl:p-10 max-w-6xl mx-auto">
-      
-      {/* ================= HERO: saludo + próxima cita ================= */}
-      <section className="bg-brand-950 text-white rounded-2xl p-8 xl:p-10 mb-8 flex flex-wrap items-center justify-between gap-6">
-        <div>
-          <p className="text-brand-300 text-sm font-medium mb-2">
-            {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </p>
-          <h1 className="text-3xl xl:text-4xl font-semibold tracking-tight">
-            {saludoDelDia()}, {paciente.nombre}
-          </h1>
-          <p className="text-brand-200 mt-3 text-base max-w-xl">
-            {proxima
-              ? `Tu próxima cita es el ${fechaLarga(proxima.fecha)} a las ${proxima.hora} en ${proxima.area}.`
-              : 'No tienes citas programadas. Puedes solicitar una cuando lo necesites.'}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="secondary"
-            icon={CalendarPlus}
-            onClick={() => onNavigate('Mis citas')}
-          >
-            Nueva cita
-          </Button>
-        </div>
-      </section>
+    <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
+      {/* Saludo del paciente */}
+      <SaludoInicio
+        nombre={nombre}
+        especialidad={`Expediente ${expediente.numeroControl}`}
+        acciones={
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="secondary" icon={FileText} onClick={onVerExpediente}>
+              Mi expediente
+            </Button>
+            <Button icon={CalendarClock} onClick={onVerCitas}>
+              Mis citas
+            </Button>
+          </div>
+        }
+      />
 
-      {/* ================= Indicadores ================= */}
-      <div className="bg-white rounded-2xl border border-gray-200 grid grid-cols-1 md:grid-cols-3 divide-y divide-gray-100 md:divide-y-0 md:divide-x mb-8">
-        <StatCard
-          variant="band"
-          icon={CalendarDays}
-          label="Próximas citas"
-          value={proximas.length}
-          detail={proxima ? `Primera: ${fechaCorta(proxima.fecha)}` : 'Sin citas programadas'}
-          highlight
-        />
-        <StatCard
-          variant="band"
-          icon={FileText}
-          label="Citas atendidas"
-          value={atendidas.length}
-          detail="En odontología y nutrición"
-        />
-        <StatCard
-          variant="band"
-          icon={CalendarDays}
-          label="Última visita"
-          value={ultima ? fechaCorta(ultima.fecha) : '—'}
-          detail={ultima ? ultima.area : 'Aún sin visitas'}
-        />
-      </div>
-
-      {/* ================= Alerta de alergias ================= */}
-      {paciente.alergias !== 'Ninguna' && (
-        <div className="mb-8 flex items-center gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-5 py-4 text-base">
-          <AlertTriangle size={18} className="shrink-0" />
-          <span>
-            <strong>Alergias registradas:</strong> {paciente.alergias}. Infóralas siempre al
-            personal médico.
-          </span>
-        </div>
-      )}
-
-      {/* ================= Dos columnas ================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Próximas citas */}
-        <div className="lg:col-span-2">
-          <Card
-            title="Próximas citas"
-            description={proximas.length ? `${proximas.length} programadas` : undefined}
-            divided
-            action={
-              <Button variant="ghost" size="sm" onClick={() => onNavigate('Mis citas')}>
-                Gestionar
-              </Button>
-            }
-            bodyClassName="px-7 py-2"
-          >
-            {proximas.length === 0 ? (
-              <p className="py-6 text-base text-gray-500">
-                No tienes citas programadas.
+      <EstadoVista cargando={cargando} error={error} onReintentar={() => void cargar()}>
+        <>
+          {/* Aviso de citas pendientes de confirmar */}
+          {pendientes.length > 0 && (
+            <div
+              role="status"
+              className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-amber-200 bg-amber-50 px-5 py-4"
+            >
+              <p className="flex items-center gap-2.5 text-amber-900 font-medium">
+                <CircleAlert size={18} className="shrink-0" aria-hidden="true" />
+                Tienes {pendientes.length} cita(s) por confirmar: el especialista las revisará
+                pronto.
               </p>
-            ) : (
-              <ul>
-                {proximas.slice(0, 3).map((cita) => {
-                  const area = AREA_BADGE[cita.area];
-                  return (
-                    <li key={cita.id} className="py-4 flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
-                          <Badge status={area.status}>{area.label}</Badge>
-                          <Badge status={BADGE_POR_ESTATUS[cita.estatus]} />
-                        </div>
-                        <p className="text-base font-semibold text-gray-900">{cita.motivo}</p>
-                        <p className="text-sm text-gray-500 tabular-nums">
-                          {fechaLarga(cita.fecha)} · {cita.hora}
-                        </p>
-                      </div>
-                      <span className="text-sm text-gray-400 shrink-0 hidden sm:block">
-                        {cita.profesional}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Card>
-        </div>
-
-        {/* Resumen personal */}
-        <div>
-          <Card title="Mi información" icon={FileText}>
-            <dl className="space-y-4">
-              <div className="flex justify-between gap-4">
-                <dt className="text-sm text-gray-500">Expediente</dt>
-                <dd className="text-base font-medium text-gray-900 tabular-nums">
-                  {paciente.expediente}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-sm text-gray-500">Tipo de sangre</dt>
-                <dd className="text-base font-medium text-gray-900">{paciente.tipoSangre}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-sm text-gray-500">Teléfono</dt>
-                <dd className="text-base font-medium text-gray-900 tabular-nums">
-                  {paciente.telefono}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-sm text-gray-500">Género</dt>
-                <dd className="text-base font-medium text-gray-900">{paciente.genero}</dd>
-              </div>
-            </dl>
-            <div className="pt-5 mt-5 border-t border-gray-100">
-              <Button
-                variant="secondary"
-                fullWidth
-                onClick={() => onNavigate('Mi información')}
-              >
-                Ver mi información
+              <Button size="sm" icon={CalendarClock} onClick={onVerCitas}>
+                Ver mis citas
               </Button>
             </div>
-          </Card>
-        </div>
-      </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <StatCard
+              icon={CalendarClock}
+              label="Próximas citas"
+              value={proximas.length}
+              detail="programadas y por confirmar"
+            />
+            <StatCard
+              icon={ClipboardCheck}
+              label="Mi plan alimenticio"
+              value={planVigente ? `${planVigente.caloriasDiarias} kcal` : '—'}
+              detail={
+                planVigente
+                  ? `del ${fechaCorta(planVigente.fechaInicio)} al ${fechaCorta(planVigente.fechaFin)}`
+                  : 'aún sin plan asignado'
+              }
+            />
+            <StatCard
+              icon={FileText}
+              label="Consultas registradas"
+              value={consultas.length}
+              detail="en tu expediente médico"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Mis próximas citas</h2>
+            <Button variant="ghost" icon={RefreshCw} onClick={() => void cargar()}>
+              Actualizar
+            </Button>
+          </div>
+
+          <DataTable
+            columns={columnas}
+            rows={proximas.slice(0, 5)}
+            rowKey={(cita) => cita.id}
+            emptyMessage="No tienes citas próximas. Agenda una desde la sección Mis citas."
+          />
+
+          <div className="flex flex-wrap gap-4 mt-8">
+            <Button variant="secondary" icon={ClipboardCheck} onClick={onVerPlan}>
+              Ver mi plan alimenticio
+            </Button>
+            <Button variant="secondary" icon={FileText} onClick={onVerExpediente}>
+              Ver mi expediente
+            </Button>
+          </div>
+        </>
+      </EstadoVista>
     </div>
   );
 }

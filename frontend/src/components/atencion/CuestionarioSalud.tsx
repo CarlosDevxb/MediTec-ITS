@@ -33,8 +33,9 @@ const ALCOHOL = ['Nunca', 'Ocasional', 'Frecuente'];
 
 export interface CuestionarioSaludProps {
   expediente: ExpedientePaciente;
-  /** 'consulta': se llena antes de atender; 'directo': gestión del paciente */
-  contexto?: 'consulta' | 'directo';
+  /** 'consulta': antes de atender · 'directo': gestión del paciente ·
+   *  'portal': primer acceso del paciente a su portal */
+  contexto?: 'consulta' | 'directo' | 'portal';
   guardando?: boolean;
   onGuardado: (expediente: ExpedientePaciente) => void;
   onCancelar?: () => void;
@@ -314,7 +315,9 @@ export default function CuestionarioSalud({
         <ClipboardPlus size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
         {contexto === 'consulta'
           ? `Antes de registrar la consulta, completa el cuestionario de salud de ${expediente.nombre}. Es único por paciente y sus alergias y enfermedades quedarán como alertas de atención.`
-          : `Cuestionario de salud de ${expediente.nombre}. Es único por paciente: al guardarlo se actualiza el anterior.`}
+          : contexto === 'portal'
+            ? `Bienvenido(a), ${expediente.nombre}. Antes de entrar a tu portal, completa tu cuestionario de salud inicial: es único por paciente y ayuda a que tu atención sea mejor.`
+            : `Cuestionario de salud de ${expediente.nombre}. Es único por paciente: al guardarlo se actualiza el anterior.`}
       </p>
 
       {/* Datos básicos */}

@@ -117,6 +117,20 @@ anteriores** (completadas o canceladas) hasta el final. **Atender solo está
 disponible para las citas del día de hoy** (el backend lo exige al ligar la
 consulta a su cita); confirmar y cancelar aplican a las citas por venir.
 
+Portal del paciente (`/paciente`, rol Paciente): **Inicio** (saludo, próximas
+citas y accesos), **Mis citas** (agenda con Odontología y Nutrición respetando
+las reglas de la agenda —el paciente consulta `GET /api/personal-medico` y
+`/api/horarios` para elegir especialista, día y hora, sin cédulas—; sus citas
+nacen **Pendientes** hasta que el especialista las confirme y solo él puede
+cancelarlas), **Mi expediente** (`atencion/ExpedienteVista`, solo lectura con
+PDF), **Mi plan alimenticio** (plan vigente y avance de peso/talla de sus
+sesiones) y **Mi información** (teléfono, contraseña y datos del expediente:
+tipo de sangre y antecedentes; el correo no se modifica). **Cuestionario
+obligatorio:** si el paciente no tiene su cuestionario de salud inicial, se
+presenta a pantalla completa antes del portal (`CuestionarioSalud` con contexto
+`portal`) y al guardarlo entra al portal; solo aplica si no lo tiene
+(`components/paciente/`, ya sin datos de demostración).
+
 Reglas de agenda y consultas: las citas programadas solo se agendan con
 **Odontología o Nutrición**, dentro de los horarios registrados del especialista
 (tabla `horarios`) y **sin juntarse ni empalmarse**: cada cita dura 30 minutos

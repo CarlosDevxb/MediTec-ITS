@@ -10,15 +10,16 @@ import * as controlador from '../controllers/personal.controller';
  *
  * Solo lectura: las fichas se crean y editan desde la sección Usuarios
  * (roles con cédula: Personal médico y Enfermería). La lista acompaña datos
- * del personal, por lo que es exclusiva del personal clínico y del
- * Administrador (la agenda de citas necesita saber a quién asignarla).
+ * del personal, por lo que es del personal clínico y del Administrador; el
+ * **paciente también puede consultarla** (sin cédula) para elegir a su
+ * especialista al agendar citas.
  */
 const rutas = Router();
 
 rutas.get(
   '/',
   verificarToken,
-  requerirRol('Administrador', 'Personal médico', 'Enfermería'),
+  requerirRol('Administrador', 'Personal médico', 'Enfermería', 'Paciente'),
   controlador.listarPersonal,
 );
 
