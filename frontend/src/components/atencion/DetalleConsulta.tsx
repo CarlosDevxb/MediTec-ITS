@@ -38,7 +38,8 @@ export default function DetalleConsulta({ consulta, cargando = false, onCerrar }
           <p className="flex items-center gap-2">
             <Badge status="scheduled">{consulta.cita.tipo}</Badge>
             <span className="text-gray-600">
-              {consulta.cita.motivo} · atendió {consulta.personal.nombre}
+              Consulta de {consulta.tipo.toLowerCase()} · {consulta.cita.motivo} · atendió{' '}
+              {consulta.personal.nombre}
             </span>
           </p>
           <div>
@@ -51,14 +52,23 @@ export default function DetalleConsulta({ consulta, cargando = false, onCerrar }
               <p className="text-gray-600">{consulta.exploracion}</p>
             </div>
           )}
-          <div>
-            <p className="font-semibold text-gray-700">Diagnóstico</p>
-            <p className="text-gray-600">{consulta.diagnostico}</p>
-          </div>
-          <div>
-            <p className="font-semibold text-gray-700">Tratamiento</p>
-            <p className="text-gray-600">{consulta.tratamiento}</p>
-          </div>
+          {consulta.tipo === 'Enfermería' ? (
+            <div>
+              <p className="font-semibold text-gray-700">Intervención de enfermería</p>
+              <p className="text-gray-600">{consulta.intervencionEnfermeria}</p>
+            </div>
+          ) : (
+            <>
+              <div>
+                <p className="font-semibold text-gray-700">Diagnóstico</p>
+                <p className="text-gray-600">{consulta.diagnostico}</p>
+              </div>
+              <div>
+                <p className="font-semibold text-gray-700">Tratamiento</p>
+                <p className="text-gray-600">{consulta.tratamiento}</p>
+              </div>
+            </>
+          )}
           {consulta.signosVitales && (
             <div>
               <p className="font-semibold text-gray-700">Signos vitales</p>

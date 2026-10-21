@@ -341,15 +341,19 @@ export async function generarExpedientePDF(datos: DatosExpedientePDF): Promise<v
     doc.setFontSize(8);
     doc.setTextColor(...GRAY);
     doc.text(
-      `${consulta.cita.tipo} · atendió ${consulta.personal.nombre}`,
+      `${consulta.cita.tipo} · consulta de ${consulta.tipo.toLowerCase()} · atendió ${consulta.personal.nombre}`,
       ancho - M - 3,
       y + 0.5,
       { align: 'right' },
     );
     y += 8;
 
-    parrafo('Diagnóstico', consulta.diagnostico);
-    parrafo('Tratamiento', consulta.tratamiento);
+    if (consulta.tipo === 'Enfermería') {
+      parrafo('Intervención de enfermería', consulta.intervencionEnfermeria || 'Sin registrar.');
+    } else {
+      parrafo('Diagnóstico', consulta.diagnostico || 'Sin registrar.');
+      parrafo('Tratamiento', consulta.tratamiento || 'Sin registrar.');
+    }
     parrafo('Síntomas', consulta.sintomas);
     if (consulta.exploracion) parrafo('Exploración', consulta.exploracion);
     if (consulta.signosVitales) {

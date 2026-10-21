@@ -34,8 +34,10 @@ Reglas de oro:
   recupera `contrasena`; el resto de servicios no debe incluirlo en el `SELECT`.
 - El token vive en `localStorage` en el front (expuesto a XSS): no insertes
   contenido de usuario con `dangerouslySetInnerHTML` ni `eval`-equivalente.
-- El `useProtegerSesion` actual es solo de vista. No es control de acceso:
-  la protección real debe estar en la API.
+- El `useProtegerSesion` valida la sesión **y el rol del panel** (redirige a
+  cada usuario a su propio panel si entra por URL a uno que no le corresponde),
+  pero sigue siendo solo de vista: el control de acceso real está en la API,
+  que valida el rol en cada endpoint.
 
 ## Manejo de datos
 

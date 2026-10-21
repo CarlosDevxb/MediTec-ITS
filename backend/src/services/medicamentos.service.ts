@@ -20,6 +20,8 @@ export interface Medicamento {
   unidad: string;
   abreviatura: string;
   nombre: string;
+  /** 'Insumo' | 'Medicamento común' | 'Medicamento especial' */
+  categoria: string;
   stock: number;
   descripcion: string;
   /** false con stock en 0: el medicamento no se puede usar en consultas */
@@ -33,6 +35,7 @@ const COLUMNAS = `
          c.nombre                      AS unidad,
          c.abreviatura                 AS abreviatura,
          m.nombre                      AS nombre,
+         m.categoria                   AS categoria,
          m.stock                       AS stock,
          m.descripcion                 AS descripcion
     FROM medicamentos m
@@ -47,6 +50,7 @@ function aMedicamento(fila: Record<string, unknown>): Medicamento {
     unidad: String(fila['unidad'] ?? ''),
     abreviatura: String(fila['abreviatura'] ?? ''),
     nombre: String(fila['nombre'] ?? ''),
+    categoria: String(fila['categoria'] ?? 'Medicamento común'),
     stock,
     descripcion: String(fila['descripcion'] ?? ''),
     // Regla del inventario: sin stock no hay disponibilidad para consultas
@@ -74,8 +78,14 @@ export async function crearMedicamento(datos: DatosMedicamento): Promise<Medicam
   await asegurarNombreLibre(nombre);
 
   const [resultado] = await pool.query(
-    'INSERT INTO medicamentos (cat_unidades_medida_id_unidad, nombre, stock, descripcion) VALUES (?, ?, ?, ?)',
-    [datos.unidadId, nombre, datos.stock, datos.descripcion?.trim() || null],
+    'INSERT INTO medicamentos (cat_unidades_medida_id_unidad, nombre, categoria, stock, descripcion) VALUES (?, ?, ?, ?, ?)',
+    [
+      datos.unidadId,
+      nombre,
+      datos.categoria ?? 'Medicamento común',
+      datos.stock,
+      datos.descripcion?.trim() || null,
+    ],
   );
 
   const creado = await buscarMedicamento(Number((resultado as { insertId: number }).insertId));
@@ -101,8 +111,15 @@ export async function actualizarMedicamento(
   await asegurarUnidadExiste(datos.unidadId);
 
   await pool.query(
-    'UPDATE medicamentos SET cat_unidades_medida_id_unidad = ?, nombre = ?, stock = ?, descripcion = ? WHERE id_medicamento = ?',
-    [datos.unidadId, nombre, datos.stock, datos.descripcion?.trim() || null, id],
+    'UPDATE medicamentos SET cat_unidades_medida_id_unidad = ?, nombre = ?, categoria = ?, stock = ?, descripcion = ? WHERE id_medicamento = ?',
+    [
+      datos.unidadId,
+      nombre,
+      datos.categoria ?? 'Medicamento común',
+      datos.stock,
+      datos.descripcion?.trim() || null,
+      id,
+    ],
   );
 
   const actualizado = await buscarMedicamento(id);

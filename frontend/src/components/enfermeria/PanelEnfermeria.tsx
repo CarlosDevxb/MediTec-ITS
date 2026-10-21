@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Users, CalendarClock, FileText } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Stethoscope,
+  Users,
+  CalendarClock,
+  Settings,
+  FileText,
+} from 'lucide-react';
 import type { SidebarSection } from '../layout/Sidebar';
 import AppShell from '../layout/AppShell';
 import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
 import { obtenerSesion, cerrarSesion, inicialesDe } from '../../services/sesion';
 import { useProtegerSesion } from '../../hooks/useProtegerSesion';
+import Atencion from '../atencion/Atencion';
+import ConfiguracionPerfil from '../cuenta/ConfiguracionPerfil';
 import ResumenEnfermeria from './ResumenEnfermeria';
 import PacientesEnfermeria from './PacientesEnfermeria';
 import AgendaEnfermeria from './AgendaEnfermeria';
@@ -13,12 +22,22 @@ import AgendaEnfermeria from './AgendaEnfermeria';
 /* ================= MENÚ DE ENFERMERÍA ================= */
 const MENU_ENFERMERIA: SidebarSection[] = [
   {
-    grupo: 'Apoyo clínico',
+    grupo: 'Atención',
     items: [
       { label: 'Inicio', icon: LayoutDashboard },
+      { label: 'Nueva consulta', icon: Stethoscope },
+    ],
+  },
+  {
+    grupo: 'Pacientes',
+    items: [
       { label: 'Pacientes', icon: Users },
       { label: 'Agenda', icon: CalendarClock },
     ],
+  },
+  {
+    grupo: 'Sistema',
+    items: [{ label: 'Configuración', icon: Settings }],
   },
 ];
 
@@ -26,13 +45,14 @@ const MENU_ENFERMERIA: SidebarSection[] = [
    PANEL DE ENFERMERÍA · Shell con las secciones de apoyo
    Ruta: /enfermeria (rol Enfermería)
 
-   Opciones distintas a las del doctor: registro y actualización
-   de pacientes y agenda de citas. La consulta con diagnóstico y
-   tratamiento se registra en el panel del doctor.
+   Opciones distintas a las del doctor: consultas de enfermería
+   (intervención e insumos comunes), altas de pacientes, agenda
+   de citas con Odontología y Nutrición, expedientes en solo
+   lectura y configuración de la propia cuenta.
    ============================================================ */
 export default function PanelEnfermeria() {
-  // Sin sesión iniciada, regresa al login
-  useProtegerSesion();
+  // Solo enfermería (y recepción, de forma provisional) en este panel
+  useProtegerSesion(['Enfermería', 'Recepción']);
 
   const [vista, setVista] = useState('Inicio');
 
@@ -57,13 +77,18 @@ export default function PanelEnfermeria() {
       <div key={vista} className="entrada">
         {vista === 'Inicio' ? (
           <ResumenEnfermeria
+            onNuevaConsulta={() => setVista('Nueva consulta')}
             onNuevaCita={() => setVista('Agenda')}
             onNuevoPaciente={() => setVista('Pacientes')}
           />
+        ) : vista === 'Nueva consulta' ? (
+          <Atencion rol="enfermeria" />
         ) : vista === 'Pacientes' ? (
           <PacientesEnfermeria />
         ) : vista === 'Agenda' ? (
           <AgendaEnfermeria />
+        ) : vista === 'Configuración' ? (
+          <ConfiguracionPerfil />
         ) : (
           <EmptyState
             icon={FileText}

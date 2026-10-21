@@ -39,8 +39,8 @@ const MENU: TopNavItem[] = [
    Ruta: /paciente
    ============================================================ */
 export default function PanelPaciente() {
-  // Sin sesión iniciada, regresa al login
-  useProtegerSesion();
+  // Solo el paciente puede estar en su portal (y debe tener sesión)
+  useProtegerSesion('Paciente');
 
   const [vista, setVista] = useState('Inicio');
   const [paciente, setPaciente] = useState<Paciente>(PACIENTE_ACTUAL);

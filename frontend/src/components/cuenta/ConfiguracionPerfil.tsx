@@ -18,7 +18,7 @@ import type { Usuario } from '../../services/administracion.service';
    cuenta. Para cambiar la contraseña se exige la actual.
    ============================================================ */
 
-export default function Configuracion() {
+export default function ConfiguracionPerfil() {
   const [perfil, setPerfil] = useState<Usuario | null>(null);
   const [telefono, setTelefono] = useState('');
   const [contrasenaActual, setContrasenaActual] = useState('');

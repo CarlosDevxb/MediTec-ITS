@@ -69,8 +69,11 @@ export interface DatosHorario {
   horaFin: string;
 }
 
-export function listarHorarios(): Promise<Horario[]> {
-  return apiFetch<{ datos: Horario[] }>('/horarios').then((r) => r.datos);
+export function listarHorarios(filtro: { personalMedicoId?: number } = {}): Promise<Horario[]> {
+  const consulta = filtro.personalMedicoId
+    ? `?personalMedicoId=${filtro.personalMedicoId}`
+    : '';
+  return apiFetch<{ datos: Horario[] }>(`/horarios${consulta}`).then((r) => r.datos);
 }
 
 export function crearHorarios(datos: DatosHorarios): Promise<Horario[]> {
@@ -93,6 +96,17 @@ export function eliminarHorario(id: number): Promise<void> {
 
 /* ---------------- Medicamentos ---------------- */
 
+/**
+ * Categorías del inventario. Enfermería solo puede descontar 'Insumo' y
+ * 'Medicamento común' en sus consultas; los 'Medicamento especial' son del
+ * personal médico.
+ */
+export const CATEGORIAS_MEDICAMENTO = [
+  'Insumo',
+  'Medicamento común',
+  'Medicamento especial',
+] as const;
+
 export interface Medicamento {
   id: number;
   unidadId: number;
@@ -100,6 +114,8 @@ export interface Medicamento {
   unidad: string;
   abreviatura: string;
   nombre: string;
+  /** 'Insumo' | 'Medicamento común' | 'Medicamento especial' */
+  categoria: string;
   stock: number;
   descripcion: string;
   /** false con stock en 0: no disponible para usarlo en consultas */
@@ -108,6 +124,8 @@ export interface Medicamento {
 
 export interface DatosMedicamento {
   nombre: string;
+  /** 'Insumo' | 'Medicamento común' | 'Medicamento especial' */
+  categoria?: string;
   unidadId: number;
   stock: number;
   descripcion?: string;

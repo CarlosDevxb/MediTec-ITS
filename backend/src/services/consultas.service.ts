@@ -7,6 +7,7 @@ import {
 } from '../utils/erroresHttp';
 import { fechaHoraTexto, fechaISO, horaCorta } from '../utils/fechas';
 import { buscarPersonalPorUsuario } from './personal.service';
+import { buscarUsuario } from './usuarios.service';
 import { asegurarPacienteExiste } from './pacientes.service';
 import { buscarCitaParaAtencion, insertarCita } from './citas.service';
 import type {
@@ -23,6 +24,13 @@ import type {
  * del doctor y de la enfermería— el sistema crea primero la cita con tipo
  * 'Atención directa' y enseguida la consulta, todo dentro de una misma
  * transacción: o se registra la atención completa o no se registra nada.
+ *
+ * El **tipo de consulta lo determina el rol** de quien atiende:
+ * - Personal médico: captura diagnóstico y tratamiento (puede usar todo el
+ *   inventario como insumo).
+ * - Enfermería: captura su intervención de enfermería y solo descuenta
+ *   insumos del inventario (categorías 'Insumo' y 'Medicamento común');
+ *   no suministra medicamentos especiales.
  *
  * Los insumos se descuentan del inventario en esa misma transacción; los
  * medicamentos agotados (stock 0) no se pueden usar en consultas.
@@ -49,9 +57,13 @@ export interface ConsultaResumen {
   id: number;
   /** AAAA-MM-DD HH:mm */
   fechaHora: string;
+  /** 'Médica' (diagnóstico y tratamiento) o 'Enfermería' (intervención) */
+  tipo: string;
   sintomas: string;
   diagnostico: string;
   tratamiento: string;
+  /** Solo en consultas de enfermería */
+  intervencionEnfermeria: string;
   cita: {
     id: number;
     fecha: string;
@@ -74,10 +86,12 @@ export interface ConsultaDetalle extends ConsultaResumen {
 const COLUMNAS = `
   SELECT co.id_consulta        AS id,
          co.fecha_hora         AS fechaHora,
+         co.tipo_consulta      AS tipo,
          co.sintomas           AS sintomas,
          co.exploracion        AS exploracion,
          co.diagnostico        AS diagnostico,
          co.tratamiento        AS tratamiento,
+         co.intervencion_enfermeria AS intervencionEnfermeria,
          c.id_cita             AS citaId,
          c.fecha               AS citaFecha,
          c.hora                AS citaHora,
@@ -101,9 +115,11 @@ function aResumen(fila: Record<string, unknown>): ConsultaResumen {
   return {
     id: Number(fila['id']),
     fechaHora: fechaHoraTexto(fila['fechaHora']),
+    tipo: String(fila['tipo'] ?? 'Médica'),
     sintomas: String(fila['sintomas'] ?? ''),
     diagnostico: String(fila['diagnostico'] ?? ''),
     tratamiento: String(fila['tratamiento'] ?? ''),
+    intervencionEnfermeria: String(fila['intervencionEnfermeria'] ?? ''),
     cita: {
       id: Number(fila['citaId']),
       fecha: fechaISO(fila['citaFecha']),
@@ -152,6 +168,30 @@ export async function crearConsulta(
   }
   await asegurarPacienteExiste(datos.pacienteId);
 
+  /* ---- El tipo de consulta lo determina el rol de quien atiende ---- */
+  const cuenta = await buscarUsuario(usuarioId);
+  const tipoConsulta = cuenta?.rol === 'Enfermería' ? 'Enfermería' : 'Médica';
+
+  if (tipoConsulta === 'Enfermería') {
+    // Enfermería registra su intervención: no diagnostica ni prescribe
+    if (!datos.intervencionEnfermeria?.trim()) {
+      throw errorValidacion('Describe la intervención de enfermería.', [
+        { campo: 'intervencionEnfermeria', mensaje: 'Este campo es obligatorio.' },
+      ]);
+    }
+  } else {
+    const faltantes: Array<{ campo: string; mensaje: string }> = [];
+    if (!datos.diagnostico?.trim()) {
+      faltantes.push({ campo: 'diagnostico', mensaje: 'El diagnóstico es obligatorio.' });
+    }
+    if (!datos.tratamiento?.trim()) {
+      faltantes.push({ campo: 'tratamiento', mensaje: 'El tratamiento es obligatorio.' });
+    }
+    if (faltantes.length > 0) {
+      throw errorValidacion('El diagnóstico y el tratamiento son obligatorios.', faltantes);
+    }
+  }
+
   const conexion = await pool.getConnection();
   let consultaId = 0;
   try {
@@ -185,14 +225,17 @@ export async function crearConsulta(
 
     /* ---- 2) La consulta (una por cita, por la restricción del esquema) ---- */
     const [resultado] = await conexion.query(
-      `INSERT INTO consulta (cita_id_cita, sintomas, exploracion, diagnostico, tratamiento)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO consulta
+         (cita_id_cita, tipo_consulta, sintomas, exploracion, diagnostico, tratamiento, intervencion_enfermeria)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         citaId,
+        tipoConsulta,
         datos.sintomas.trim(),
         datos.exploracion?.trim() || null,
-        datos.diagnostico.trim(),
-        datos.tratamiento.trim(),
+        datos.diagnostico?.trim() || null,
+        datos.tratamiento?.trim() || null,
+        datos.intervencionEnfermeria?.trim() || null,
       ],
     );
     consultaId = Number((resultado as { insertId: number }).insertId);
@@ -218,7 +261,7 @@ export async function crearConsulta(
     /* ---- 4) Insumos: stock verificado y descontado en la misma transacción ---- */
     for (const insumo of datos.insumos ?? []) {
       const [filas] = await conexion.query(
-        'SELECT nombre, stock FROM medicamentos WHERE id_medicamento = ? FOR UPDATE',
+        'SELECT nombre, stock, categoria FROM medicamentos WHERE id_medicamento = ? FOR UPDATE',
         [insumo.medicamentoId],
       );
       const medicamento = (filas as Array<Record<string, unknown>>)[0];
@@ -229,6 +272,15 @@ export async function crearConsulta(
       }
       const stock = Number(medicamento['stock']);
       const nombre = String(medicamento['nombre'] ?? '');
+      const categoria = String(medicamento['categoria'] ?? '');
+
+      // Enfermería solo descuenta insumos y medicamentos comunes:
+      // los medicamentos especiales son del personal médico
+      if (tipoConsulta === 'Enfermería' && categoria === 'Medicamento especial') {
+        throw errorConflicto(
+          `"${nombre}" es un medicamento especial: no se puede usar en consultas de enfermería.`,
+        );
+      }
       if (stock <= 0) {
         throw errorConflicto(
           `"${nombre}" está agotado y no está disponible para consultas.`,

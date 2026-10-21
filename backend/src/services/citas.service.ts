@@ -1,13 +1,21 @@
 import type { PoolConnection } from 'mysql2/promise';
 import pool from '../db/pool';
-import { errorConflicto, errorNoEncontrado } from '../utils/erroresHttp';
+import { errorConflicto, errorNoEncontrado, errorValidacion } from '../utils/erroresHttp';
 import { fechaISO, horaCorta } from '../utils/fechas';
+import { NOMBRES_DIA } from '../validaciones/horarios.validacion';
 import { asegurarPacienteExiste } from './pacientes.service';
-import { asegurarPersonalActivo } from './personal.service';
+import { asegurarPersonalActivo, buscarPersonal } from './personal.service';
 import type { DatosCrearCita, DatosEstatusCita } from '../validaciones/citas.validacion';
 
 /**
  * Capa de datos de citas (tabla `cita`).
+ *
+ * Reglas de la agenda:
+ * - Las citas programadas solo se agendan con el personal de **Odontología o
+ *   Nutrición** (el doctor y la enfermería atienden sin cita previa, con la
+ *   auto-cita 'Atención directa' que crea la consulta).
+ * - La cita debe caer dentro del **horario registrado** del personal
+ *   (tabla `horarios`, de lunes a viernes) y el turno debe estar libre.
  *
  * Toda consulta clínica deriva de una cita: cuando el doctor o la enfermería
  * atienden sin cita previa, el registro de la consulta **crea primero** la
@@ -16,6 +24,9 @@ import type { DatosCrearCita, DatosEstatusCita } from '../validaciones/citas.val
  *
  * SQL parametrizado: ningún valor de la petición se interpoliza en la consulta.
  */
+
+/** Especialidades que se agendan desde la agenda de citas */
+const ESPECIALIDADES_CON_CITA = ['odontolog', 'nutriolog', 'nutricion'];
 
 export interface Cita {
   id: number;
@@ -117,6 +128,9 @@ export async function buscarCita(id: number): Promise<Cita | null> {
 export async function crearCita(datos: DatosCrearCita): Promise<Cita> {
   await asegurarPacienteExiste(datos.pacienteId);
   await asegurarPersonalActivo(datos.personalMedicoId);
+  await asegurarEspecialidadParaCita(datos.personalMedicoId);
+  await asegurarHorarioDisponible(datos.personalMedicoId, datos.fecha, datos.hora);
+  await asegurarSlotLibre(datos.personalMedicoId, datos.fecha, datos.hora);
   await asegurarCitaLibre(datos.pacienteId, datos.fecha, datos.hora);
 
   const id = await insertarCita(pool, {
@@ -132,6 +146,92 @@ export async function crearCita(datos: DatosCrearCita): Promise<Cita> {
   const cita = await buscarCita(id);
   if (!cita) throw errorNoEncontrado('No se pudo recuperar la cita recién creada.');
   return cita;
+}
+
+/** Día de la semana de una fecha AAAA-MM-DD (1=Lunes … 7=Domingo) */
+function diaDeSemana(fecha: string): number {
+  const partes = fecha.split('-').map(Number);
+  const anio = partes[0] ?? 1970;
+  const mes = partes[1] ?? 1;
+  const dia = partes[2] ?? 1;
+  return ((new Date(anio, mes - 1, dia).getDay() + 6) % 7) + 1;
+}
+
+/** La agenda de citas es solo para el personal de Odontología o Nutrición */
+async function asegurarEspecialidadParaCita(personalMedicoId: number): Promise<void> {
+  const persona = await buscarPersonal(personalMedicoId);
+  const especialidad = persona.especialidad
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  if (!ESPECIALIDADES_CON_CITA.some((clave) => especialidad.includes(clave))) {
+    throw errorValidacion(
+      'La agenda de citas es solo para el personal de Odontología o Nutrición.',
+      [
+        {
+          campo: 'personalMedicoId',
+          mensaje: 'Selecciona a un especialista en Odontología o Nutrición.',
+        },
+      ],
+    );
+  }
+}
+
+/** La cita debe caer dentro del horario registrado del personal ese día */
+async function asegurarHorarioDisponible(
+  personalMedicoId: number,
+  fecha: string,
+  hora: string,
+): Promise<void> {
+  const dia = diaDeSemana(fecha);
+  const [filas] = await pool.query(
+    `SELECT hora_inicio, hora_fin
+       FROM horarios
+      WHERE personal_medico_id_personal_medico = ? AND dia_semana = ?
+      ORDER BY hora_inicio ASC`,
+    [personalMedicoId, dia],
+  );
+  const rangos = (filas as Array<Record<string, unknown>>).map((fila) => ({
+    inicio: horaCorta(fila['hora_inicio']),
+    fin: horaCorta(fila['hora_fin']),
+  }));
+
+  const diaTexto = NOMBRES_DIA[dia - 1] ?? `día ${dia}`;
+  if (rangos.length === 0) {
+    throw errorValidacion(
+      `El personal no tiene horario registrado el ${diaTexto.toLowerCase()}. Elige otro día.`,
+      [{ campo: 'hora', mensaje: 'Selecciona un día en el que atienda el personal.' }],
+    );
+  }
+
+  const dentro = rangos.some((rango) => hora >= rango.inicio && hora <= rango.fin);
+  if (!dentro) {
+    const horarioTexto = rangos.map((rango) => `de ${rango.inicio} a ${rango.fin}`).join(' y ');
+    throw errorValidacion(
+      `El personal no atiende a las ${hora} el ${diaTexto.toLowerCase()}; su horario es ${horarioTexto}.`,
+      [{ campo: 'hora', mensaje: 'Selecciona una hora dentro del horario de atención.' }],
+    );
+  }
+}
+
+/** El turno debe estar libre para ese personal (no puede haber dos citas a la vez) */
+async function asegurarSlotLibre(
+  personalMedicoId: number,
+  fecha: string,
+  hora: string,
+): Promise<void> {
+  const [filas] = await pool.query(
+    `SELECT id_cita FROM cita
+      WHERE personal_medico_id_personal_medico = ? AND fecha = ? AND hora = ?
+        AND estatus <> 'Cancelada'
+      LIMIT 1`,
+    [personalMedicoId, fecha, hora],
+  );
+  if ((filas as Array<Record<string, unknown>>)[0]) {
+    throw errorConflicto(
+      `El personal ya tiene una cita el ${fecha} a las ${hora}. Elige otro horario disponible.`,
+    );
+  }
 }
 
 /** Cambia el estatus de una cita (confirmar, cancelar, completar) */

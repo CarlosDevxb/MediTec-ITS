@@ -78,15 +78,27 @@ export const esquemaCrearConsulta = z
       .optional()
       .or(z.literal('')),
     diagnostico: z
-      .string({ error: 'El diagnóstico es obligatorio.' })
+      .string()
       .trim()
       .min(1, 'El diagnóstico es obligatorio.')
-      .max(255, 'El diagnóstico no puede exceder 255 caracteres.'),
+      .max(255, 'El diagnóstico no puede exceder 255 caracteres.')
+      .optional()
+      .or(z.literal('')),
     tratamiento: z
-      .string({ error: 'El tratamiento es obligatorio.' })
+      .string()
       .trim()
       .min(1, 'El tratamiento es obligatorio.')
-      .max(2000, 'El tratamiento no puede exceder 2000 caracteres.'),
+      .max(2000, 'El tratamiento no puede exceder 2000 caracteres.')
+      .optional()
+      .or(z.literal('')),
+    /** Intervención de enfermería (consultas del rol Enfermería) */
+    intervencionEnfermeria: z
+      .string()
+      .trim()
+      .min(1, 'Describe la intervención de enfermería.')
+      .max(2000, 'La intervención no puede exceder 2000 caracteres.')
+      .optional()
+      .or(z.literal('')),
     signosVitales: esquemaSignosVitales.optional(),
     insumos: z
       .array(esquemaInsumo, { error: 'Los insumos deben ser una lista.' })

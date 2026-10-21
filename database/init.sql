@@ -197,11 +197,13 @@ ENGINE = InnoDB;
 CREATE TABLE IF NOT EXISTS `meditec_its`.`consulta` (
   `id_consulta` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `cita_id_cita` INT UNSIGNED NOT NULL COMMENT 'Toda consulta debe derivar de una cita',
+  `tipo_consulta` ENUM('Médica', 'Enfermería') NOT NULL DEFAULT 'Médica' COMMENT 'Según el rol de quien atiende',
   `fecha_hora` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
   `sintomas` TEXT NOT NULL,
   `exploracion` TEXT NULL DEFAULT NULL,
-  `diagnostico` VARCHAR(255) NOT NULL,
-  `tratamiento` TEXT NOT NULL,
+  `diagnostico` VARCHAR(255) NULL DEFAULT NULL COMMENT 'Solo consultas médicas',
+  `tratamiento` TEXT NULL DEFAULT NULL COMMENT 'Solo consultas médicas',
+  `intervencion_enfermeria` TEXT NULL DEFAULT NULL COMMENT 'Solo consultas de enfermería',
   PRIMARY KEY (`id_consulta`),
   UNIQUE INDEX `cita_id_cita_UNIQUE` (`cita_id_cita` ASC) VISIBLE,
   CONSTRAINT `consulta_ibfk_1`
@@ -233,6 +235,7 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`medicamentos` (
   `id_medicamento` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `cat_unidades_medida_id_unidad` INT UNSIGNED NOT NULL,
   `nombre` VARCHAR(100) NOT NULL,
+  `categoria` ENUM('Insumo', 'Medicamento común', 'Medicamento especial') NOT NULL DEFAULT 'Medicamento común' COMMENT 'Enfermería solo descuenta Insumo y Medicamento común',
   `stock` DECIMAL(10,2) NOT NULL DEFAULT '0.00',
   `descripcion` TEXT NULL DEFAULT NULL,
   PRIMARY KEY (`id_medicamento`),

@@ -42,8 +42,8 @@ const MENU: SidebarSection[] = [
    Ruta: /nutricion
    ============================================================ */
 export default function PanelNutricion() {
-  // Sin sesión iniciada, regresa al login
-  useProtegerSesion();
+  // Panel demo de nutrición: de momento, solo personal médico
+  useProtegerSesion('Personal médico');
 
   const [vista, setVista] = useState('Inicio');
   const [planes, setPlanes] = useState<Plan[]>(PLANES_DEMO);

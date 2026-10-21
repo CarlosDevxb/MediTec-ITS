@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarClock, Users, Clock, UserPlus } from 'lucide-react';
-import PageHeader from '../ui/PageHeader';
+import { CalendarClock, Users, Clock, UserPlus, Stethoscope } from 'lucide-react';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import DataTable from '../ui/DataTable';
 import EstadoVista from '../ui/EstadoVista';
 import StatCard from '../ui/StatCard';
+import SaludoInicio from '../layout/SaludoInicio';
 import type { Column } from '../ui/DataTable';
 import { mensajeDeError } from '../../services/api';
+import { obtenerSesion } from '../../services/sesion';
+import { obtenerPerfil } from '../../services/auth.service';
 import {
   listarCitas,
   listarPacientes,
@@ -28,13 +30,17 @@ const ESTILOS_ESTATUS: Record<string, 'pending' | 'confirmed' | 'cancelled' | 'c
 };
 
 export interface ResumenEnfermeriaProps {
+  onNuevaConsulta: () => void;
   onNuevaCita: () => void;
   onNuevoPaciente: () => void;
 }
 
-export default function ResumenEnfermeria({ onNuevaCita, onNuevoPaciente }: ResumenEnfermeriaProps) {
+export default function ResumenEnfermeria({ onNuevaCita, onNuevoPaciente, onNuevaConsulta }: ResumenEnfermeriaProps) {
   const [citas, setCitas] = useState<Cita[]>([]);
   const [totalPacientes, setTotalPacientes] = useState(0);
+  /** Nombre y especialidad del personal en sesión */
+  const [nombre, setNombre] = useState(() => obtenerSesion()?.usuario.nombre ?? 'Enfermería');
+  const [especialidad, setEspecialidad] = useState('');
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
 
@@ -42,12 +48,17 @@ export default function ResumenEnfermeria({ onNuevaCita, onNuevoPaciente }: Resu
     setCargando(true);
     setError('');
     try {
-      const [listaCitas, pacientes] = await Promise.all([
+      const [listaCitas, pacientes, perfil] = await Promise.all([
         listarCitas({ fecha: hoyISO() }),
         listarPacientes(),
+        obtenerPerfil().catch(() => null),
       ]);
       setCitas(listaCitas);
       setTotalPacientes(pacientes.length);
+      if (perfil) {
+        setNombre(perfil.nombre);
+        setEspecialidad(perfil.especialidad ?? '');
+      }
     } catch (e) {
       setError(mensajeDeError(e));
     } finally {
@@ -101,16 +112,20 @@ export default function ResumenEnfermeria({ onNuevaCita, onNuevoPaciente }: Resu
 
   return (
     <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
-      <PageHeader
-        title="Inicio"
-        subtitle="Resumen de la jornada de enfermería"
-        meta={
+      {/* Saludo + identidad del personal (igual que el panel del doctor) */}
+      <SaludoInicio
+        nombre={nombre}
+        especialidad={especialidad}
+        acciones={
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="secondary" icon={UserPlus} onClick={onNuevoPaciente}>
               Nuevo paciente
             </Button>
-            <Button icon={CalendarClock} onClick={onNuevaCita}>
+            <Button variant="secondary" icon={CalendarClock} onClick={onNuevaCita}>
               Nueva cita
+            </Button>
+            <Button icon={Stethoscope} onClick={onNuevaConsulta}>
+              Nueva consulta
             </Button>
           </div>
         }

@@ -41,8 +41,8 @@ const MENU_ADMIN: SidebarSection[] = [
    Ruta: /admin
    ============================================================ */
 export default function PanelAdmin() {
-  // Sin sesión iniciada, regresa al login
-  useProtegerSesion();
+  // Solo el Administrador puede estar en este panel (y debe tener sesión)
+  useProtegerSesion('Administrador');
 
   const [vista, setVista] = useState('Roles');
 

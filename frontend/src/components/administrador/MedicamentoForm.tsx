@@ -9,6 +9,7 @@ import type { ValorCatalogo } from '../../services/administracion.service';
 import {
   type Medicamento,
   type DatosMedicamento,
+  CATEGORIAS_MEDICAMENTO,
 } from '../../services/operacion.service';
 
 /* ============================================================
@@ -75,6 +76,9 @@ export default function MedicamentoForm({
   onGuardar,
 }: MedicamentoFormProps) {
   const [nombre, setNombre] = useState(medicamento?.nombre ?? '');
+  const [categoria, setCategoria] = useState<string>(
+    medicamento?.categoria ?? 'Medicamento común',
+  );
   const [unidadId, setUnidadId] = useState(medicamento ? String(medicamento.unidadId) : '');
   const [stock, setStock] = useState(medicamento ? String(medicamento.stock) : '');
   const [descripcion, setDescripcion] = useState(medicamento?.descripcion ?? '');
@@ -133,6 +137,7 @@ export default function MedicamentoForm({
     try {
       await onGuardar({
         nombre: nombre.trim(),
+        categoria: categoria as DatosMedicamento['categoria'],
         unidadId: Number(unidadId),
         stock: Number(stock),
         descripcion: descripcion.trim() || undefined,
@@ -176,6 +181,19 @@ export default function MedicamentoForm({
                 aria-invalid={errorVisible('nombre') ? true : undefined}
                 maxLength={100}
               />
+            </Field>
+
+            <Field
+              label="Categoría"
+              hint="Enfermería solo puede usar como insumo las categorías Insumo y Medicamento común."
+            >
+              <Select value={categoria} onChange={(e) => setCategoria(e.target.value)}>
+                {CATEGORIAS_MEDICAMENTO.map((opcion) => (
+                  <option key={opcion} value={opcion}>
+                    {opcion}
+                  </option>
+                ))}
+              </Select>
             </Field>
 
             <Field label="Unidad de medida" error={errorVisible('unidadId')}>

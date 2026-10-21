@@ -66,14 +66,31 @@ descuento de insumos.
 
 **Paneles por rol:** `/doctor` (Personal médico) y `/enfermeria` (Enfermería;
 Recepción entra aquí de forma provisional). Los componentes clínicos
-compartidos viven en `frontend/src/components/atencion/` y el cliente API en
-`src/services/atencion.service.ts`.
+compartidos viven en `frontend/src/components/atencion/` (flujo de atención,
+expediente, cuestionario) y el cliente API en `src/services/atencion.service.ts`.
+La configuración de la propia cuenta (teléfono y contraseña) está en
+`components/cuenta/ConfiguracionPerfil.tsx` y el saludo de inicio en
+`components/layout/SaludoInicio.tsx`.
 
 Módulos del panel del doctor: **Inicio** (saludo por hora + nombre y
 especialidad), **Nueva consulta** (atención directa), **Historial de
 consultas**, **Pacientes** (expedientes) y **Configuración** (teléfono y
 contraseña propia; el correo no se cambia). La agenda de citas **no** forma
 parte de este panel: es trabajo de enfermería (`/api/citas`).
+
+Módulos del panel de enfermería: **Inicio** (mismo saludo), **Nueva consulta**
+(su consulta propia: intervención de enfermería y solo insumos de las
+categorías 'Insumo' y 'Medicamento común'), **Pacientes** (altas y expedientes
+en solo lectura con descarga del PDF), **Agenda** (citas con el personal de
+Odontología y Nutrición) y **Configuración**.
+
+Reglas de agenda y consultas: las citas programadas solo se agendan con
+**Odontología o Nutrición**, dentro de los horarios registrados del especialista
+(tabla `horarios`) y con el turno libre. El **tipo de consulta lo determina el
+rol**: el personal médico captura diagnóstico y tratamiento (todo el inventario
+como insumo); enfermería captura su intervención y no puede usar medicamentos
+especiales (categoría del inventario en `medicamentos.categoria`, que administra
+el administrador desde Medicamentos).
 
 Cuestionario de salud (`POST /api/pacientes/:id/cuestionario`): único por
 paciente, se llena al primer acceso del paciente a su portal o antes de su

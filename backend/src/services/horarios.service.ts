@@ -71,10 +71,17 @@ function aHorario(fila: Record<string, unknown>): Horario {
   };
 }
 
-/** Lista todos los turnos ordenados por día y hora de inicio */
-export async function listarHorarios(): Promise<Horario[]> {
+/** Lista los turnos (opcionalmente los de una persona), por día y hora */
+export async function listarHorarios(
+  filtro: { personalMedicoId?: number } = {},
+): Promise<Horario[]> {
+  const where = filtro.personalMedicoId
+    ? ' WHERE h.personal_medico_id_personal_medico = ?'
+    : '';
+  const parametros = filtro.personalMedicoId ? [filtro.personalMedicoId] : [];
   const [filas] = await pool.query(
-    `${COLUMNAS} ORDER BY h.dia_semana ASC, h.hora_inicio ASC, u.nombre ASC`,
+    `${COLUMNAS}${where} ORDER BY h.dia_semana ASC, h.hora_inicio ASC, u.nombre ASC`,
+    parametros,
   );
   return (filas as Array<Record<string, unknown>>).map(aHorario);
 }

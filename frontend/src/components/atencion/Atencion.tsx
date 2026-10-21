@@ -13,19 +13,29 @@ import {
   type DatosAtencion,
   type ExpedientePaciente,
 } from '../../services/atencion.service';
-import SelectorPaciente from '../atencion/SelectorPaciente';
-import CuestionarioSalud from '../atencion/CuestionarioSalud';
+import SelectorPaciente from './SelectorPaciente';
+import CuestionarioSalud from './CuestionarioSalud';
 import AtencionForm from './AtencionForm';
 
 /* ============================================================
-   NUEVA CONSULTA · Flujo completo de atención del doctor
+   NUEVA CONSULTA · Flujo completo de atención (compartido por
+   el doctor y la enfermería)
    Paciente → ficha con alertas → **cuestionario de salud** (si
    aún no lo tiene) → signos vitales → consulta → insumos.
    Se registra como atención de llegada con estado "Atención
    directa" (la cita interna la crea el sistema).
+
+   `rol` determina la captura: el personal médico registra
+   diagnóstico y tratamiento; enfermería registra su
+   intervención y solo descuenta insumos comunes.
    ============================================================ */
 
-export default function Atencion() {
+export interface AtencionProps {
+  /** 'medico' (diagnóstico y tratamiento) o 'enfermeria' (intervención) */
+  rol?: 'medico' | 'enfermeria';
+}
+
+export default function Atencion({ rol = 'medico' }: AtencionProps) {
   const [expediente, setExpediente] = useState<ExpedientePaciente | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [consultaCreada, setConsultaCreada] = useState<ConsultaDetalle | null>(null);
@@ -90,14 +100,23 @@ export default function Atencion() {
             </div>
 
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Diagnóstico</dt>
-                <dd className="text-gray-900">{consultaCreada.diagnostico}</dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Tratamiento</dt>
-                <dd className="text-gray-900">{consultaCreada.tratamiento}</dd>
-              </div>
+              {consultaCreada.tipo === 'Enfermería' ? (
+                <div className="md:col-span-2">
+                  <dt className="text-sm font-medium text-gray-500">Intervención de enfermería</dt>
+                  <dd className="text-gray-900">{consultaCreada.intervencionEnfermeria}</dd>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Diagnóstico</dt>
+                    <dd className="text-gray-900">{consultaCreada.diagnostico}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Tratamiento</dt>
+                    <dd className="text-gray-900">{consultaCreada.tratamiento}</dd>
+                  </div>
+                </>
+              )}
               <div className="md:col-span-2">
                 <dt className="text-sm font-medium text-gray-500">Síntomas</dt>
                 <dd className="text-gray-900">{consultaCreada.sintomas}</dd>
@@ -136,8 +155,12 @@ export default function Atencion() {
   return (
     <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
       <PageHeader
-        title="Nueva consulta"
-        subtitle="Registra la atención de un paciente (atención directa)"
+        title={rol === 'enfermeria' ? 'Nueva consulta de enfermería' : 'Nueva consulta'}
+        subtitle={
+          rol === 'enfermeria'
+            ? 'Registra una atención de enfermería (atención directa)'
+            : 'Registra la atención de un paciente (atención directa)'
+        }
       />
 
       {aviso && <Aviso mensaje={aviso} tipo={tipo} onCerrar={cerrar} />}
@@ -156,6 +179,7 @@ export default function Atencion() {
         ) : expediente ? (
           <AtencionForm
             expediente={expediente}
+            rol={rol}
             guardando={guardando}
             onGuardar={guardarAtencion}
             onCancelar={nuevaAtencion}

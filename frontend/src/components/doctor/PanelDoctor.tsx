@@ -13,11 +13,11 @@ import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
 import { obtenerSesion, cerrarSesion, inicialesDe } from '../../services/sesion';
 import { useProtegerSesion } from '../../hooks/useProtegerSesion';
+import Atencion from '../atencion/Atencion';
+import ConfiguracionPerfil from '../cuenta/ConfiguracionPerfil';
 import ResumenDoctor from './ResumenDoctor';
-import Atencion from './Atencion';
 import HistorialConsultas from './HistorialConsultas';
 import PacientesDoctor from './PacientesDoctor';
-import Configuracion from './Configuracion';
 
 /* ================= MENÚ DEL DOCTOR ================= */
 const MENU_DOCTOR: SidebarSection[] = [
@@ -48,8 +48,8 @@ const MENU_DOCTOR: SidebarSection[] = [
    de citas es trabajo de enfermería, no de este panel.
    ============================================================ */
 export default function PanelDoctor() {
-  // Sin sesión iniciada, regresa al login
-  useProtegerSesion();
+  // Solo el personal médico puede estar en este panel (y debe tener sesión)
+  useProtegerSesion('Personal médico');
 
   const [vista, setVista] = useState('Inicio');
 
@@ -75,13 +75,13 @@ export default function PanelDoctor() {
         {vista === 'Inicio' ? (
           <ResumenDoctor onNuevaConsulta={() => setVista('Nueva consulta')} />
         ) : vista === 'Nueva consulta' ? (
-          <Atencion />
+          <Atencion rol="medico" />
         ) : vista === 'Historial de consultas' ? (
           <HistorialConsultas />
         ) : vista === 'Pacientes' ? (
           <PacientesDoctor />
         ) : vista === 'Configuración' ? (
-          <Configuracion />
+          <ConfiguracionPerfil />
         ) : (
           <EmptyState
             icon={FileText}

@@ -30,15 +30,18 @@ import {
 } from '../../services/atencion.service';
 import {
   listarPersonalMedico,
+  listarHorarios,
   type PersonalMedico,
+  type Horario,
 } from '../../services/operacion.service';
 import SelectorPaciente from '../atencion/SelectorPaciente';
 
 /* ============================================================
-   AGENDA (ENFERMERÍA) · Registro de citas programadas o de
-   emergencia y seguimiento de su estatus. Las atenciones sin
-   cita previa se registran desde el panel del doctor (allí el
-   sistema crea la auto-cita 'Atención directa').
+   AGENDA (ENFERMERÍA) · Registro de citas con el personal de
+   **Odontología y Nutrición** (el doctor y la enfermería atienden
+   sin cita previa) y seguimiento de su estatus. La cita se
+   valida contra los horarios registrados del especialista
+   (tabla `horarios`) y contra sus citas ya ocupadas.
    ============================================================ */
 
 const ESTILOS_ESTATUS: Record<string, 'pending' | 'confirmed' | 'cancelled' | 'completed'> = {
@@ -47,6 +50,53 @@ const ESTILOS_ESTATUS: Record<string, 'pending' | 'confirmed' | 'cancelled' | 'c
   Cancelada: 'cancelled',
   Completada: 'completed',
 };
+
+/** Especialidades que se agendan desde la agenda de citas */
+const especialidadEsDeCita = (especialidad: string): boolean => {
+  const texto = especialidad
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  return (
+    texto.includes('odontolog') || texto.includes('nutriolog') || texto.includes('nutricion')
+  );
+};
+
+/** Día de la semana de una fecha AAAA-MM-DD (1=Lunes … 7=Domingo) */
+function diaDeSemana(fecha: string): number {
+  const partes = fecha.split('-').map(Number);
+  const anio = partes[0] ?? 1970;
+  const mes = partes[1] ?? 1;
+  const dia = partes[2] ?? 1;
+  return ((new Date(anio, mes - 1, dia).getDay() + 6) % 7) + 1;
+}
+
+/** Rangos de atención del personal para una fecha concreta */
+function rangosDeDia(horarios: Horario[], fecha: string): Array<{ inicio: string; fin: string }> {
+  const dia = diaDeSemana(fecha);
+  return horarios
+    .filter((horario) => horario.diaSemana === dia)
+    .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
+    .map((horario) => ({ inicio: horario.horaInicio, fin: horario.horaFin }));
+}
+
+/** Opciones de cita cada 30 minutos dentro de los rangos de atención */
+function opcionesDeHora(rangos: Array<{ inicio: string; fin: string }>): string[] {
+  const opciones: string[] = [];
+  for (const rango of rangos) {
+    const [hi, mi] = rango.inicio.split(':').map(Number);
+    const [hf, mf] = rango.fin.split(':').map(Number);
+    let minutos = (hi ?? 0) * 60 + (mi ?? 0);
+    const limite = (hf ?? 0) * 60 + (mf ?? 0);
+    while (minutos <= limite) {
+      opciones.push(
+        `${String(Math.floor(minutos / 60)).padStart(2, '0')}:${String(minutos % 60).padStart(2, '0')}`,
+      );
+      minutos += 30;
+    }
+  }
+  return [...new Set(opciones)];
+}
 
 export default function AgendaEnfermeria() {
   const [citas, setCitas] = useState<Cita[]>([]);
@@ -69,8 +119,17 @@ export default function AgendaEnfermeria() {
   const [errorGeneral, setErrorGeneral] = useState('');
   /** Cita pendiente de cancelar (espera confirmación en el modal) */
   const [pendiente, setPendiente] = useState<Cita | null>(null);
+  /** Disponibilidad del especialista (horarios registrados y citas ocupadas) */
+  const [horariosPersonal, setHorariosPersonal] = useState<Horario[]>([]);
+  const [citasDelDia, setCitasDelDia] = useState<Cita[]>([]);
 
   const { aviso, tipo: tipoAviso, mostrar, cerrar } = useAviso();
+
+  /** Solo se agenda con el personal de Odontología y Nutrición */
+  const personalCitas = useMemo(
+    () => personal.filter((persona) => especialidadEsDeCita(persona.especialidad)),
+    [personal],
+  );
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -93,26 +152,85 @@ export default function AgendaEnfermeria() {
     void cargar();
   }, [cargar]);
 
+  /* ---------- Disponibilidad del especialista seleccionado ---------- */
+  useEffect(() => {
+    if (!personalId) {
+      setHorariosPersonal([]);
+      setCitasDelDia([]);
+      return;
+    }
+    let vigente = true;
+    Promise.all([
+      listarHorarios({ personalMedicoId: Number(personalId) }),
+      listarCitas({ fecha: fechaCita }),
+    ])
+      .then(([horarios, citas]) => {
+        if (!vigente) return;
+        setHorariosPersonal(horarios);
+        setCitasDelDia(citas);
+      })
+      .catch(() => {
+        if (!vigente) return;
+        setHorariosPersonal([]);
+        setCitasDelDia([]);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [personalId, fechaCita]);
+
+  /* Rangos de atención del día y horas libres (las ocupadas se descartan) */
+  const rangos = useMemo(
+    () => rangosDeDia(horariosPersonal, fechaCita),
+    [horariosPersonal, fechaCita],
+  );
+  const horasOcupadas = useMemo(
+    () =>
+      citasDelDia
+        .filter((cita) => cita.personalMedicoId === Number(personalId) && cita.estatus !== 'Cancelada')
+        .map((cita) => cita.hora),
+    [citasDelDia, personalId],
+  );
+  const horasDisponibles = useMemo(
+    () => opcionesDeHora(rangos).filter((horaOpcion) => !horasOcupadas.includes(horaOpcion)),
+    [rangos, horasOcupadas],
+  );
+
+  // Si la hora elegida deja de estar disponible, se selecciona la primera libre
+  useEffect(() => {
+    if (horasDisponibles.length > 0 && !horasDisponibles.includes(hora)) {
+      setHora(horasDisponibles[0] ?? '');
+    }
+  }, [horasDisponibles, hora]);
+
   /* ---------- Validación en tiempo real del alta ---------- */
   const errores = useMemo(() => {
     const calculados: Record<string, string> = {};
     calculados.paciente = paciente ? '' : 'Selecciona un paciente.';
-    calculados.personalId = personalId ? '' : 'Selecciona al profesional de la salud.';
+    calculados.personalId = personalId
+      ? ''
+      : 'Selecciona a un especialista en Odontología o Nutrición.';
     calculados.fechaCita = !fechaCita
       ? 'Indica la fecha de la cita.'
       : fechaCita < hoyISO()
         ? 'La fecha no puede ser pasada.'
         : '';
-    calculados.hora = /^([01]\d|2[0-3]):[0-5]\d$/.test(hora)
-      ? ''
-      : 'La hora debe tener el formato HH:mm.';
+    calculados.hora = !personalId
+      ? 'Selecciona al profesional para ver sus horarios.'
+      : rangos.length === 0
+        ? 'El personal no tiene horario registrado ese día.'
+        : !horasDisponibles.includes(hora)
+          ? horasOcupadas.includes(hora)
+            ? `La hora ${hora} ya está ocupada. Elige otra.`
+            : 'Elige una hora dentro del horario de atención.'
+          : '';
     calculados.motivo = motivo.trim()
       ? motivo.trim().length > 255
         ? 'El motivo no puede exceder 255 caracteres.'
         : ''
       : 'Indica el motivo de la cita.';
     return calculados;
-  }, [paciente, personalId, fechaCita, hora, motivo]);
+  }, [paciente, personalId, fechaCita, hora, motivo, rangos, horasDisponibles, horasOcupadas]);
 
   const errorVisible = (campo: string): string | undefined => {
     const propio = errores[campo];
@@ -283,23 +401,34 @@ export default function AgendaEnfermeria() {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              <Field label="Profesional de la salud" error={errorVisible('personalId')}>
-                <Select
-                  value={personalId}
-                  onChange={(e) => {
-                    setPersonalId(e.target.value);
-                    marcarTocado('personalId');
-                  }}
-                  onBlur={() => marcarTocado('personalId')}
-                  aria-invalid={errorVisible('personalId') ? true : undefined}
-                >
-                  <option value="">Selecciona…</option>
-                  {personal.map((persona) => (
-                    <option key={persona.id} value={persona.id}>
-                      {persona.nombre} · {persona.especialidad}
-                    </option>
-                  ))}
-                </Select>
+              <Field
+                label="Especialista"
+                error={errorVisible('personalId')}
+                hint="Solo el personal de Odontología y Nutrición recibe citas."
+              >
+                {personalCitas.length === 0 ? (
+                  <p className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                    No hay especialistas de Odontología o Nutrición registrados. Da de alta al
+                    personal en la sección Usuarios.
+                  </p>
+                ) : (
+                  <Select
+                    value={personalId}
+                    onChange={(e) => {
+                      setPersonalId(e.target.value);
+                      marcarTocado('personalId');
+                    }}
+                    onBlur={() => marcarTocado('personalId')}
+                    aria-invalid={errorVisible('personalId') ? true : undefined}
+                  >
+                    <option value="">Selecciona…</option>
+                    {personalCitas.map((persona) => (
+                      <option key={persona.id} value={persona.id}>
+                        {persona.nombre} · {persona.especialidad}
+                      </option>
+                    ))}
+                  </Select>
+                )}
               </Field>
               <Field label="Tipo de cita" hint="La atención sin cita previa se registra en el panel del doctor.">
                 <Select
@@ -323,18 +452,31 @@ export default function AgendaEnfermeria() {
                   aria-invalid={errorVisible('fechaCita') ? true : undefined}
                 />
               </Field>
-              <Field label="Hora" error={errorVisible('hora')}>
-                <Input
-                  type="time"
-                  value={hora}
+              <Field
+                label="Hora"
+                error={errorVisible('hora')}
+                hint="Solo horas dentro del horario del especialista y sin cita ocupada."
+              >
+                <Select
+                  value={horasDisponibles.includes(hora) ? hora : ''}
                   onChange={(e) => {
                     setHora(e.target.value);
                     marcarTocado('hora');
                   }}
                   onBlur={() => marcarTocado('hora')}
-                  className="tabular-nums"
                   aria-invalid={errorVisible('hora') ? true : undefined}
-                />
+                >
+                  <option value="">
+                    {horasDisponibles.length === 0
+                      ? 'Sin horas disponibles…'
+                      : 'Selecciona una hora…'}
+                  </option>
+                  {horasDisponibles.map((horaOpcion) => (
+                    <option key={horaOpcion} value={horaOpcion}>
+                      {horaOpcion}
+                    </option>
+                  ))}
+                </Select>
               </Field>
               <Field label="Motivo" className="md:col-span-2" error={errorVisible('motivo')}>
                 <Input
@@ -350,6 +492,41 @@ export default function AgendaEnfermeria() {
                 />
               </Field>
             </div>
+
+            {/* Disponibilidad del especialista para el día elegido */}
+            {personalId && (
+              <div className="mt-4">
+                {rangos.length > 0 ? (
+                  <>
+                    <p className="text-sm font-medium text-gray-600 mb-2">
+                      Horario de atención {fechaCita}:
+                    </p>
+                    <ul className="flex flex-wrap gap-2">
+                      {rangos.map((rango) => (
+                        <li key={`${rango.inicio}-${rango.fin}`}>
+                          <Badge status="confirmed">
+                            {rango.inicio} – {rango.fin}
+                          </Badge>
+                        </li>
+                      ))}
+                      {horasOcupadas.length > 0 && (
+                        <li>
+                          <Badge status="pending">{horasOcupadas.length} hora(s) ocupada(s)</Badge>
+                        </li>
+                      )}
+                    </ul>
+                  </>
+                ) : (
+                  <p
+                    role="alert"
+                    className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800"
+                  >
+                    El especialista no tiene horario registrado para ese día. Elige otra fecha o
+                    registra su horario desde la sección Horarios del panel de administración.
+                  </p>
+                )}
+              </div>
+            )}
 
             {(errorGeneral || hayErrores) && (
               <div

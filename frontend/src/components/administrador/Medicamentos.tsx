@@ -28,6 +28,7 @@ import {
   actualizarMedicamento,
   importarMedicamentos,
   listarUnidadesMedida,
+  CATEGORIAS_MEDICAMENTO,
   type Medicamento,
   type DatosMedicamento,
 } from '../../services/operacion.service';
@@ -52,6 +53,12 @@ const STOCK_BAJO = 10;
 /** Columnas de la plantilla de importación (orden del archivo) */
 const COLUMNAS_IMPORTACION: ColumnaImportacion[] = [
   { clave: 'nombre', titulo: 'Nombre', ancho: 30 },
+  {
+    clave: 'categoria',
+    titulo: 'Categoría',
+    ancho: 22,
+    opcional: true,
+  },
   { clave: 'unidad', titulo: 'Unidad de medida', ancho: 22 },
   { clave: 'stock', titulo: 'Stock', ancho: 12 },
   { clave: 'descripcion', titulo: 'Descripción', ancho: 50, opcional: true },
@@ -61,6 +68,7 @@ const COLUMNAS_IMPORTACION: ColumnaImportacion[] = [
 const PLANTILLA_MEDICAMENTOS: Array<Record<string, string>> = [
   {
     nombre: 'Paracetamol 500 mg',
+    categoria: 'Medicamento común',
     unidad: 'Comprimido',
     stock: '100',
     descripcion: 'Analgésico y antipirético',
@@ -70,6 +78,7 @@ const PLANTILLA_MEDICAMENTOS: Array<Record<string, string>> = [
 /** Columnas del archivo de exportación */
 const COLUMNAS_EXPORTAR = [
   { clave: 'nombre', titulo: 'Nombre', ancho: 30 },
+  { clave: 'categoria', titulo: 'Categoría', ancho: 22 },
   { clave: 'unidad', titulo: 'Unidad de medida', ancho: 22 },
   { clave: 'abreviatura', titulo: 'Abreviatura', ancho: 14 },
   { clave: 'stock', titulo: 'Stock', ancho: 12 },
@@ -161,6 +170,7 @@ export default function Medicamentos() {
   const exportarExcel = () => {
     const filas = medicamentosFiltrados.map((medicamento) => ({
       nombre: medicamento.nombre,
+      categoria: medicamento.categoria,
       unidad: medicamento.unidad,
       abreviatura: medicamento.abreviatura,
       stock: medicamento.stock,
@@ -210,6 +220,16 @@ export default function Medicamentos() {
       )
     ) {
       avisos.push(`La unidad "${unidad}" no existe; regístrala en Catálogos.`);
+    }
+
+    const categoria = texto('categoria');
+    if (
+      categoria &&
+      !CATEGORIAS_MEDICAMENTO.some((opcion) => opcion.toLowerCase() === categoria.toLowerCase())
+    ) {
+      avisos.push(
+        `La categoría "${categoria}" no es válida (Insumo, Medicamento común o Medicamento especial).`,
+      );
     }
 
     const stock = texto('stock');
@@ -273,6 +293,12 @@ export default function Medicamentos() {
           <p className="text-sm text-gray-500">{medicamento.descripcion || 'Sin descripción'}</p>
         </div>
       ),
+    },
+    {
+      key: 'categoria',
+      header: 'Categoría',
+      className: 'w-40',
+      render: (medicamento) => <Badge status="neutral">{medicamento.categoria}</Badge>,
     },
     {
       key: 'unidad',

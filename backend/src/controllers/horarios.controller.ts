@@ -18,10 +18,14 @@ function leerId(valor: string | string[] | undefined): number {
   return id;
 }
 
-/** GET /api/horarios */
-export async function listarHorarios(_req: Request, res: Response, next: NextFunction) {
+/** GET /api/horarios?personalMedicoId=N */
+export async function listarHorarios(req: Request, res: Response, next: NextFunction) {
   try {
-    const datos = await servicio.listarHorarios();
+    const personalMedicoId = Number(req.query['personalMedicoId'] ?? 0);
+    const datos = await servicio.listarHorarios({
+      personalMedicoId:
+        Number.isInteger(personalMedicoId) && personalMedicoId > 0 ? personalMedicoId : undefined,
+    });
     res.json({ datos });
   } catch (error) {
     next(error);

@@ -152,6 +152,7 @@ export async function importarMedicamentos(
 
       const creado = await crearMedicamento({
         nombre: datos.nombre,
+        categoria: datos.categoria,
         unidadId: unidad.id,
         stock: datos.stock,
         descripcion: datos.descripcion,

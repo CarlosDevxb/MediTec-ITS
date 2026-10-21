@@ -27,10 +27,15 @@ import {
    FORMULARIO DE ATENCIÓN · Signos vitales, consulta e insumos
 
    Regla central del sistema: toda consulta deriva de una cita.
-   El doctor registra atenciones de llegada (estado "Atención
+   El personal registra atenciones de llegada (estado "Atención
    directa") y el sistema crea la cita interna automáticamente
-   antes de guardar la consulta: la agenda de citas la administra
-   enfermería.
+   antes de guardar la consulta.
+
+   Según el `rol`:
+   - Personal médico: diagnóstico y tratamiento (todo el inventario
+     disponible como insumo).
+   - Enfermería: intervención de enfermería y solo insumos
+     comunes (categorías 'Insumo' y 'Medicamento común').
 
    La validación es en tiempo real (campos requeridos, rangos de
    signos vitales y cantidad de insumos contra el stock).
@@ -38,6 +43,8 @@ import {
 
 export interface AtencionFormProps {
   expediente: ExpedientePaciente;
+  /** 'medico' (diagnóstico/tratamiento) o 'enfermeria' (intervención) */
+  rol?: 'medico' | 'enfermeria';
   guardando?: boolean;
   onGuardar: (datos: DatosAtencion) => Promise<void>;
   onCancelar: () => void;
@@ -50,8 +57,20 @@ interface RenglonInsumo {
 
 /** Aviso de un campo (cadena vacía si está bien) */
 function errorDeCampo(
-  campo: 'motivo' | 'sintomas' | 'diagnostico' | 'tratamiento' | 'ta' | 'fc' | 'fr' | 'temp' | 'peso' | 'talla',
+  campo:
+    | 'motivo'
+    | 'sintomas'
+    | 'diagnostico'
+    | 'tratamiento'
+    | 'intervencionEnfermeria'
+    | 'ta'
+    | 'fc'
+    | 'fr'
+    | 'temp'
+    | 'peso'
+    | 'talla',
   valores: Record<string, string>,
+  rol: 'medico' | 'enfermeria',
 ): string {
   const texto = (clave: string) => (valores[clave] ?? '').trim();
   switch (campo) {
@@ -62,11 +81,19 @@ function errorDeCampo(
       if (!texto('sintomas')) return 'Describe los síntomas.';
       return texto('sintomas').length > 2000 ? 'Los síntomas no pueden exceder 2000 caracteres.' : '';
     case 'diagnostico':
+      if (rol !== 'medico') return '';
       if (!texto('diagnostico')) return 'El diagnóstico es obligatorio.';
       return texto('diagnostico').length > 255 ? 'El diagnóstico no puede exceder 255 caracteres.' : '';
     case 'tratamiento':
+      if (rol !== 'medico') return '';
       if (!texto('tratamiento')) return 'El tratamiento es obligatorio.';
       return texto('tratamiento').length > 2000 ? 'El tratamiento no puede exceder 2000 caracteres.' : '';
+    case 'intervencionEnfermeria':
+      if (rol !== 'enfermeria') return '';
+      if (!texto('intervencionEnfermeria')) return 'Describe la intervención de enfermería.';
+      return texto('intervencionEnfermeria').length > 2000
+        ? 'La intervención no puede exceder 2000 caracteres.'
+        : '';
     case 'ta':
       return texto('ta').length > 10 ? 'La presión arterial no puede exceder 10 caracteres.' : '';
     case 'fc': {
@@ -104,6 +131,7 @@ function errorDeCampo(
 
 export default function AtencionForm({
   expediente,
+  rol = 'medico',
   guardando = false,
   onGuardar,
   onCancelar,
@@ -118,11 +146,12 @@ export default function AtencionForm({
   const [temp, setTemp] = useState('');
   const [peso, setPeso] = useState('');
   const [talla, setTalla] = useState('');
-  /* Consulta */
+  /* Consulta (según el rol: médica o de enfermería) */
   const [sintomas, setSintomas] = useState('');
   const [exploracion, setExploracion] = useState('');
   const [diagnostico, setDiagnostico] = useState('');
   const [tratamiento, setTratamiento] = useState('');
+  const [intervencionEnfermeria, setIntervencionEnfermeria] = useState('');
   /* Insumos */
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
   const [insumos, setInsumos] = useState<RenglonInsumo[]>([]);
@@ -148,7 +177,19 @@ export default function AtencionForm({
     };
   }, []);
 
-  const valores = { motivo, sintomas, diagnostico, tratamiento, ta, fc, fr, temp, peso, talla };
+  const valores = {
+    motivo,
+    sintomas,
+    diagnostico,
+    tratamiento,
+    intervencionEnfermeria,
+    ta,
+    fc,
+    fr,
+    temp,
+    peso,
+    talla,
+  };
 
   /* ---------- Errores vivos: se recalculan en cada tecla ---------- */
   const errores = useMemo(() => {
@@ -158,6 +199,7 @@ export default function AtencionForm({
       'sintomas',
       'diagnostico',
       'tratamiento',
+      'intervencionEnfermeria',
       'ta',
       'fc',
       'fr',
@@ -165,11 +207,11 @@ export default function AtencionForm({
       'peso',
       'talla',
     ] as const) {
-      calculados[campo] = errorDeCampo(campo, valores);
+      calculados[campo] = errorDeCampo(campo, valores, rol);
     }
     return calculados;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [motivo, sintomas, diagnostico, tratamiento, ta, fc, fr, temp, peso, talla]);
+  }, [motivo, sintomas, diagnostico, tratamiento, intervencionEnfermeria, ta, fc, fr, temp, peso, talla, rol]);
 
   /** Avisos de los renglones de insumos (cantidad contra stock) */
   const erroresInsumos = useMemo(
@@ -201,8 +243,12 @@ export default function AtencionForm({
     Object.values(errores).some(Boolean) || erroresInsumos.some(Boolean);
   const marcarTocado = (campo: string) => setTocado((prev) => ({ ...prev, [campo]: true }));
 
-  /* ---------- Insumos ---------- */
-  const medicamentosDisponibles = medicamentos.filter((m) => m.disponible);
+  /* ---------- Insumos ----------
+     Enfermería solo descuenta insumos y medicamentos comunes: los
+     medicamentos especiales son del personal médico. */
+  const medicamentosDisponibles = medicamentos.filter(
+    (m) => m.disponible && (rol === 'medico' || m.categoria !== 'Medicamento especial'),
+  );
   const yaAgregados = insumos.map((renglon) => Number(renglon.medicamentoId));
   const opcionesInsumo = medicamentosDisponibles.filter((m) => !yaAgregados.includes(m.id));
 
@@ -220,6 +266,7 @@ export default function AtencionForm({
       sintomas: true,
       diagnostico: true,
       tratamiento: true,
+      intervencionEnfermeria: true,
       ta: true,
       fc: true,
       fr: true,
@@ -251,8 +298,9 @@ export default function AtencionForm({
         motivo: motivo.trim(),
         sintomas: sintomas.trim(),
         exploracion: exploracion.trim() || undefined,
-        diagnostico: diagnostico.trim(),
-        tratamiento: tratamiento.trim(),
+        ...(rol === 'enfermeria'
+          ? { intervencionEnfermeria: intervencionEnfermeria.trim() }
+          : { diagnostico: diagnostico.trim(), tratamiento: tratamiento.trim() }),
         ...(conSignos ? { signosVitales: signos } : {}),
         insumos: insumos
           .filter((renglon) => renglon.medicamentoId && Number(renglon.cantidad) > 0)
@@ -403,8 +451,11 @@ export default function AtencionForm({
         </div>
       </Card>
 
-      {/* ===== Consulta ===== */}
-      <Card title="Consulta" icon={Stethoscope}>
+      {/* ===== Consulta (según el rol) ===== */}
+      <Card
+        title={rol === 'enfermeria' ? 'Atención de enfermería' : 'Consulta'}
+        icon={Stethoscope}
+      >
         <div className="space-y-4">
           <Field label="Síntomas" error={errorVisible('sintomas')}>
             <Textarea
@@ -427,33 +478,53 @@ export default function AtencionForm({
               placeholder="Hallazgos de la exploración física…"
             />
           </Field>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Diagnóstico" error={errorVisible('diagnostico')}>
-              <Input
-                value={diagnostico}
+          {rol === 'enfermeria' ? (
+            <Field
+              label="Intervención de enfermería"
+              hint="Atención, cuidados y orientación proporcionados. No incluye diagnóstico ni prescripción de medicamentos."
+              error={errorVisible('intervencionEnfermeria')}
+            >
+              <Textarea
+                rows={3}
+                value={intervencionEnfermeria}
                 onChange={(e) => {
-                  setDiagnostico(e.target.value);
-                  marcarTocado('diagnostico');
+                  setIntervencionEnfermeria(e.target.value);
+                  marcarTocado('intervencionEnfermeria');
                 }}
-                onBlur={() => marcarTocado('diagnostico')}
-                placeholder="Ej. Gastroenteritis aguda"
-                maxLength={255}
-                aria-invalid={errorVisible('diagnostico') ? true : undefined}
+                onBlur={() => marcarTocado('intervencionEnfermeria')}
+                placeholder="Ej. Toma de signos vitales, curación básica, orientación de salud sexual…"
+                aria-invalid={errorVisible('intervencionEnfermeria') ? true : undefined}
               />
             </Field>
-            <Field label="Tratamiento" error={errorVisible('tratamiento')}>
-              <Input
-                value={tratamiento}
-                onChange={(e) => {
-                  setTratamiento(e.target.value);
-                  marcarTocado('tratamiento');
-                }}
-                onBlur={() => marcarTocado('tratamiento')}
-                placeholder="Ej. Hidratación y dieta blanda por 3 días"
-                aria-invalid={errorVisible('tratamiento') ? true : undefined}
-              />
-            </Field>
-          </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field label="Diagnóstico" error={errorVisible('diagnostico')}>
+                <Input
+                  value={diagnostico}
+                  onChange={(e) => {
+                    setDiagnostico(e.target.value);
+                    marcarTocado('diagnostico');
+                  }}
+                  onBlur={() => marcarTocado('diagnostico')}
+                  placeholder="Ej. Gastroenteritis aguda"
+                  maxLength={255}
+                  aria-invalid={errorVisible('diagnostico') ? true : undefined}
+                />
+              </Field>
+              <Field label="Tratamiento" error={errorVisible('tratamiento')}>
+                <Input
+                  value={tratamiento}
+                  onChange={(e) => {
+                    setTratamiento(e.target.value);
+                    marcarTocado('tratamiento');
+                  }}
+                  onBlur={() => marcarTocado('tratamiento')}
+                  placeholder="Ej. Hidratación y dieta blanda por 3 días"
+                  aria-invalid={errorVisible('tratamiento') ? true : undefined}
+                />
+              </Field>
+            </div>
+          )}
         </div>
       </Card>
 
@@ -461,8 +532,9 @@ export default function AtencionForm({
       <Card title="Insumos usados" icon={PackagePlus}>
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <p className="text-sm text-gray-500">
-            Opcionales. Se descuentan del inventario al guardar la consulta. Los medicamentos
-            agotados no están disponibles.
+            {rol === 'enfermeria'
+              ? 'Opcionales. Solo insumos y medicamentos comunes: se descuentan del inventario al guardar. Los medicamentos especiales no aplican en consultas de enfermería.'
+              : 'Opcionales. Se descuentan del inventario al guardar la consulta. Los medicamentos agotados no están disponibles.'}
           </p>
           <Button
             variant="secondary"
@@ -587,7 +659,9 @@ export default function AtencionForm({
           }
         >
           <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
-            Diagnóstico: {diagnostico.trim() || '—'}
+            {rol === 'enfermeria'
+              ? `Intervención: ${intervencionEnfermeria.trim() || '—'}`
+              : `Diagnóstico: ${diagnostico.trim() || '—'}`}
             {insumos.length > 0 && ` · Insumos: ${insumos.length}`}
           </p>
         </Modal>

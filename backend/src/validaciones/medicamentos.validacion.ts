@@ -19,6 +19,17 @@ const stockValido = z
     'El stock admite máximo dos decimales.',
   );
 
+/**
+ * Categorías del inventario. Enfermería solo puede descontar 'Insumo' y
+ * 'Medicamento común' en sus consultas; los 'Medicamento especial' son para
+ * el personal médico.
+ */
+export const CATEGORIAS_MEDICAMENTO = [
+  'Insumo',
+  'Medicamento común',
+  'Medicamento especial',
+] as const;
+
 /** Campos del medicamento: mismos datos en el alta y en la edición */
 const camposMedicamento = {
   nombre: z
@@ -26,6 +37,9 @@ const camposMedicamento = {
     .trim()
     .min(1, 'El nombre del medicamento es obligatorio.')
     .max(100, 'El nombre no puede exceder 100 caracteres.'),
+  categoria: z
+    .enum(CATEGORIAS_MEDICAMENTO, { error: 'La categoría no es válida.' })
+    .optional(),
   unidadId: z.coerce
     .number({ error: 'Selecciona una unidad de medida.' })
     .int('Selecciona una unidad de medida válida.')
@@ -66,6 +80,7 @@ const stockDeFila = z
 
 export const esquemaFilaImportarMedicamento = z.object({
   nombre: camposMedicamento.nombre,
+  categoria: camposMedicamento.categoria,
   unidad: z
     .string({ error: 'Indica la unidad de medida.' })
     .trim()

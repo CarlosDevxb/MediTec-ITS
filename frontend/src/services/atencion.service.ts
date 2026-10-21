@@ -219,9 +219,13 @@ export interface ConsultaResumen {
   id: number;
   /** AAAA-MM-DD HH:mm */
   fechaHora: string;
+  /** 'Médica' (diagnóstico y tratamiento) o 'Enfermería' (intervención) */
+  tipo: string;
   sintomas: string;
   diagnostico: string;
   tratamiento: string;
+  /** Solo en consultas de enfermería */
+  intervencionEnfermeria: string;
   cita: { id: number; fecha: string; hora: string; motivo: string; tipo: string; estatus: string };
   paciente: { id: number; nombre: string; numeroControl: string };
   personal: { id: number; nombre: string; especialidad: string };
@@ -242,8 +246,11 @@ export interface DatosAtencion {
   motivo?: string;
   sintomas: string;
   exploracion?: string;
-  diagnostico: string;
-  tratamiento: string;
+  /** Consulta médica (rol Personal médico) */
+  diagnostico?: string;
+  tratamiento?: string;
+  /** Consulta de enfermería (rol Enfermería) */
+  intervencionEnfermeria?: string;
   signosVitales?: {
     ta?: string;
     fc?: number;
