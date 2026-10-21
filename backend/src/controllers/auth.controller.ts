@@ -36,6 +36,8 @@ export async function login(req: Request, res: Response, next: NextFunction) {
       numeroControl: usuario.numeroControl,
       nombre: usuario.nombre,
       rol: usuario.rol,
+      // La especialidad decide a qué portal entra el personal médico
+      especialidad: usuario.especialidad ?? undefined,
     };
 
     const token = jwt.sign(payload, ENV.jwt.secreto, {

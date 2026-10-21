@@ -84,13 +84,32 @@ categorías 'Insumo' y 'Medicamento común'), **Pacientes** (altas y expedientes
 en solo lectura con descarga del PDF), **Agenda** (citas con el personal de
 Odontología y Nutrición) y **Configuración**.
 
+Portal de nutrición (`/nutricion`, Personal médico con especialidad de
+Nutrición): **Inicio**, **Agenda** (sus citas con la regla de espaciado),
+**Atención** (sesiones mediante cita agendada, nunca de llegada),
+**Planes** (pacientes con **plan activo**; de ahí se abre la **ficha de
+nutrición** con plan, avance de peso/talla, sesiones y descarga del **avance**
+y del **expediente de nutrición** en PDF) y **Configuración**
+(`components/nutricion/`). Sus sesiones son consultas de tipo `Nutrición`
+**sin síntomas, exploración ni insumos**: capturan diagnóstico nutricional,
+indicaciones y **el plan alimenticio se registra en la misma transacción que
+la consulta** (`plan_alimenticio`, `/api/planes`); el **historial de peso y
+talla solo incluye las mediciones de las sesiones de la nutrióloga**
+(`/api/pacientes/:id/seguimiento`). Los PDFs clínicos comparten la base
+`services/documentosPdf.ts` (encabezados MediTeC-ITS y pies con los
+logotipos de empresa y software). El ruteo por **especialidad** vive en
+`rutaSegunRol(rol, especialidad)` (la especialidad viaja en el JWT del login).
+
 Reglas de agenda y consultas: las citas programadas solo se agendan con
 **Odontología o Nutrición**, dentro de los horarios registrados del especialista
-(tabla `horarios`) y con el turno libre. El **tipo de consulta lo determina el
-rol**: el personal médico captura diagnóstico y tratamiento (todo el inventario
-como insumo); enfermería captura su intervención y no puede usar medicamentos
-especiales (categoría del inventario en `medicamentos.categoria`, que administra
-el administrador desde Medicamentos).
+(tabla `horarios`) y **sin juntarse ni empalmarse**: cada cita dura 30 minutos
+con 30 de respiro (quedan cada 60 minutos). El **tipo de consulta lo determinan
+el rol y la especialidad**: el personal médico captura diagnóstico y
+tratamiento (todo el inventario como insumo); enfermería captura su
+intervención y no puede usar medicamentos especiales (categoría del inventario
+en `medicamentos.categoria`, que administra el administrador desde
+Medicamentos); nutrición captura diagnóstico nutricional e indicaciones y
+**siempre requiere cita agendada** (igual que odontología).
 
 Cuestionario de salud (`POST /api/pacientes/:id/cuestionario`): único por
 paciente, se llena al primer acceso del paciente a su portal o antes de su

@@ -30,6 +30,7 @@ export interface Usuario {
   genero: Genero;
   estatus: 'Activo' | 'Inactivo';
   /* Personal médico / enfermería (tabla `personal_medico`) */
+  personalMedicoId?: number;
   cedula?: string;
   especialidad?: string;
   /* Expediente (tabla `pacientes`) */
@@ -67,6 +68,7 @@ const COLUMNAS_USUARIO = `
   u.fecha_nacimiento AS fechaNacimiento,
   u.genero,
   u.estatus,
+  pm.id_personal_medico AS personalMedicoId,
   pm.cedula,
   pm.especialidad,
   p.id_paciente AS pacienteId,
@@ -90,6 +92,7 @@ function aUsuario(fila: Record<string, unknown>): Usuario {
     genero: String(fila['genero']) as Genero,
     estatus: Number(fila['estatus']) === 1 ? 'Activo' : 'Inactivo',
   };
+  if (fila['personalMedicoId'] != null) usuario.personalMedicoId = Number(fila['personalMedicoId']);
   if (fila['cedula'] != null) usuario.cedula = String(fila['cedula']);
   if (fila['especialidad'] != null) usuario.especialidad = String(fila['especialidad']);
   if (fila['pacienteId'] != null) {

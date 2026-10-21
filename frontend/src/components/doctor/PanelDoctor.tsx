@@ -48,8 +48,8 @@ const MENU_DOCTOR: SidebarSection[] = [
    de citas es trabajo de enfermería, no de este panel.
    ============================================================ */
 export default function PanelDoctor() {
-  // Solo el personal médico puede estar en este panel (y debe tener sesión)
-  useProtegerSesion('Personal médico');
+  // Redirige a cada usuario a su propio panel (según rol y especialidad)
+  useProtegerSesion();
 
   const [vista, setVista] = useState('Inicio');
 

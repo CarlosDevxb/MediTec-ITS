@@ -51,8 +51,8 @@ const MENU_ENFERMERIA: SidebarSection[] = [
    lectura y configuración de la propia cuenta.
    ============================================================ */
 export default function PanelEnfermeria() {
-  // Solo enfermería (y recepción, de forma provisional) en este panel
-  useProtegerSesion(['Enfermería', 'Recepción']);
+  // Redirige a cada usuario a su propio panel (según rol y especialidad)
+  useProtegerSesion();
 
   const [vista, setVista] = useState('Inicio');
 

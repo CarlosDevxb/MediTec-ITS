@@ -197,9 +197,9 @@ ENGINE = InnoDB;
 CREATE TABLE IF NOT EXISTS `meditec_its`.`consulta` (
   `id_consulta` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `cita_id_cita` INT UNSIGNED NOT NULL COMMENT 'Toda consulta debe derivar de una cita',
-  `tipo_consulta` ENUM('Médica', 'Enfermería') NOT NULL DEFAULT 'Médica' COMMENT 'Según el rol de quien atiende',
+  `tipo_consulta` ENUM('Médica', 'Enfermería', 'Nutrición') NOT NULL DEFAULT 'Médica' COMMENT 'Según el rol y la especialidad de quien atiende',
   `fecha_hora` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
-  `sintomas` TEXT NOT NULL,
+  `sintomas` TEXT NULL DEFAULT NULL COMMENT 'Obligatorio en consultas médicas y de enfermería',
   `exploracion` TEXT NULL DEFAULT NULL,
   `diagnostico` VARCHAR(255) NULL DEFAULT NULL COMMENT 'Solo consultas médicas',
   `tratamiento` TEXT NULL DEFAULT NULL COMMENT 'Solo consultas médicas',

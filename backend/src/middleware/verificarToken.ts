@@ -8,6 +8,8 @@ export interface UsuarioToken {
   numeroControl: string;
   nombre: string;
   rol: string;
+  /** Especialidad del personal médico (para enrutar su portal) */
+  especialidad?: string;
 }
 
 // Amplía Request para exponer el usuario autenticado

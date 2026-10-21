@@ -10,6 +10,7 @@ import { buscarPersonalPorUsuario } from './personal.service';
 import { buscarUsuario } from './usuarios.service';
 import { asegurarPacienteExiste } from './pacientes.service';
 import { buscarCitaParaAtencion, insertarCita } from './citas.service';
+import { buscarPlan, insertarPlanEn, type PlanAlimenticio } from './planes.service';
 import type {
   DatosCrearConsulta,
   DatosSignosVitales,
@@ -25,12 +26,14 @@ import type {
  * 'Atención directa' y enseguida la consulta, todo dentro de una misma
  * transacción: o se registra la atención completa o no se registra nada.
  *
- * El **tipo de consulta lo determina el rol** de quien atiende:
+ * El **tipo de consulta lo determinan el rol y la especialidad** de quien atiende:
  * - Personal médico: captura diagnóstico y tratamiento (puede usar todo el
  *   inventario como insumo).
  * - Enfermería: captura su intervención de enfermería y solo descuenta
  *   insumos del inventario (categorías 'Insumo' y 'Medicamento común');
  *   no suministra medicamentos especiales.
+ * - Nutrición: como el personal médico, pero **siempre con cita agendada**
+ *   (igual que odontología): no hay atención de llegada para sus consultas.
  *
  * Los insumos se descuentan del inventario en esa misma transacción; los
  * medicamentos agotados (stock 0) no se pueden usar en consultas.
@@ -80,6 +83,8 @@ export interface ConsultaDetalle extends ConsultaResumen {
   exploracion: string;
   signosVitales: SignosVitales | null;
   insumos: InsumoConsulta[];
+  /** Plan alimenticio registrado con la sesión de nutrición */
+  planAlimenticio?: PlanAlimenticio | null;
 }
 
 /** SELECT común: la consulta con su cita, su paciente y su personal */
@@ -168,19 +173,66 @@ export async function crearConsulta(
   }
   await asegurarPacienteExiste(datos.pacienteId);
 
-  /* ---- El tipo de consulta lo determina el rol de quien atiende ---- */
+  /* ---- El tipo de consulta lo determinan el rol y la especialidad ---- */
   const cuenta = await buscarUsuario(usuarioId);
-  const tipoConsulta = cuenta?.rol === 'Enfermería' ? 'Enfermería' : 'Médica';
+  const especialidad = personal.especialidad
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  const esNutricion = especialidad.includes('nutri');
+  const esOdontologia = especialidad.includes('odontolog');
+  const tipoConsulta =
+    cuenta?.rol === 'Enfermería' ? 'Enfermería' : esNutricion ? 'Nutrición' : 'Médica';
+
+  // Nutrición y odontología atienden únicamente con cita agendada:
+  // no existe la atención de llegada para sus consultas
+  if ((esNutricion || esOdontologia) && !datos.citaId) {
+    throw errorValidacion('Las consultas de nutrición y odontología requieren una cita agendada.', [
+      { campo: 'citaId', mensaje: 'Selecciona una cita de la agenda para registrar la consulta.' },
+    ]);
+  }
 
   if (tipoConsulta === 'Enfermería') {
     // Enfermería registra su intervención: no diagnostica ni prescribe
+    const faltantes: Array<{ campo: string; mensaje: string }> = [];
     if (!datos.intervencionEnfermeria?.trim()) {
-      throw errorValidacion('Describe la intervención de enfermería.', [
-        { campo: 'intervencionEnfermeria', mensaje: 'Este campo es obligatorio.' },
+      faltantes.push({ campo: 'intervencionEnfermeria', mensaje: 'Este campo es obligatorio.' });
+    }
+    if (!datos.sintomas?.trim()) {
+      faltantes.push({ campo: 'sintomas', mensaje: 'Describe los síntomas.' });
+    }
+    if (faltantes.length > 0) {
+      throw errorValidacion('La consulta de enfermería está incompleta.', faltantes);
+    }
+  } else if (tipoConsulta === 'Nutrición') {
+    // La sesión de nutrición registra diagnóstico, indicaciones y su plan
+    // alimenticio; no captura síntomas, exploración ni insumos
+    const faltantes: Array<{ campo: string; mensaje: string }> = [];
+    if (!datos.diagnostico?.trim()) {
+      faltantes.push({ campo: 'diagnostico', mensaje: 'El diagnóstico nutricional es obligatorio.' });
+    }
+    if (!datos.tratamiento?.trim()) {
+      faltantes.push({ campo: 'tratamiento', mensaje: 'Las indicaciones son obligatorias.' });
+    }
+    if (!datos.planAlimenticio) {
+      faltantes.push({
+        campo: 'planAlimenticio',
+        mensaje: 'El plan alimenticio se registra junto con la sesión.',
+      });
+    }
+    if (faltantes.length > 0) {
+      throw errorValidacion('La sesión de nutrición está incompleta.', faltantes);
+    }
+    if (datos.insumos && datos.insumos.length > 0) {
+      throw errorValidacion('Las sesiones de nutrición no registran insumos.', [
+        { campo: 'insumos', mensaje: 'Los insumos solo aplican en consultas médicas.' },
       ]);
     }
   } else {
     const faltantes: Array<{ campo: string; mensaje: string }> = [];
+    if (!datos.sintomas?.trim()) {
+      faltantes.push({ campo: 'sintomas', mensaje: 'Describe los síntomas.' });
+    }
     if (!datos.diagnostico?.trim()) {
       faltantes.push({ campo: 'diagnostico', mensaje: 'El diagnóstico es obligatorio.' });
     }
@@ -188,12 +240,13 @@ export async function crearConsulta(
       faltantes.push({ campo: 'tratamiento', mensaje: 'El tratamiento es obligatorio.' });
     }
     if (faltantes.length > 0) {
-      throw errorValidacion('El diagnóstico y el tratamiento son obligatorios.', faltantes);
+      throw errorValidacion('La consulta está incompleta.', faltantes);
     }
   }
 
   const conexion = await pool.getConnection();
   let consultaId = 0;
+  let planId: number | null = null;
   try {
     await conexion.beginTransaction();
 
@@ -231,7 +284,7 @@ export async function crearConsulta(
       [
         citaId,
         tipoConsulta,
-        datos.sintomas.trim(),
+        datos.sintomas?.trim() || null,
         datos.exploracion?.trim() || null,
         datos.diagnostico?.trim() || null,
         datos.tratamiento?.trim() || null,
@@ -256,6 +309,14 @@ export async function crearConsulta(
           s.talla ?? null,
         ],
       );
+    }
+
+    /* ---- 3b) Plan alimenticio: se registra junto con la sesión de nutrición ---- */
+    if (datos.planAlimenticio) {
+      planId = await insertarPlanEn(conexion, personal.id, {
+        ...datos.planAlimenticio,
+        pacienteId: datos.pacienteId,
+      });
     }
 
     /* ---- 4) Insumos: stock verificado y descontado en la misma transacción ---- */
@@ -312,6 +373,8 @@ export async function crearConsulta(
 
   const creada = await buscarConsulta(consultaId);
   if (!creada) throw errorNoEncontrado('No se pudo recuperar la consulta recién creada.');
+  // La sesión de nutrición devuelve también el plan que acaba de registrar
+  creada.planAlimenticio = planId ? await buscarPlan(planId) : null;
   return creada;
 }
 

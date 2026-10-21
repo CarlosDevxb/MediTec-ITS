@@ -16,6 +16,8 @@ export interface UsuarioLogin {
   contrasenaHash: string;
   estatus: number;
   rol: string;
+  /** Especialidad del personal médico (puede no existir) */
+  especialidad: string | null;
 }
 
 /**
@@ -25,9 +27,10 @@ export interface UsuarioLogin {
  */
 export async function buscarUsuarioPorControl(numeroControl: string): Promise<UsuarioLogin | null> {
   const [filas] = await pool.query(
-    `SELECT u.*, r.nombre AS rol
+    `SELECT u.*, r.nombre AS rol, pm.especialidad AS especialidad
        FROM usuarios u
        JOIN roles r ON r.id_rol = u.roles_id_rol
+       LEFT JOIN personal_medico pm ON pm.usuarios_id_usuarios = u.id_usuarios
       WHERE u.numero_control = ?
       LIMIT 1`,
     [numeroControl]
@@ -44,6 +47,8 @@ export async function buscarUsuarioPorControl(numeroControl: string): Promise<Us
     contrasenaHash: String(registro.contraseña),
     estatus: Number(registro.estatus),
     rol: String(registro.rol),
+    especialidad:
+      registro['especialidad'] != null ? String(registro['especialidad']) : null,
   };
 }
 

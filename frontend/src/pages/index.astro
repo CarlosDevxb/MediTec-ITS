@@ -13,7 +13,9 @@ import '../styles/global.css';
       import { obtenerSesion, rutaSegunRol } from '../services/sesion';
 
       const sesion = obtenerSesion();
-      window.location.replace(sesion ? rutaSegunRol(sesion.usuario.rol) : '/login');
+      window.location.replace(
+        sesion ? rutaSegunRol(sesion.usuario.rol, sesion.usuario.especialidad) : '/login',
+      );
     </script>
   </head>
   <body class="m-0 p-0">

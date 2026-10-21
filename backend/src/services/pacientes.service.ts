@@ -211,6 +211,43 @@ export async function buscarPacientePorUsuario(usuarioId: number): Promise<numbe
   return fila ? Number(fila['id_paciente']) : null;
 }
 
+/** Registro de peso y talla del seguimiento de un paciente */
+export interface RegistroSeguimiento {
+  /** AAAA-MM-DD HH:mm de la sesión de nutrición */
+  fecha: string;
+  peso: number | null;
+  talla: number | null;
+  /** Consulta de nutrición de la que proviene la medición */
+  consultaId: number;
+}
+
+/**
+ * Avance de peso y talla del paciente: **solo las mediciones de las sesiones
+ * de nutrición** (los signos vitales de cada consulta de la nutrióloga).
+ */
+export async function listarSeguimiento(pacienteId: number): Promise<RegistroSeguimiento[]> {
+  await asegurarPacienteExiste(pacienteId);
+
+  const [filasSesiones] = await pool.query(
+    `SELECT co.id_consulta AS consultaId, co.fecha_hora AS fecha, sv.peso, sv.talla
+       FROM signos_vitales sv
+       JOIN consulta co ON co.id_consulta = sv.consulta_id_consulta
+       JOIN cita c ON c.id_cita = co.cita_id_cita
+      WHERE c.pacientes_id_paciente = ?
+        AND co.tipo_consulta = 'Nutrición'
+        AND (sv.peso IS NOT NULL OR sv.talla IS NOT NULL)
+      ORDER BY co.fecha_hora ASC`,
+    [pacienteId],
+  );
+
+  return (filasSesiones as Array<Record<string, unknown>>).map((fila) => ({
+    fecha: fechaHoraTexto(fila['fecha']),
+    peso: fila['peso'] != null ? Number(fila['peso']) : null,
+    talla: fila['talla'] != null ? Number(fila['talla']) : null,
+    consultaId: Number(fila['consultaId']),
+  }));
+}
+
 /** Mensaje estándar cuando se pide un expediente inexistente */
 export function errorPacienteNoEncontrado(): Error {
   return errorNoEncontrado('El expediente del paciente no existe.');

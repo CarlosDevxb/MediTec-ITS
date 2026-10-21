@@ -25,6 +25,8 @@ import {
   crearCita,
   cambiarEstatusCita,
   hoyISO,
+  rangosDeDia,
+  horasDisponiblesPara,
   type Cita,
   type ExpedientePaciente,
 } from '../../services/atencion.service';
@@ -61,42 +63,6 @@ const especialidadEsDeCita = (especialidad: string): boolean => {
     texto.includes('odontolog') || texto.includes('nutriolog') || texto.includes('nutricion')
   );
 };
-
-/** Día de la semana de una fecha AAAA-MM-DD (1=Lunes … 7=Domingo) */
-function diaDeSemana(fecha: string): number {
-  const partes = fecha.split('-').map(Number);
-  const anio = partes[0] ?? 1970;
-  const mes = partes[1] ?? 1;
-  const dia = partes[2] ?? 1;
-  return ((new Date(anio, mes - 1, dia).getDay() + 6) % 7) + 1;
-}
-
-/** Rangos de atención del personal para una fecha concreta */
-function rangosDeDia(horarios: Horario[], fecha: string): Array<{ inicio: string; fin: string }> {
-  const dia = diaDeSemana(fecha);
-  return horarios
-    .filter((horario) => horario.diaSemana === dia)
-    .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
-    .map((horario) => ({ inicio: horario.horaInicio, fin: horario.horaFin }));
-}
-
-/** Opciones de cita cada 30 minutos dentro de los rangos de atención */
-function opcionesDeHora(rangos: Array<{ inicio: string; fin: string }>): string[] {
-  const opciones: string[] = [];
-  for (const rango of rangos) {
-    const [hi, mi] = rango.inicio.split(':').map(Number);
-    const [hf, mf] = rango.fin.split(':').map(Number);
-    let minutos = (hi ?? 0) * 60 + (mi ?? 0);
-    const limite = (hf ?? 0) * 60 + (mf ?? 0);
-    while (minutos <= limite) {
-      opciones.push(
-        `${String(Math.floor(minutos / 60)).padStart(2, '0')}:${String(minutos % 60).padStart(2, '0')}`,
-      );
-      minutos += 30;
-    }
-  }
-  return [...new Set(opciones)];
-}
 
 export default function AgendaEnfermeria() {
   const [citas, setCitas] = useState<Cita[]>([]);
@@ -191,9 +157,14 @@ export default function AgendaEnfermeria() {
         .map((cita) => cita.hora),
     [citasDelDia, personalId],
   );
+  // Cada cita dura 30 minutos con 30 de respiro: las horas quedan cada 60 min
   const horasDisponibles = useMemo(
-    () => opcionesDeHora(rangos).filter((horaOpcion) => !horasOcupadas.includes(horaOpcion)),
-    [rangos, horasOcupadas],
+    () =>
+      horasDisponiblesPara(
+        rangos,
+        citasDelDia.filter((cita) => cita.personalMedicoId === Number(personalId)),
+      ),
+    [rangos, citasDelDia, personalId],
   );
 
   // Si la hora elegida deja de estar disponible, se selecciona la primera libre

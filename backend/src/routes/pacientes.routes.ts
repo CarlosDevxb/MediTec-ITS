@@ -41,6 +41,11 @@ rutas.post(
   validar(esquemaCuestionario),
   controlador.guardarCuestionario,
 );
+rutas.get(
+  '/:id/seguimiento',
+  requerirRol(...PERSONAL_CLINICO, 'Paciente'),
+  controlador.obtenerSeguimiento,
+);
 rutas.post('/', requerirRol('Administrador', 'Enfermería'), validar(esquemaCrearPaciente), controlador.crearPaciente);
 rutas.patch(
   '/:id/expediente',

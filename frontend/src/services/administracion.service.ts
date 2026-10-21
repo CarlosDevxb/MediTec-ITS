@@ -56,6 +56,8 @@ export interface Usuario {
   fechaNacimiento: string;
   genero: 'Masculino' | 'Femenino' | 'Otro';
   estatus: 'Activo' | 'Inactivo';
+  /** Ficha de personal (solo si el rol requiere cédula) */
+  personalMedicoId?: number;
   /** Solo presente cuando el rol requiere cédula */
   cedula?: string;
   especialidad?: string;

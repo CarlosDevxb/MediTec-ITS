@@ -54,6 +54,40 @@ export const esquemaInsumo = z.object({
     ),
 });
 
+/** Fecha AAAA-MM-DD del plan alimenticio */
+const fechaPlan = z
+  .string({ error: 'La fecha es obligatoria.' })
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener el formato AAAA-MM-DD.');
+
+/**
+ * Plan alimenticio que se registra junto con la sesión de nutrición
+ * (nunca suelto: la sesión de nutrición siempre lleva su plan).
+ */
+export const esquemaPlanAlimenticio = z
+  .object({
+    fechaInicio: fechaPlan,
+    fechaFin: fechaPlan,
+    descripcionDieta: z
+      .string({ error: 'Describe la dieta.' })
+      .trim()
+      .min(1, 'Describe la dieta.')
+      .max(4000, 'La descripción de la dieta no puede exceder 4000 caracteres.'),
+    caloriasDiarias: z.coerce
+      .number({ error: 'Las calorías diarias deben ser un número.' })
+      .int('Las calorías diarias deben ser un número entero.')
+      .min(500, 'Las calorías diarias deben ser al menos 500.')
+      .max(10000, 'Las calorías diarias no pueden exceder 10,000.'),
+  })
+  .superRefine((datos, contexto) => {
+    if (datos.fechaFin < datos.fechaInicio) {
+      contexto.addIssue({
+        code: 'custom',
+        message: 'La fecha de fin del plan no puede ser anterior a la de inicio.',
+        path: ['fechaFin'],
+      });
+    }
+  });
+
 export const esquemaCrearConsulta = z
   .object({
     pacienteId: idPositivo('Selecciona un paciente.'),
@@ -67,10 +101,12 @@ export const esquemaCrearConsulta = z
       .optional()
       .or(z.literal('')),
     sintomas: z
-      .string({ error: 'Describe los síntomas.' })
+      .string()
       .trim()
       .min(1, 'Describe los síntomas.')
-      .max(2000, 'Los síntomas no pueden exceder 2000 caracteres.'),
+      .max(2000, 'Los síntomas no pueden exceder 2000 caracteres.')
+      .optional()
+      .or(z.literal('')),
     exploracion: z
       .string()
       .trim()
@@ -99,6 +135,8 @@ export const esquemaCrearConsulta = z
       .max(2000, 'La intervención no puede exceder 2000 caracteres.')
       .optional()
       .or(z.literal('')),
+    /** Plan alimenticio (sesiones de nutrición): se registra con la consulta */
+    planAlimenticio: esquemaPlanAlimenticio.optional(),
     signosVitales: esquemaSignosVitales.optional(),
     insumos: z
       .array(esquemaInsumo, { error: 'Los insumos deben ser una lista.' })
@@ -122,5 +160,6 @@ export const esquemaCrearConsulta = z
   });
 
 export type DatosCrearConsulta = z.infer<typeof esquemaCrearConsulta>;
+export type DatosPlanAlimenticio = z.infer<typeof esquemaPlanAlimenticio>;
 export type DatosSignosVitales = z.infer<typeof esquemaSignosVitales>;
 export type DatosInsumo = z.infer<typeof esquemaInsumo>;

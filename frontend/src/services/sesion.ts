@@ -14,6 +14,8 @@ export interface UsuarioSesion {
   numeroControl: string;
   nombre: string;
   rol: string;
+  /** Especialidad del personal médico (decide su portal) */
+  especialidad?: string;
 }
 
 export interface Sesion {
@@ -51,15 +53,23 @@ export function cerrarSesion(): void {
   window.location.href = '/login';
 }
 
-/** Panel al que entra cada rol tras iniciar sesión */
-export function rutaSegunRol(rol: string): string {
+/** Panel al que entra cada rol (y especialidad) tras iniciar sesión */
+export function rutaSegunRol(rol: string, especialidad?: string): string {
   switch (rol) {
     case 'Administrador':
       return '/admin';
     case 'Paciente':
       return '/paciente';
-    case 'Personal médico':
+    case 'Personal médico': {
+      // Dentro del personal médico, cada especialidad tiene su portal
+      const esp = (especialidad ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+      if (esp.includes('nutri')) return '/nutricion';
+      // Odontología tendrá su propio portal; por ahora usa el panel médico
       return '/doctor';
+    }
     case 'Enfermería':
       return '/enfermeria';
     // Recepción opera de momento el panel de enfermería (altas y agenda);

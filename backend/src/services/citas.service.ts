@@ -28,6 +28,10 @@ import type { DatosCrearCita, DatosEstatusCita } from '../validaciones/citas.val
 /** Especialidades que se agendan desde la agenda de citas */
 const ESPECIALIDADES_CON_CITA = ['odontolog', 'nutriolog', 'nutricion'];
 
+/** Duración de una cita y el respiro mínimo entre citas (minutos) */
+const DURACION_CITA = 30;
+const SEPARACION_MINIMA = 60; // 30 de sesión + 30 de respiro
+
 export interface Cita {
   id: number;
   personalMedicoId: number;
@@ -130,7 +134,7 @@ export async function crearCita(datos: DatosCrearCita): Promise<Cita> {
   await asegurarPersonalActivo(datos.personalMedicoId);
   await asegurarEspecialidadParaCita(datos.personalMedicoId);
   await asegurarHorarioDisponible(datos.personalMedicoId, datos.fecha, datos.hora);
-  await asegurarSlotLibre(datos.personalMedicoId, datos.fecha, datos.hora);
+  await asegurarDisponibilidad(datos.personalMedicoId, datos.fecha, datos.hora);
   await asegurarCitaLibre(datos.pacienteId, datos.fecha, datos.hora);
 
   const id = await insertarCita(pool, {
@@ -177,7 +181,13 @@ async function asegurarEspecialidadParaCita(personalMedicoId: number): Promise<v
   }
 }
 
-/** La cita debe caer dentro del horario registrado del personal ese día */
+/** "08:30" → 510 */
+const aMinutos = (hora: string): number => {
+  const [h, m] = hora.split(':').map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+};
+
+/** La cita (30 min de sesión) debe caber dentro del horario registrado */
 async function asegurarHorarioDisponible(
   personalMedicoId: number,
   fecha: string,
@@ -204,34 +214,52 @@ async function asegurarHorarioDisponible(
     );
   }
 
-  const dentro = rangos.some((rango) => hora >= rango.inicio && hora <= rango.fin);
+  const inicio = aMinutos(hora);
+  const dentro = rangos.some(
+    (rango) => inicio >= aMinutos(rango.inicio) && inicio + DURACION_CITA <= aMinutos(rango.fin),
+  );
   if (!dentro) {
     const horarioTexto = rangos.map((rango) => `de ${rango.inicio} a ${rango.fin}`).join(' y ');
     throw errorValidacion(
-      `El personal no atiende a las ${hora} el ${diaTexto.toLowerCase()}; su horario es ${horarioTexto}.`,
+      `Las citas de ${DURACION_CITA} minutos no caben a las ${hora} el ${diaTexto.toLowerCase()}; el horario es ${horarioTexto}.`,
       [{ campo: 'hora', mensaje: 'Selecciona una hora dentro del horario de atención.' }],
     );
   }
 }
 
-/** El turno debe estar libre para ese personal (no puede haber dos citas a la vez) */
-async function asegurarSlotLibre(
+/**
+ * La agenda del personal debe quedar espaciada: cada cita dura
+ * `DURACION_CITA` minutos y después hay `RESPIRO` libre, así que ninguna otra
+ * cita puede empezar dentro de la hora siguiente ni dentro de la anterior
+ * (sin juntarse ni empalmarse).
+ */
+async function asegurarDisponibilidad(
   personalMedicoId: number,
   fecha: string,
   hora: string,
 ): Promise<void> {
   const [filas] = await pool.query(
-    `SELECT id_cita FROM cita
-      WHERE personal_medico_id_personal_medico = ? AND fecha = ? AND hora = ?
-        AND estatus <> 'Cancelada'
-      LIMIT 1`,
-    [personalMedicoId, fecha, hora],
+    `SELECT hora FROM cita
+      WHERE personal_medico_id_personal_medico = ? AND fecha = ? AND estatus <> 'Cancelada'`,
+    [personalMedicoId, fecha],
   );
-  if ((filas as Array<Record<string, unknown>>)[0]) {
+  const inicio = aMinutos(hora);
+  const choque = (filas as Array<Record<string, unknown>>).find(
+    (fila) => Math.abs(aMinutos(horaCorta(fila['hora'])) - inicio) < SEPARACION_MINIMA,
+  );
+  if (choque) {
+    const horaChoque = horaCorta(choque['hora']);
     throw errorConflicto(
-      `El personal ya tiene una cita el ${fecha} a las ${hora}. Elige otro horario disponible.`,
+      `Ya hay una cita a las ${horaChoque}. Las citas duran ${DURACION_CITA} minutos y deben ` +
+        `dejarse ${SEPARACION_MINIMA - DURACION_CITA} minutos libres entre cada una: la siguiente ` +
+        `disponible desde esa sería las ${hhmm(aMinutos(horaChoque) + SEPARACION_MINIMA)}.`,
     );
   }
+}
+
+/** HH:mm a partir de minutos desde medianoche */
+function hhmm(minutos: number): string {
+  return `${String(Math.floor(minutos / 60)).padStart(2, '0')}:${String(minutos % 60).padStart(2, '0')}`;
 }
 
 /** Cambia el estatus de una cita (confirmar, cancelar, completar) */

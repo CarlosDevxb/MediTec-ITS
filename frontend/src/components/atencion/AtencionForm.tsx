@@ -21,6 +21,9 @@ import { listarMedicamentos, type Medicamento } from '../../services/operacion.s
 import {
   type DatosAtencion,
   type ExpedientePaciente,
+  type Cita,
+  fechaCorta,
+  hoyISO,
 } from '../../services/atencion.service';
 
 /* ============================================================
@@ -43,8 +46,11 @@ import {
 
 export interface AtencionFormProps {
   expediente: ExpedientePaciente;
-  /** 'medico' (diagnóstico/tratamiento) o 'enfermeria' (intervención) */
-  rol?: 'medico' | 'enfermeria';
+  /** 'medico' (diagnóstico y tratamiento), 'enfermeria' (intervención) o 'nutricion' */
+  rol?: 'medico' | 'enfermeria' | 'nutricion';
+  /** Cita agendada que se atiende (nutrición y odontología siempre; el
+   *  doctor y la enfermería atienden sin cita, con auto-cita) */
+  citaInicial?: Cita | null;
   guardando?: boolean;
   onGuardar: (datos: DatosAtencion) => Promise<void>;
   onCancelar: () => void;
@@ -70,22 +76,28 @@ function errorDeCampo(
     | 'peso'
     | 'talla',
   valores: Record<string, string>,
-  rol: 'medico' | 'enfermeria',
+  rol: 'medico' | 'enfermeria' | 'nutricion',
+  esAtencionDirecta: boolean,
 ): string {
   const texto = (clave: string) => (valores[clave] ?? '').trim();
   switch (campo) {
     case 'motivo':
+      // Con cita agendada el motivo ya vive en la cita
+      if (!esAtencionDirecta) return '';
       if (!texto('motivo')) return 'Indica el motivo de la atención.';
       return texto('motivo').length > 255 ? 'El motivo no puede exceder 255 caracteres.' : '';
     case 'sintomas':
+      // Las sesiones de nutrición no capturan síntomas
+      if (rol === 'nutricion') return '';
       if (!texto('sintomas')) return 'Describe los síntomas.';
       return texto('sintomas').length > 2000 ? 'Los síntomas no pueden exceder 2000 caracteres.' : '';
     case 'diagnostico':
-      if (rol !== 'medico') return '';
+      // Solo enfermería no diagnostica (nutrición sí, con su enfoque)
+      if (rol === 'enfermeria') return '';
       if (!texto('diagnostico')) return 'El diagnóstico es obligatorio.';
       return texto('diagnostico').length > 255 ? 'El diagnóstico no puede exceder 255 caracteres.' : '';
     case 'tratamiento':
-      if (rol !== 'medico') return '';
+      if (rol === 'enfermeria') return '';
       if (!texto('tratamiento')) return 'El tratamiento es obligatorio.';
       return texto('tratamiento').length > 2000 ? 'El tratamiento no puede exceder 2000 caracteres.' : '';
     case 'intervencionEnfermeria':
@@ -132,10 +144,12 @@ function errorDeCampo(
 export default function AtencionForm({
   expediente,
   rol = 'medico',
+  citaInicial = null,
   guardando = false,
   onGuardar,
   onCancelar,
 }: AtencionFormProps) {
+  const esAtencionDirecta = !citaInicial;
 
   /* Datos de la atención (auto-cita) */
   const [motivo, setMotivo] = useState('');
@@ -146,12 +160,23 @@ export default function AtencionForm({
   const [temp, setTemp] = useState('');
   const [peso, setPeso] = useState('');
   const [talla, setTalla] = useState('');
-  /* Consulta (según el rol: médica o de enfermería) */
+  /* Consulta (según el rol: médica, de enfermería o de nutrición) */
   const [sintomas, setSintomas] = useState('');
   const [exploracion, setExploracion] = useState('');
   const [diagnostico, setDiagnostico] = useState('');
   const [tratamiento, setTratamiento] = useState('');
   const [intervencionEnfermeria, setIntervencionEnfermeria] = useState('');
+  /* Plan alimenticio (se registra junto con la sesión de nutrición) */
+  const [planInicio, setPlanInicio] = useState(() => hoyISO());
+  const [planFin, setPlanFin] = useState(() => {
+    const fecha = new Date();
+    fecha.setDate(fecha.getDate() + 30);
+    return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(
+      fecha.getDate(),
+    ).padStart(2, '0')}`;
+  });
+  const [planDieta, setPlanDieta] = useState('');
+  const [planCalorias, setPlanCalorias] = useState('');
   /* Insumos */
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
   const [insumos, setInsumos] = useState<RenglonInsumo[]>([]);
@@ -207,11 +232,35 @@ export default function AtencionForm({
       'peso',
       'talla',
     ] as const) {
-      calculados[campo] = errorDeCampo(campo, valores, rol);
+      calculados[campo] = errorDeCampo(campo, valores, rol, esAtencionDirecta);
     }
+
+    // Plan alimenticio: obligatorio junto con la sesión de nutrición
+    if (rol === 'nutricion') {
+      calculados.planInicio = planInicio ? '' : 'Indica la fecha de inicio del plan.';
+      calculados.planFin = !planFin
+        ? 'Indica la fecha de fin del plan.'
+        : planInicio && planFin < planInicio
+          ? 'La fecha de fin no puede ser anterior a la de inicio.'
+          : '';
+      calculados.planDieta = !planDieta.trim()
+        ? 'Describe la dieta del plan alimenticio.'
+        : planDieta.length > 4000
+          ? 'La descripción no puede exceder 4000 caracteres.'
+          : '';
+      const calorias = Number(planCalorias);
+      calculados.planCalorias = !planCalorias
+        ? 'Indica las calorías diarias.'
+        : Number.isNaN(calorias) || !Number.isInteger(calorias)
+          ? 'Las calorías diarias deben ser un número entero.'
+          : calorias < 500 || calorias > 10000
+            ? 'Las calorías deben estar entre 500 y 10,000.'
+            : '';
+    }
+
     return calculados;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [motivo, sintomas, diagnostico, tratamiento, intervencionEnfermeria, ta, fc, fr, temp, peso, talla, rol]);
+  }, [motivo, sintomas, diagnostico, tratamiento, intervencionEnfermeria, ta, fc, fr, temp, peso, talla, rol, citaInicial, planInicio, planFin, planDieta, planCalorias]);
 
   /** Avisos de los renglones de insumos (cantidad contra stock) */
   const erroresInsumos = useMemo(
@@ -267,6 +316,10 @@ export default function AtencionForm({
       diagnostico: true,
       tratamiento: true,
       intervencionEnfermeria: true,
+      planInicio: true,
+      planFin: true,
+      planDieta: true,
+      planCalorias: true,
       ta: true,
       fc: true,
       fr: true,
@@ -295,19 +348,37 @@ export default function AtencionForm({
     try {
       await onGuardar({
         pacienteId: expediente.id,
-        motivo: motivo.trim(),
-        sintomas: sintomas.trim(),
-        exploracion: exploracion.trim() || undefined,
+        ...(citaInicial ? { citaId: citaInicial.id } : { motivo: motivo.trim() }),
+        // Las sesiones de nutrición no capturan síntomas ni exploración
+        ...(rol === 'nutricion'
+          ? {}
+          : { sintomas: sintomas.trim(), exploracion: exploracion.trim() || undefined }),
         ...(rol === 'enfermeria'
           ? { intervencionEnfermeria: intervencionEnfermeria.trim() }
           : { diagnostico: diagnostico.trim(), tratamiento: tratamiento.trim() }),
+        // El plan alimenticio se registra junto con la sesión de nutrición
+        ...(rol === 'nutricion'
+          ? {
+              planAlimenticio: {
+                fechaInicio: planInicio,
+                fechaFin: planFin,
+                descripcionDieta: planDieta.trim(),
+                caloriasDiarias: Number(planCalorias),
+              },
+            }
+          : {}),
         ...(conSignos ? { signosVitales: signos } : {}),
-        insumos: insumos
-          .filter((renglon) => renglon.medicamentoId && Number(renglon.cantidad) > 0)
-          .map((renglon) => ({
-            medicamentoId: Number(renglon.medicamentoId),
-            cantidad: Number(renglon.cantidad),
-          })),
+        // Las sesiones de nutrición no registran insumos
+        ...(rol === 'nutricion'
+          ? {}
+          : {
+              insumos: insumos
+                .filter((renglon) => renglon.medicamentoId && Number(renglon.cantidad) > 0)
+                .map((renglon) => ({
+                  medicamentoId: Number(renglon.medicamentoId),
+                  cantidad: Number(renglon.cantidad),
+                })),
+            }),
       });
     } catch (error) {
       // Errores del servidor pintados en su campo (400) o como resumen (409 / red)
@@ -321,29 +392,43 @@ export default function AtencionForm({
     <form onSubmit={handleSubmit} className="entrada space-y-6" noValidate>
       {/* ===== Datos de la atención ===== */}
       <Card title="Datos de la atención" icon={CalendarClock}>
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <Badge status="scheduled">Atención directa</Badge>
-          <p className="text-sm text-gray-500">
-            Atención de llegada: se registra en este momento con estado "Atención directa".
-          </p>
-        </div>
-        <Field
-          label="Motivo de la atención"
-          error={errorVisible('motivo')}
-          hint="Motivo por el que el paciente solicita atención. Máximo 255 caracteres."
-        >
-          <Input
-            value={motivo}
-            onChange={(e) => {
-              setMotivo(e.target.value);
-              marcarTocado('motivo');
-            }}
-            onBlur={() => marcarTocado('motivo')}
-            placeholder="Ej. Dolor abdominal desde hace dos días"
-            maxLength={255}
-            aria-invalid={errorVisible('motivo') ? true : undefined}
-          />
-        </Field>
+        {citaInicial ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge status="confirmed">Cita agendada</Badge>
+            <p className="text-gray-700">
+              {fechaCorta(citaInicial.fecha)} a las {citaInicial.hora} · {citaInicial.motivo}
+            </p>
+            <p className="text-sm text-gray-500">
+              La consulta se registrará ligada a esta cita.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <Badge status="scheduled">Atención directa</Badge>
+              <p className="text-sm text-gray-500">
+                Atención de llegada: se registra en este momento con estado "Atención directa".
+              </p>
+            </div>
+            <Field
+              label="Motivo de la atención"
+              error={errorVisible('motivo')}
+              hint="Motivo por el que el paciente solicita atención. Máximo 255 caracteres."
+            >
+              <Input
+                value={motivo}
+                onChange={(e) => {
+                  setMotivo(e.target.value);
+                  marcarTocado('motivo');
+                }}
+                onBlur={() => marcarTocado('motivo')}
+                placeholder="Ej. Dolor abdominal desde hace dos días"
+                maxLength={255}
+                aria-invalid={errorVisible('motivo') ? true : undefined}
+              />
+            </Field>
+          </>
+        )}
       </Card>
 
       {/* ===== Signos vitales ===== */}
@@ -453,31 +538,42 @@ export default function AtencionForm({
 
       {/* ===== Consulta (según el rol) ===== */}
       <Card
-        title={rol === 'enfermeria' ? 'Atención de enfermería' : 'Consulta'}
+        title={
+          rol === 'enfermeria'
+            ? 'Atención de enfermería'
+            : rol === 'nutricion'
+              ? 'Valoración nutricional'
+              : 'Consulta'
+        }
         icon={Stethoscope}
       >
         <div className="space-y-4">
-          <Field label="Síntomas" error={errorVisible('sintomas')}>
-            <Textarea
-              rows={3}
-              value={sintomas}
-              onChange={(e) => {
-                setSintomas(e.target.value);
-                marcarTocado('sintomas');
-              }}
-              onBlur={() => marcarTocado('sintomas')}
-              placeholder="Describe los síntomas que refiere el paciente al momento de la atención…"
-              aria-invalid={errorVisible('sintomas') ? true : undefined}
-            />
-          </Field>
-          <Field label="Exploración" hint="Opcional." error={errorVisible('exploracion')}>
-            <Textarea
-              rows={3}
-              value={exploracion}
-              onChange={(e) => setExploracion(e.target.value)}
-              placeholder="Hallazgos de la exploración física…"
-            />
-          </Field>
+          {/* Las sesiones de nutrición no capturan síntomas ni exploración */}
+          {rol !== 'nutricion' && (
+            <>
+              <Field label="Síntomas" error={errorVisible('sintomas')}>
+                <Textarea
+                  rows={3}
+                  value={sintomas}
+                  onChange={(e) => {
+                    setSintomas(e.target.value);
+                    marcarTocado('sintomas');
+                  }}
+                  onBlur={() => marcarTocado('sintomas')}
+                  placeholder="Describe los síntomas que refiere el paciente al momento de la atención…"
+                  aria-invalid={errorVisible('sintomas') ? true : undefined}
+                />
+              </Field>
+              <Field label="Exploración" hint="Opcional." error={errorVisible('exploracion')}>
+                <Textarea
+                  rows={3}
+                  value={exploracion}
+                  onChange={(e) => setExploracion(e.target.value)}
+                  placeholder="Hallazgos de la exploración física…"
+                />
+              </Field>
+            </>
+          )}
           {rol === 'enfermeria' ? (
             <Field
               label="Intervención de enfermería"
@@ -498,7 +594,10 @@ export default function AtencionForm({
             </Field>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Diagnóstico" error={errorVisible('diagnostico')}>
+              <Field
+                label={rol === 'nutricion' ? 'Diagnóstico nutricional' : 'Diagnóstico'}
+                error={errorVisible('diagnostico')}
+              >
                 <Input
                   value={diagnostico}
                   onChange={(e) => {
@@ -506,12 +605,19 @@ export default function AtencionForm({
                     marcarTocado('diagnostico');
                   }}
                   onBlur={() => marcarTocado('diagnostico')}
-                  placeholder="Ej. Gastroenteritis aguda"
+                  placeholder={
+                    rol === 'nutricion'
+                      ? 'Ej. Sobrepeso grado I con dieta desbalanceada'
+                      : 'Ej. Gastroenteritis aguda'
+                  }
                   maxLength={255}
                   aria-invalid={errorVisible('diagnostico') ? true : undefined}
                 />
               </Field>
-              <Field label="Tratamiento" error={errorVisible('tratamiento')}>
+              <Field
+                label={rol === 'nutricion' ? 'Indicaciones de alimentación' : 'Tratamiento'}
+                error={errorVisible('tratamiento')}
+              >
                 <Input
                   value={tratamiento}
                   onChange={(e) => {
@@ -519,7 +625,11 @@ export default function AtencionForm({
                     marcarTocado('tratamiento');
                   }}
                   onBlur={() => marcarTocado('tratamiento')}
-                  placeholder="Ej. Hidratación y dieta blanda por 3 días"
+                  placeholder={
+                    rol === 'nutricion'
+                      ? 'Ej. Plan hipocalórico de 1500 kcal y control mensual'
+                      : 'Ej. Hidratación y dieta blanda por 3 días'
+                  }
                   aria-invalid={errorVisible('tratamiento') ? true : undefined}
                 />
               </Field>
@@ -528,7 +638,78 @@ export default function AtencionForm({
         </div>
       </Card>
 
-      {/* ===== Insumos usados ===== */}
+      {/* ===== Plan alimenticio (se registra con la sesión de nutrición) ===== */}
+      {rol === 'nutricion' && (
+        <Card title="Plan alimenticio" icon={ClipboardPlus}>
+          <p className="text-sm text-gray-500 mb-4">
+            El plan se da de alta junto con la sesión y queda como el plan alimenticio del
+            paciente en este periodo.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Field label="Fecha de inicio" error={errorVisible('planInicio')}>
+              <Input
+                type="date"
+                value={planInicio}
+                onChange={(e) => {
+                  setPlanInicio(e.target.value);
+                  marcarTocado('planInicio');
+                }}
+                onBlur={() => marcarTocado('planInicio')}
+                aria-invalid={errorVisible('planInicio') ? true : undefined}
+              />
+            </Field>
+            <Field label="Fecha de fin" error={errorVisible('planFin')}>
+              <Input
+                type="date"
+                value={planFin}
+                min={planInicio || undefined}
+                onChange={(e) => {
+                  setPlanFin(e.target.value);
+                  marcarTocado('planFin');
+                }}
+                onBlur={() => marcarTocado('planFin')}
+                aria-invalid={errorVisible('planFin') ? true : undefined}
+              />
+            </Field>
+            <Field label="Calorías diarias" error={errorVisible('planCalorias')}>
+              <Input
+                type="number"
+                min={500}
+                max={10000}
+                value={planCalorias}
+                onChange={(e) => {
+                  setPlanCalorias(e.target.value);
+                  marcarTocado('planCalorias');
+                }}
+                onBlur={() => marcarTocado('planCalorias')}
+                placeholder="Ej. 1500"
+                className="tabular-nums"
+                aria-invalid={errorVisible('planCalorias') ? true : undefined}
+              />
+            </Field>
+            <Field
+              label="Descripción de la dieta"
+              className="md:col-span-3"
+              error={errorVisible('planDieta')}
+            >
+              <Textarea
+                rows={3}
+                value={planDieta}
+                onChange={(e) => {
+                  setPlanDieta(e.target.value);
+                  marcarTocado('planDieta');
+                }}
+                onBlur={() => marcarTocado('planDieta')}
+                placeholder="Ej. Desayuno: avena con fruta; comida: pollo a la plancha con ensalada…"
+                aria-invalid={errorVisible('planDieta') ? true : undefined}
+              />
+            </Field>
+          </div>
+        </Card>
+      )}
+
+      {/* ===== Insumos usados (no aplica en las sesiones de nutrición) ===== */}
+      {rol !== 'nutricion' && (
       <Card title="Insumos usados" icon={PackagePlus}>
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <p className="text-sm text-gray-500">
@@ -617,6 +798,7 @@ export default function AtencionForm({
           </ul>
         )}
       </Card>
+      )}
 
       {(errorGeneral || hayErrores) && (
         <div
@@ -661,8 +843,10 @@ export default function AtencionForm({
           <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
             {rol === 'enfermeria'
               ? `Intervención: ${intervencionEnfermeria.trim() || '—'}`
-              : `Diagnóstico: ${diagnostico.trim() || '—'}`}
-            {insumos.length > 0 && ` · Insumos: ${insumos.length}`}
+              : rol === 'nutricion'
+                ? `Diagnóstico nutricional: ${diagnostico.trim() || '—'} · Plan: ${planCalorias || '—'} kcal/día`
+                : `Diagnóstico: ${diagnostico.trim() || '—'}`}
+            {rol !== 'nutricion' && insumos.length > 0 && ` · Insumos: ${insumos.length}`}
           </p>
         </Modal>
       )}

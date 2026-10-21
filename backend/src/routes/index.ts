@@ -9,6 +9,7 @@ import medicamentosRoutes from './medicamentos.routes';
 import pacientesRoutes from './pacientes.routes';
 import citasRoutes from './citas.routes';
 import consultasRoutes from './consultas.routes';
+import planesRoutes from './planes.routes';
 
 const rutas = Router();
 
@@ -34,5 +35,8 @@ rutas.use('/medicamentos', medicamentosRoutes);
 rutas.use('/pacientes', pacientesRoutes);
 rutas.use('/citas', citasRoutes);
 rutas.use('/consultas', consultasRoutes);
+
+/** Nutrición · planes alimenticios de los pacientes */
+rutas.use('/planes', planesRoutes);
 
 export default rutas;

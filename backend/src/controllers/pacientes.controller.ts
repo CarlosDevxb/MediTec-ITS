@@ -82,6 +82,18 @@ export async function guardarCuestionario(req: Request, res: Response, next: Nex
   }
 }
 
+/** GET /api/pacientes/:id/seguimiento · avance de peso y talla */
+export async function obtenerSeguimiento(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = leerId(req.params.id);
+    await asegurarPropioExpediente(req, id);
+    const datos = await servicio.listarSeguimiento(id);
+    res.json({ datos });
+  } catch (error) {
+    next(error);
+  }
+}
+
 /** POST /api/pacientes · alta de paciente (cuenta + expediente) */
 export async function crearPaciente(req: Request, res: Response, next: NextFunction) {
   try {

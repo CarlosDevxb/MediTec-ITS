@@ -39,8 +39,8 @@ const MENU: TopNavItem[] = [
    Ruta: /paciente
    ============================================================ */
 export default function PanelPaciente() {
-  // Solo el paciente puede estar en su portal (y debe tener sesión)
-  useProtegerSesion('Paciente');
+  // Redirige a cada usuario a su propio panel (según rol y especialidad)
+  useProtegerSesion();
 
   const [vista, setVista] = useState('Inicio');
   const [paciente, setPaciente] = useState<Paciente>(PACIENTE_ACTUAL);

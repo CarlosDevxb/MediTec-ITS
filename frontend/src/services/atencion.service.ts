@@ -1,4 +1,5 @@
 import { apiFetch } from './api';
+import type { Horario } from './operacion.service';
 
 /* ============================================================
    ATENCIÓN · Cliente de la API clínica (expedientes, citas y
@@ -235,6 +236,16 @@ export interface ConsultaDetalle extends ConsultaResumen {
   exploracion: string;
   signosVitales: SignosVitales | null;
   insumos: InsumoConsulta[];
+  /** Plan alimenticio registrado con la sesión de nutrición */
+  planAlimenticio?: PlanAlimenticio | null;
+}
+
+/** Plan alimenticio que se registra junto con la sesión de nutrición */
+export interface DatosPlanAlimenticio {
+  fechaInicio: string;
+  fechaFin: string;
+  descripcionDieta: string;
+  caloriasDiarias: number;
 }
 
 /** Atención completa: auto-cita (si no hay cita previa) + consulta */
@@ -244,13 +255,16 @@ export interface DatosAtencion {
   citaId?: number;
   /** Motivo de la atención (se registra en la auto-cita) */
   motivo?: string;
-  sintomas: string;
+  /** Requerido en consultas médicas y de enfermería (no en nutrición) */
+  sintomas?: string;
   exploracion?: string;
   /** Consulta médica (rol Personal médico) */
   diagnostico?: string;
   tratamiento?: string;
   /** Consulta de enfermería (rol Enfermería) */
   intervencionEnfermeria?: string;
+  /** Sesión de nutrición: plan alimenticio obligatorio junto con la consulta */
+  planAlimenticio?: DatosPlanAlimenticio;
   signosVitales?: {
     ta?: string;
     fc?: number;
@@ -297,6 +311,157 @@ export function hoyISO(): string {
   return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(
     hoy.getDate(),
   ).padStart(2, '0')}`;
+}
+
+/* ---------------- Planes alimenticios ---------------- */
+
+export interface PlanAlimenticio {
+  id: number;
+  personalMedicoId: number;
+  /** Nombre de quien lleva el plan */
+  personal: string;
+  pacienteId: number;
+  paciente: string;
+  numeroControl: string;
+  /** AAAA-MM-DD */
+  fechaInicio: string;
+  /** AAAA-MM-DD */
+  fechaFin: string;
+  descripcionDieta: string;
+  caloriasDiarias: number;
+  /** 'Por iniciar' | 'Vigente' | 'Finalizado' | 'Cancelado' */
+  estatus: string;
+}
+
+export interface DatosPlan {
+  /** Requerido al crear */
+  pacienteId?: number;
+  fechaInicio: string;
+  fechaFin: string;
+  descripcionDieta: string;
+  caloriasDiarias: number;
+}
+
+export function listarPlanes(
+  filtro: { pacienteId?: number; personalMedicoId?: number } = {},
+): Promise<PlanAlimenticio[]> {
+  const parametros = new URLSearchParams();
+  if (filtro.pacienteId) parametros.set('pacienteId', String(filtro.pacienteId));
+  if (filtro.personalMedicoId) parametros.set('personalMedicoId', String(filtro.personalMedicoId));
+  const consulta = parametros.toString();
+  return apiFetch<{ datos: PlanAlimenticio[] }>(`/planes${consulta ? `?${consulta}` : ''}`).then(
+    (r) => r.datos,
+  );
+}
+
+export function crearPlan(datos: DatosPlan & { pacienteId: number }): Promise<PlanAlimenticio> {
+  return apiFetch<{ datos: PlanAlimenticio }>('/planes', {
+    method: 'POST',
+    body: JSON.stringify(datos),
+  }).then((r) => r.datos);
+}
+
+export function actualizarPlan(id: number, datos: DatosPlan): Promise<PlanAlimenticio> {
+  return apiFetch<{ datos: PlanAlimenticio }>(`/planes/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(datos),
+  }).then((r) => r.datos);
+}
+
+export function cambiarEstatusPlan(
+  id: number,
+  estatus: 'Por iniciar' | 'Vigente' | 'Finalizado' | 'Cancelado',
+): Promise<PlanAlimenticio> {
+  return apiFetch<{ datos: PlanAlimenticio }>(`/planes/${id}/estatus`, {
+    method: 'PATCH',
+    body: JSON.stringify({ estatus }),
+  }).then((r) => r.datos);
+}
+
+/* ---------------- Seguimiento (peso y talla) ---------------- */
+
+/** Registro de peso y talla (una medición de una sesión de nutrición) */
+export interface RegistroSeguimiento {
+  /** AAAA-MM-DD HH:mm de la sesión */
+  fecha: string;
+  peso: number | null;
+  talla: number | null;
+  /** Consulta de nutrición de la que proviene la medición */
+  consultaId: number;
+}
+
+/** Avance de peso y talla: solo las mediciones de las sesiones de nutrición */
+export function listarSeguimiento(pacienteId: number): Promise<RegistroSeguimiento[]> {
+  return apiFetch<{ datos: RegistroSeguimiento[] }>(`/pacientes/${pacienteId}/seguimiento`).then(
+    (r) => r.datos,
+  );
+}
+
+/* ---------------- Disponibilidad de agenda ---------------- */
+
+/** Duración de una cita y el respiro mínimo entre citas (minutos) */
+export const DURACION_CITA = 30;
+export const SEPARACION_MINIMA = 60; // 30 de sesión + 30 de respiro
+
+/** "08:30" → 510 */
+function aMinutos(hora: string): number {
+  const [h, m] = hora.split(':').map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
+/** 510 → "08:30" */
+function hhmm(minutos: number): string {
+  return `${String(Math.floor(minutos / 60)).padStart(2, '0')}:${String(minutos % 60).padStart(2, '0')}`;
+}
+
+/** Día de la semana de una fecha AAAA-MM-DD (1=Lunes … 7=Domingo) */
+export function diaDeSemana(fecha: string): number {
+  const partes = fecha.split('-').map(Number);
+  const anio = partes[0] ?? 1970;
+  const mes = partes[1] ?? 1;
+  const dia = partes[2] ?? 1;
+  return ((new Date(anio, mes - 1, dia).getDay() + 6) % 7) + 1;
+}
+
+/** Rangos de atención del personal para una fecha concreta */
+export function rangosDeDia(
+  horarios: Horario[],
+  fecha: string,
+): Array<{ inicio: string; fin: string }> {
+  const dia = diaDeSemana(fecha);
+  return horarios
+    .filter((horario) => horario.diaSemana === dia)
+    .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
+    .map((horario) => ({ inicio: horario.horaInicio, fin: horario.horaFin }));
+}
+
+/**
+ * Horas de inicio disponibles dentro de los rangos de atención, respetando
+ * la regla de agenda: cada cita dura `DURACION_CITA` minutos y después hay
+ * `SEPARACION_MINIMA - DURACION_CITA` minutos de respiro (las citas quedan
+ * cada 60 minutos). Las horas que chocan con las citas pasadas se descartan.
+ */
+export function horasDisponiblesPara(
+  rangos: Array<{ inicio: string; fin: string }>,
+  citas: Array<{ hora: string; estatus: string }>,
+): string[] {
+  const ocupadas = citas
+    .filter((cita) => cita.estatus !== 'Cancelada')
+    .map((cita) => aMinutos(cita.hora));
+
+  const opciones: string[] = [];
+  for (const rango of rangos) {
+    let minutos = aMinutos(rango.inicio);
+    const limite = aMinutos(rango.fin);
+    while (minutos + DURACION_CITA <= limite) {
+      const libre = ocupadas.every(
+        (ocupada) => Math.abs(ocupada - minutos) >= SEPARACION_MINIMA,
+      );
+      if (libre) opciones.push(hhmm(minutos));
+      minutos += SEPARACION_MINIMA;
+    }
+  }
+  return [...new Set(opciones)];
 }
 
 /** "2026-10-15" → "15 oct 2026" */
