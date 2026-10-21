@@ -15,10 +15,9 @@ import Card from '../ui/Card';
 import Badge from '../ui/Badge';
 import Aviso from '../ui/Aviso';
 import { useAviso } from '../ui/useAviso';
-import DataTable from '../ui/DataTable';
+import AgendaPorDia from './AgendaPorDia';
 import EstadoVista from '../ui/EstadoVista';
 import Modal from '../ui/Modal';
-import type { Column } from '../ui/DataTable';
 import { Field, Input, Select } from '../ui/Input';
 import { detallesDe, mensajeDeError } from '../../services/api';
 import { obtenerPerfil } from '../../services/auth.service';
@@ -27,14 +26,17 @@ import {
   crearCita,
   cambiarEstatusCita,
   hoyISO,
+  fechaCorta,
+  diaDeSemana,
   rangosDeDia,
   horasDisponiblesPara,
+  diasDisponiblesPara,
   SEPARACION_MINIMA,
   type Cita,
   type ExpedientePaciente,
 } from '../../services/atencion.service';
-import { listarHorarios, type Horario } from '../../services/operacion.service';
-import SelectorPaciente from '../atencion/SelectorPaciente';
+import { listarHorarios, nombreDeDia, type Horario } from '../../services/operacion.service';
+import SelectorPaciente from './SelectorPaciente';
 
 /* ============================================================
    AGENDA (NUTRICIÓN) · Citas de la nutrióloga con sus reglas:
@@ -44,19 +46,12 @@ import SelectorPaciente from '../atencion/SelectorPaciente';
    confirmar, completar, cancelar y **atender** sus citas.
    ============================================================ */
 
-const ESTILOS_ESTATUS: Record<string, 'pending' | 'confirmed' | 'cancelled' | 'completed'> = {
-  Pendiente: 'pending',
-  Confirmada: 'confirmed',
-  Cancelada: 'cancelled',
-  Completada: 'completed',
-};
-
-export interface AgendaNutricionProps {
+export interface AgendaEspecialistaProps {
   /** Lleva a la vista de atención con la cita elegida */
   onAtender: (cita: Cita) => void;
 }
 
-export default function AgendaNutricion({ onAtender }: AgendaNutricionProps) {
+export default function AgendaEspecialista({ onAtender }: AgendaEspecialistaProps) {
   const [citas, setCitas] = useState<Cita[]>([]);
   /** Ficha de personal de la nutrióloga en sesión */
   const [personalMedicoId, setPersonalMedicoId] = useState<number | null>(null);
@@ -64,7 +59,6 @@ export default function AgendaNutricion({ onAtender }: AgendaNutricionProps) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
-  const [fecha, setFecha] = useState(hoyISO());
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
   /* Alta de cita */
@@ -87,7 +81,7 @@ export default function AgendaNutricion({ onAtender }: AgendaNutricionProps) {
     try {
       const [perfil, lista, listaHorarios] = await Promise.all([
         obtenerPerfil().catch(() => null),
-        listarCitas({ fecha }),
+        listarCitas(),
         listarHorarios(),
       ]);
       const miFicha = perfil?.personalMedicoId ?? null;
@@ -101,7 +95,7 @@ export default function AgendaNutricion({ onAtender }: AgendaNutricionProps) {
     } finally {
       setCargando(false);
     }
-  }, [fecha]);
+  }, []);
 
   useEffect(() => {
     void cargar();
@@ -118,9 +112,11 @@ export default function AgendaNutricion({ onAtender }: AgendaNutricionProps) {
   const rangos = useMemo(() => rangosDeDia(horarios, fechaCita), [horarios, fechaCita]);
   // Cada cita dura 30 minutos con 30 de respiro: horas cada 60 min
   const horasDisponibles = useMemo(
-    () => horasDisponiblesPara(rangos, citasDelDia),
-    [rangos, citasDelDia],
+    () => horasDisponiblesPara(rangos, citasDelDia, fechaCita),
+    [rangos, citasDelDia, fechaCita],
   );
+  /** Solo se puede elegir fecha en los días con horario de atención */
+  const fechasDisponibles = useMemo(() => diasDisponiblesPara(horarios), [horarios]);
 
   useEffect(() => {
     if (horasDisponibles.length > 0 && !horasDisponibles.includes(hora)) {
@@ -128,6 +124,13 @@ export default function AgendaNutricion({ onAtender }: AgendaNutricionProps) {
     }
     if (horasDisponibles.length === 0) setHora('');
   }, [horasDisponibles, hora]);
+
+  // Si la fecha elegida deja de estar disponible, se selecciona la primera
+  useEffect(() => {
+    if (fechasDisponibles.length > 0 && !fechasDisponibles.includes(fechaCita)) {
+      setFechaCita(fechasDisponibles[0] ?? hoyISO());
+    }
+  }, [fechasDisponibles, fechaCita]);
 
   /* ---------- Validación en tiempo real del alta ---------- */
   const errores = useMemo(() => {
@@ -183,7 +186,6 @@ export default function AgendaNutricion({ onAtender }: AgendaNutricionProps) {
       setMotivo('');
       setMostrarFormulario(false);
       setTocado({});
-      setFecha(fechaCita);
       await cargar();
     } catch (error) {
       const porCampo = detallesDe(error);
@@ -210,79 +212,46 @@ export default function AgendaNutricion({ onAtender }: AgendaNutricionProps) {
     }
   };
 
-  const citasOrdenadas = useMemo(
-    () => [...citas].sort((a, b) => a.hora.localeCompare(b.hora)),
-    [citas],
-  );
-
-  const columnas: Column<Cita>[] = [
-    { key: 'hora', header: 'Hora', className: 'w-24 tabular-nums' },
-    {
-      key: 'paciente',
-      header: 'Paciente',
-      render: (cita) => (
-        <div>
-          <p className="font-semibold text-gray-900">{cita.paciente}</p>
-          <p className="text-sm text-gray-500 tabular-nums">{cita.numeroControl}</p>
-        </div>
-      ),
-    },
-    { key: 'motivo', header: 'Motivo' },
-    {
-      key: 'tipo',
-      header: 'Tipo',
-      className: 'w-36',
-      render: (cita) => <Badge status="scheduled">{cita.tipo}</Badge>,
-    },
-    {
-      key: 'estatus',
-      header: 'Estatus',
-      className: 'w-36',
-      render: (cita) => (
-        <Badge status={ESTILOS_ESTATUS[cita.estatus] ?? 'neutral'}>{cita.estatus}</Badge>
-      ),
-    },
-    {
-      key: 'acciones',
-      header: 'Acciones',
-      align: 'right',
-      className: 'w-64',
-      render: (cita) => {
-        const atendible = cita.estatus === 'Pendiente' || cita.estatus === 'Confirmada';
-        return (
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              size="sm"
-              icon={Stethoscope}
-              disabled={!atendible}
-              onClick={() => onAtender(cita)}
-            >
-              Atender
-            </Button>
-            {cita.estatus === 'Pendiente' && (
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={CheckCircle2}
-                onClick={() => void cambiarEstatus(cita, 'Confirmada')}
-              >
-                Confirmar
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant="secondary"
-              icon={XCircle}
-              disabled={!atendible}
-              onClick={() => setPendiente(cita)}
-            >
-              Cancelar
-            </Button>
-          </div>
-        );
-      },
-    },
-  ];
+  /**
+   * Acciones de cada cita: **atender solo las del día de hoy** (las demás se
+   * atienden el día que fueron agendadas); confirmar y cancelar sí aplican a
+   * las citas por venir.
+   */
+  const accionesDeCita = (cita: Cita, esHoy: boolean) => {
+    const atendible = cita.estatus === 'Pendiente' || cita.estatus === 'Confirmada';
+    return (
+      <>
+        <Button
+          size="sm"
+          icon={Stethoscope}
+          disabled={!esHoy || !atendible}
+          title={esHoy ? undefined : 'Solo se pueden atender las citas del día de hoy'}
+          onClick={() => onAtender(cita)}
+        >
+          Atender
+        </Button>
+        {cita.estatus === 'Pendiente' && (
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={CheckCircle2}
+            onClick={() => void cambiarEstatus(cita, 'Confirmada')}
+          >
+            Confirmar
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="secondary"
+          icon={XCircle}
+          disabled={!atendible}
+          onClick={() => setPendiente(cita)}
+        >
+          Cancelar
+        </Button>
+      </>
+    );
+  };
 
   return (
     <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
@@ -319,18 +288,31 @@ export default function AgendaNutricion({ onAtender }: AgendaNutricionProps) {
                   <option value="Emergencia">Emergencia</option>
                 </Select>
               </Field>
-              <Field label="Fecha" error={errorVisible('fechaCita')}>
-                <Input
-                  type="date"
-                  value={fechaCita}
-                  min={hoyISO()}
+              <Field
+                label="Fecha"
+                error={errorVisible('fechaCita')}
+                hint="Solo días con horario de atención registrado."
+              >
+                <Select
+                  value={fechasDisponibles.includes(fechaCita) ? fechaCita : ''}
                   onChange={(e) => {
                     setFechaCita(e.target.value);
                     marcarTocado('fechaCita');
                   }}
                   onBlur={() => marcarTocado('fechaCita')}
                   aria-invalid={errorVisible('fechaCita') ? true : undefined}
-                />
+                >
+                  <option value="">
+                    {fechasDisponibles.length === 0
+                      ? 'Sin días con horario…'
+                      : 'Selecciona un día…'}
+                  </option>
+                  {fechasDisponibles.map((fechaOpcion) => (
+                    <option key={fechaOpcion} value={fechaOpcion}>
+                      {nombreDeDia(diaDeSemana(fechaOpcion))} {fechaCorta(fechaOpcion)}
+                    </option>
+                  ))}
+                </Select>
               </Field>
               <Field
                 label="Hora"
@@ -437,25 +419,17 @@ export default function AgendaNutricion({ onAtender }: AgendaNutricionProps) {
       <EstadoVista cargando={cargando} error={error} onReintentar={() => void cargar()}>
         <>
           <div className="flex flex-wrap items-center gap-4 mb-6">
-            <div className="w-56">
-              <Input
-                type="date"
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
-                aria-label="Fecha de la agenda"
-              />
-            </div>
-            <Badge status="scheduled">{citas.length} citas</Badge>
+            <Badge status="scheduled">{citas.length} citas en total</Badge>
             <Button variant="ghost" icon={RefreshCw} onClick={() => void cargar()}>
               Actualizar
             </Button>
           </div>
 
-          <DataTable
-            columns={columnas}
-            rows={citasOrdenadas}
-            rowKey={(cita) => cita.id}
-            emptyMessage="No hay citas registradas para este día."
+          {/* Citas agrupadas por día (anteriores hasta el final) */}
+          <AgendaPorDia
+            citas={citas}
+            acciones={accionesDeCita}
+            vacio="No hay citas programadas. Da de alta una cita para verla agrupada por día."
           />
         </>
       </EstadoVista>

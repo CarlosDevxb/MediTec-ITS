@@ -14,10 +14,9 @@ import Card from '../ui/Card';
 import Badge from '../ui/Badge';
 import Aviso from '../ui/Aviso';
 import { useAviso } from '../ui/useAviso';
-import DataTable from '../ui/DataTable';
+import AgendaPorDia from '../atencion/AgendaPorDia';
 import EstadoVista from '../ui/EstadoVista';
 import Modal from '../ui/Modal';
-import type { Column } from '../ui/DataTable';
 import { Field, Input, Select } from '../ui/Input';
 import { detallesDe, mensajeDeError } from '../../services/api';
 import {
@@ -25,14 +24,18 @@ import {
   crearCita,
   cambiarEstatusCita,
   hoyISO,
+  fechaCorta,
+  diaDeSemana,
   rangosDeDia,
   horasDisponiblesPara,
+  diasDisponiblesPara,
   type Cita,
   type ExpedientePaciente,
 } from '../../services/atencion.service';
 import {
   listarPersonalMedico,
   listarHorarios,
+  nombreDeDia,
   type PersonalMedico,
   type Horario,
 } from '../../services/operacion.service';
@@ -45,13 +48,6 @@ import SelectorPaciente from '../atencion/SelectorPaciente';
    valida contra los horarios registrados del especialista
    (tabla `horarios`) y contra sus citas ya ocupadas.
    ============================================================ */
-
-const ESTILOS_ESTATUS: Record<string, 'pending' | 'confirmed' | 'cancelled' | 'completed'> = {
-  Pendiente: 'pending',
-  Confirmada: 'confirmed',
-  Cancelada: 'cancelled',
-  Completada: 'completed',
-};
 
 /** Especialidades que se agendan desde la agenda de citas */
 const especialidadEsDeCita = (especialidad: string): boolean => {
@@ -70,7 +66,6 @@ export default function AgendaEnfermeria() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
-  const [fecha, setFecha] = useState(hoyISO());
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
   /* Alta de cita */
@@ -102,7 +97,7 @@ export default function AgendaEnfermeria() {
     setError('');
     try {
       const [lista, listaPersonal] = await Promise.all([
-        listarCitas({ fecha }),
+        listarCitas(),
         listarPersonalMedico(),
       ]);
       setCitas(lista);
@@ -112,7 +107,7 @@ export default function AgendaEnfermeria() {
     } finally {
       setCargando(false);
     }
-  }, [fecha]);
+  }, []);
 
   useEffect(() => {
     void cargar();
@@ -163,8 +158,14 @@ export default function AgendaEnfermeria() {
       horasDisponiblesPara(
         rangos,
         citasDelDia.filter((cita) => cita.personalMedicoId === Number(personalId)),
+        fechaCita,
       ),
-    [rangos, citasDelDia, personalId],
+    [rangos, citasDelDia, personalId, fechaCita],
+  );
+  /** Solo se puede elegir fecha en los días con horario del especialista */
+  const fechasDisponibles = useMemo(
+    () => (personalId ? diasDisponiblesPara(horariosPersonal) : []),
+    [horariosPersonal, personalId],
   );
 
   // Si la hora elegida deja de estar disponible, se selecciona la primera libre
@@ -172,7 +173,15 @@ export default function AgendaEnfermeria() {
     if (horasDisponibles.length > 0 && !horasDisponibles.includes(hora)) {
       setHora(horasDisponibles[0] ?? '');
     }
+    if (horasDisponibles.length === 0) setHora('');
   }, [horasDisponibles, hora]);
+
+  // Si la fecha elegida no tiene horario del especialista, se cambia
+  useEffect(() => {
+    if (personalId && fechasDisponibles.length > 0 && !fechasDisponibles.includes(fechaCita)) {
+      setFechaCita(fechasDisponibles[0] ?? hoyISO());
+    }
+  }, [fechasDisponibles, fechaCita, personalId]);
 
   /* ---------- Validación en tiempo real del alta ---------- */
   const errores = useMemo(() => {
@@ -234,7 +243,6 @@ export default function AgendaEnfermeria() {
       setMotivo('');
       setMostrarFormulario(false);
       setTocado({});
-      setFecha(fechaCita);
       await cargar();
     } catch (error) {
       const porCampo = detallesDe(error);
@@ -261,90 +269,46 @@ export default function AgendaEnfermeria() {
     }
   };
 
-  const citasOrdenadas = useMemo(
-    () => [...citas].sort((a, b) => a.hora.localeCompare(b.hora)),
-    [citas],
-  );
-
-  const columnas: Column<Cita>[] = [
-    { key: 'hora', header: 'Hora', className: 'w-24 tabular-nums' },
-    {
-      key: 'paciente',
-      header: 'Paciente',
-      render: (cita) => (
-        <div>
-          <p className="font-semibold text-gray-900">{cita.paciente}</p>
-          <p className="text-sm text-gray-500 tabular-nums">{cita.numeroControl}</p>
-        </div>
-      ),
-    },
-    { key: 'motivo', header: 'Motivo' },
-    {
-      key: 'personal',
-      header: 'Con',
-      className: 'w-52',
-      render: (cita) => (
-        <div>
-          <p className="text-gray-800">{cita.personal}</p>
-          <p className="text-sm text-gray-500">{cita.especialidad}</p>
-        </div>
-      ),
-    },
-    {
-      key: 'tipo',
-      header: 'Tipo',
-      className: 'w-36',
-      render: (cita) => <Badge status="scheduled">{cita.tipo}</Badge>,
-    },
-    {
-      key: 'estatus',
-      header: 'Estatus',
-      className: 'w-36',
-      render: (cita) => (
-        <Badge status={ESTILOS_ESTATUS[cita.estatus] ?? 'neutral'}>{cita.estatus}</Badge>
-      ),
-    },
-    {
-      key: 'acciones',
-      header: 'Acciones',
-      align: 'right',
-      className: 'w-56',
-      render: (cita) => {
-        const atendible = cita.estatus === 'Pendiente' || cita.estatus === 'Confirmada';
-        return (
-          <div className="flex items-center justify-end gap-2">
-            {cita.estatus === 'Pendiente' && (
-              <Button
-                size="sm"
-                icon={CheckCircle2}
-                onClick={() => void cambiarEstatus(cita, 'Confirmada')}
-              >
-                Confirmar
-              </Button>
-            )}
-            {cita.estatus === 'Confirmada' && (
-              <Button
-                size="sm"
-                icon={CheckCircle2}
-                onClick={() => void cambiarEstatus(cita, 'Completada')}
-              >
-                Completar
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant="secondary"
-              icon={XCircle}
-              disabled={!atendible}
-              onClick={() => setPendiente(cita)}
-            >
-              Cancelar
-            </Button>
-          </div>
-        );
-      },
-    },
-  ];
+  /**
+   * Acciones de cada cita: confirmar y cancelar aplican a las citas por venir;
+   * **completar solo las del día de hoy** (el resto se completan al registrar
+   * su consulta, o se cancelan solas al cambiar de día).
+   */
+  const accionesDeCita = (cita: Cita, esHoy: boolean) => {
+    const atendible = cita.estatus === 'Pendiente' || cita.estatus === 'Confirmada';
+    return (
+      <>
+        {cita.estatus === 'Pendiente' && (
+          <Button
+            size="sm"
+            icon={CheckCircle2}
+            onClick={() => void cambiarEstatus(cita, 'Confirmada')}
+          >
+            Confirmar
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="secondary"
+          icon={CheckCircle2}
+          disabled={!esHoy || !atendible}
+          title={esHoy ? undefined : 'Solo se pueden completar las citas del día de hoy'}
+          onClick={() => void cambiarEstatus(cita, 'Completada')}
+        >
+          Completar
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          icon={XCircle}
+          disabled={!atendible}
+          onClick={() => setPendiente(cita)}
+        >
+          Cancelar
+        </Button>
+      </>
+    );
+  };
 
   return (
     <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
@@ -410,18 +374,34 @@ export default function AgendaEnfermeria() {
                   <option value="Emergencia">Emergencia</option>
                 </Select>
               </Field>
-              <Field label="Fecha" error={errorVisible('fechaCita')}>
-                <Input
-                  type="date"
-                  value={fechaCita}
-                  min={hoyISO()}
+              <Field
+                label="Fecha"
+                error={errorVisible('fechaCita')}
+                hint="Solo días con horario de atención del especialista."
+              >
+                <Select
+                  value={fechasDisponibles.includes(fechaCita) ? fechaCita : ''}
+                  disabled={!personalId || fechasDisponibles.length === 0}
                   onChange={(e) => {
                     setFechaCita(e.target.value);
                     marcarTocado('fechaCita');
                   }}
                   onBlur={() => marcarTocado('fechaCita')}
                   aria-invalid={errorVisible('fechaCita') ? true : undefined}
-                />
+                >
+                  <option value="">
+                    {!personalId
+                      ? 'Selecciona primero al especialista…'
+                      : fechasDisponibles.length === 0
+                        ? 'Sin días con horario…'
+                        : 'Selecciona un día…'}
+                  </option>
+                  {fechasDisponibles.map((fechaOpcion) => (
+                    <option key={fechaOpcion} value={fechaOpcion}>
+                      {nombreDeDia(diaDeSemana(fechaOpcion))} {fechaCorta(fechaOpcion)}
+                    </option>
+                  ))}
+                </Select>
               </Field>
               <Field
                 label="Hora"
@@ -532,25 +512,17 @@ export default function AgendaEnfermeria() {
       <EstadoVista cargando={cargando} error={error} onReintentar={() => void cargar()}>
         <>
           <div className="flex flex-wrap items-center gap-4 mb-6">
-            <div className="w-56">
-              <Input
-                type="date"
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
-                aria-label="Fecha de la agenda"
-              />
-            </div>
-            <Badge status="scheduled">{citas.length} citas</Badge>
+            <Badge status="scheduled">{citas.length} citas en total</Badge>
             <Button variant="ghost" icon={RefreshCw} onClick={() => void cargar()}>
               Actualizar
             </Button>
           </div>
 
-          <DataTable
-            columns={columnas}
-            rows={citasOrdenadas}
-            rowKey={(cita) => cita.id}
-            emptyMessage="No hay citas registradas para este día."
+          {/* Citas agrupadas por día (anteriores hasta el final) */}
+          <AgendaPorDia
+            citas={citas}
+            acciones={accionesDeCita}
+            vacio="No hay citas registradas. Da de alta una cita para verla agrupada por día."
           />
         </>
       </EstadoVista>

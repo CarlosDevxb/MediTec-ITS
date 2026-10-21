@@ -13,7 +13,7 @@ import {
   type PacienteResumen,
   type ExpedientePaciente,
 } from '../../services/atencion.service';
-import ExpedienteVista from '../atencion/ExpedienteVista';
+import ExpedienteVista from './ExpedienteVista';
 
 /* ============================================================
    PACIENTES (DOCTOR) · Buscador + acceso al expediente clínico
@@ -22,7 +22,7 @@ import ExpedienteVista from '../atencion/ExpedienteVista';
 
 type Vista = { modo: 'lista' } | { modo: 'expediente'; expediente: ExpedientePaciente };
 
-export default function PacientesDoctor() {
+export default function ListaPacientes() {
   const [pacientes, setPacientes] = useState<PacienteResumen[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');

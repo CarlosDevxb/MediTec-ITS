@@ -97,14 +97,15 @@ export function eliminarHorario(id: number): Promise<void> {
 /* ---------------- Medicamentos ---------------- */
 
 /**
- * Categorías del inventario. Enfermería solo puede descontar 'Insumo' y
- * 'Medicamento común' en sus consultas; los 'Medicamento especial' son del
- * personal médico.
+ * Categorías del inventario. Cada tipo de consulta usa las suyas:
+ * enfermería: Insumo y Medicamento común; odontología: Medicamento común,
+ * Medicamento especial e Insumo dental; el personal médico puede usar todas.
  */
 export const CATEGORIAS_MEDICAMENTO = [
   'Insumo',
   'Medicamento común',
   'Medicamento especial',
+  'Insumo dental',
 ] as const;
 
 export interface Medicamento {

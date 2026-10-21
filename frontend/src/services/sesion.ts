@@ -67,7 +67,7 @@ export function rutaSegunRol(rol: string, especialidad?: string): string {
         .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase();
       if (esp.includes('nutri')) return '/nutricion';
-      // Odontología tendrá su propio portal; por ahora usa el panel médico
+      if (esp.includes('odontolog')) return '/odontologia';
       return '/doctor';
     }
     case 'Enfermería':

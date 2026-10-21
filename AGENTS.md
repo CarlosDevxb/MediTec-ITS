@@ -100,22 +100,43 @@ talla solo incluye las mediciones de las sesiones de la nutrióloga**
 logotipos de empresa y software). El ruteo por **especialidad** vive en
 `rutaSegunRol(rol, especialidad)` (la especialidad viaja en el JWT del login).
 
+Portal de odontología (`/odontologia`, Personal médico con especialidad de
+Odontología): **Inicio** (saludo, indicadores y aviso de citas pendientes),
+**Agenda** (las mismas reglas de espaciado que nutrición), **Atención**
+(consultas **por cita agendada** con contenido tipo doctor pero a nivel
+bucal: síntomas y exploración bucales, diagnóstico y tratamiento; insumos
+de las categorías Medicamento común, Medicamento especial e **Insumo
+dental**), **Historial de consultas**, **Pacientes** y **Configuración**
+(`components/odontologia/`). Sus consultas son de tipo `Odontología` y
+comparten con nutrición los módulos `atencion/AgendaEspecialista.tsx` y
+`atencion/AtencionEspecialista.tsx`.
+
+**Presentación de la agenda:** las citas se muestran **agrupadas por día**
+(`atencion/AgendaPorDia.tsx`), de hoy en adelante, con la sección de **citas
+anteriores** (completadas o canceladas) hasta el final. **Atender solo está
+disponible para las citas del día de hoy** (el backend lo exige al ligar la
+consulta a su cita); confirmar y cancelar aplican a las citas por venir.
+
 Reglas de agenda y consultas: las citas programadas solo se agendan con
 **Odontología o Nutrición**, dentro de los horarios registrados del especialista
 (tabla `horarios`) y **sin juntarse ni empalmarse**: cada cita dura 30 minutos
-con 30 de respiro (quedan cada 60 minutos). El **estatus de la cita sigue su
-ciclo**: al registrar su consulta queda **Completada**; si la agenda el propio
-especialista nace **Confirmada** y si la agenda otra persona (enfermería) nace
-**Pendiente** hasta que el especialista la confirme —el panel le avisa de sus
-citas pendientes al entrar—. Solo se pueden marcar las **citas propias** (o las
-que gestiona Administrador/Enfermería) y los paneles muestran **solo las
-consultas propias** (el expediente del paciente sí conserva su historial
-completo). El **tipo de consulta lo determinan el rol y la especialidad**: el
-personal médico captura diagnóstico y tratamiento (todo el inventario como
-insumo); enfermería captura su intervención y no puede usar medicamentos
-especiales (categoría del inventario en `medicamentos.categoria`, que administra
-el administrador desde Medicamentos); nutrición captura diagnóstico nutricional
-e indicaciones y **siempre requiere cita agendada** (igual que odontología).
+con 30 de respiro (quedan cada 60 minutos). **No se agendan citas en el
+pasado** (ni el día, ni la hora de hoy) y solo se puede elegir fecha en los
+**días con horario de atención** del especialista; al **cambiar de día**, las
+citas que no se atendieron se marcan automáticamente como **Canceladas**. El
+**estatus de la cita sigue su ciclo**: al registrar su consulta queda
+**Completada**; si la agenda el propio especialista nace **Confirmada** y si la
+agenda otra persona (enfermería) nace **Pendiente** hasta que el especialista la
+confirme —el panel le avisa de sus citas pendientes al entrar—. Solo se pueden
+marcar las **citas propias** (o las que gestiona Administrador/Enfermería) y los
+paneles muestran **solo las consultas propias** (el expediente del paciente sí
+conserva su historial completo). El **tipo de consulta lo determinan el rol y la
+especialidad**: el personal médico captura diagnóstico y tratamiento (todo el
+inventario como insumo); enfermería captura su intervención y no puede usar
+medicamentos especiales (categoría del inventario en `medicamentos.categoria`,
+que administra el administrador desde Medicamentos); nutrición captura
+diagnóstico nutricional e indicaciones y **siempre requiere cita agendada**
+(igual que odontología, cuya consulta es a nivel bucal con insumos dentales).
 
 Cuestionario de salud (`POST /api/pacientes/:id/cuestionario`): único por
 paciente, se llena al primer acceso del paciente a su portal o antes de su

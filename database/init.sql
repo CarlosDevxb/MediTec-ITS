@@ -197,7 +197,7 @@ ENGINE = InnoDB;
 CREATE TABLE IF NOT EXISTS `meditec_its`.`consulta` (
   `id_consulta` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `cita_id_cita` INT UNSIGNED NOT NULL COMMENT 'Toda consulta debe derivar de una cita',
-  `tipo_consulta` ENUM('Médica', 'Enfermería', 'Nutrición') NOT NULL DEFAULT 'Médica' COMMENT 'Según el rol y la especialidad de quien atiende',
+  `tipo_consulta` ENUM('Médica', 'Enfermería', 'Nutrición', 'Odontología') NOT NULL DEFAULT 'Médica' COMMENT 'Según el rol y la especialidad de quien atiende',
   `fecha_hora` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
   `sintomas` TEXT NULL DEFAULT NULL COMMENT 'Obligatorio en consultas médicas y de enfermería',
   `exploracion` TEXT NULL DEFAULT NULL,
@@ -235,7 +235,7 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`medicamentos` (
   `id_medicamento` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `cat_unidades_medida_id_unidad` INT UNSIGNED NOT NULL,
   `nombre` VARCHAR(100) NOT NULL,
-  `categoria` ENUM('Insumo', 'Medicamento común', 'Medicamento especial') NOT NULL DEFAULT 'Medicamento común' COMMENT 'Enfermería solo descuenta Insumo y Medicamento común',
+  `categoria` ENUM('Insumo', 'Medicamento común', 'Medicamento especial', 'Insumo dental') NOT NULL DEFAULT 'Medicamento común' COMMENT 'Enfermería usa Insumo y Medicamento común; odontología suma el Insumo dental',
   `stock` DECIMAL(10,2) NOT NULL DEFAULT '0.00',
   `descripcion` TEXT NULL DEFAULT NULL,
   PRIMARY KEY (`id_medicamento`),

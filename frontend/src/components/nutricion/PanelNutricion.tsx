@@ -16,9 +16,9 @@ import { useProtegerSesion } from '../../hooks/useProtegerSesion';
 import ConfiguracionPerfil from '../cuenta/ConfiguracionPerfil';
 import type { Cita } from '../../services/atencion.service';
 import ResumenNutricion from './ResumenNutricion';
-import AgendaNutricion from './AgendaNutricion';
-import AtencionNutricion from './AtencionNutricion';
 import PlanesNutricion from './PlanesNutricion';
+import AgendaEspecialista from '../atencion/AgendaEspecialista';
+import AtencionEspecialista from '../atencion/AtencionEspecialista';
 
 /* ================= MENÚ DE NUTRICIÓN ================= */
 const MENU_NUTRICION: SidebarSection[] = [
@@ -89,14 +89,15 @@ export default function PanelNutricion() {
             onVerPacientes={() => navegar('Planes')}
           />
         ) : vista === 'Agenda' ? (
-          <AgendaNutricion
+          <AgendaEspecialista
             onAtender={(cita) => {
               setCitaAAtender(cita);
               setVista('Atención');
             }}
           />
         ) : vista === 'Atención' ? (
-          <AtencionNutricion
+          <AtencionEspecialista
+            rol="nutricion"
             citaInicial={citaAAtender}
             onAtenderCita={(cita) => setCitaAAtender(cita)}
             onElegirOtra={() => setCitaAAtender(null)}

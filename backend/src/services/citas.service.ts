@@ -1,7 +1,7 @@
 import type { PoolConnection } from 'mysql2/promise';
 import pool from '../db/pool';
 import { errorConflicto, errorNoEncontrado, errorProhibido, errorValidacion } from '../utils/erroresHttp';
-import { fechaISO, horaCorta } from '../utils/fechas';
+import { fechaISO, horaCorta, hoyISO } from '../utils/fechas';
 import { NOMBRES_DIA } from '../validaciones/horarios.validacion';
 import { asegurarPacienteExiste } from './pacientes.service';
 import { asegurarPersonalActivo, buscarPersonal, buscarPersonalPorUsuario } from './personal.service';
@@ -98,6 +98,9 @@ export interface FiltroCitas {
 
 /** Lista las citas (agenda), ordenadas por fecha y hora */
 export async function listarCitas(filtro: FiltroCitas = {}): Promise<Cita[]> {
+  // Al cambiar de día, las citas que no se atendieron quedan canceladas
+  await cancelarCitasVencidas();
+
   const condiciones: string[] = [];
   const parametros: unknown[] = [];
 
@@ -136,9 +139,11 @@ export async function buscarCita(id: number): Promise<Cita | null> {
  * confirme.
  */
 export async function crearCita(datos: DatosCrearCita, usuarioId: number): Promise<Cita> {
+  await cancelarCitasVencidas();
   await asegurarPacienteExiste(datos.pacienteId);
   await asegurarPersonalActivo(datos.personalMedicoId);
   await asegurarEspecialidadParaCita(datos.personalMedicoId);
+  await asegurarFechaFutura(datos.fecha, datos.hora);
   await asegurarHorarioDisponible(datos.personalMedicoId, datos.fecha, datos.hora);
   await asegurarDisponibilidad(datos.personalMedicoId, datos.fecha, datos.hora);
   await asegurarCitaLibre(datos.pacienteId, datos.fecha, datos.hora);
@@ -169,6 +174,35 @@ function diaDeSemana(fecha: string): number {
   const mes = partes[1] ?? 1;
   const dia = partes[2] ?? 1;
   return ((new Date(anio, mes - 1, dia).getDay() + 6) % 7) + 1;
+}
+
+/**
+ * Al cambiar de día, las citas que no se atendieron (siguen Pendientes o
+ * Confirmadas de días anteriores) se marcan como Canceladas: no pueden
+ * quedar citas del pasado sin atender.
+ */
+async function cancelarCitasVencidas(): Promise<void> {
+  await pool.query(
+    `UPDATE cita SET estatus = 'Cancelada'
+      WHERE fecha < CURDATE() AND estatus IN ('Pendiente', 'Confirmada')`,
+  );
+}
+
+/** La cita no puede agendarse en el pasado (ni el día, ni la hora de hoy) */
+async function asegurarFechaFutura(fecha: string, hora: string): Promise<void> {
+  const hoy = hoyISO();
+  if (fecha < hoy) {
+    throw errorValidacion('La fecha no puede ser pasada.', [
+      { campo: 'fechaCita', mensaje: 'Elige hoy o una fecha futura.' },
+    ]);
+  }
+  const minutosAhora = new Date().getHours() * 60 + new Date().getMinutes();
+  if (fecha === hoy && aMinutos(hora) <= minutosAhora) {
+    throw errorValidacion(
+      `La hora ${hora} ya pasó: elige una hora posterior a la actual.`,
+      [{ campo: 'hora', mensaje: 'Elige una hora futura.' }],
+    );
+  }
 }
 
 /** La agenda de citas es solo para el personal de Odontología o Nutrición */
@@ -350,10 +384,11 @@ export async function insertarCita(
 export async function buscarCitaParaAtencion(
   conexion: PoolConnection,
   citaId: number,
-): Promise<{ id: number; pacienteId: number; tieneConsulta: boolean } | null> {
+): Promise<{ id: number; pacienteId: number; fecha: string; tieneConsulta: boolean } | null> {
   const [filas] = await conexion.query(
     `SELECT c.id_cita                       AS id,
             c.pacientes_id_paciente          AS pacienteId,
+            c.fecha                          AS fecha,
             EXISTS(SELECT 1 FROM consulta WHERE cita_id_cita = c.id_cita) AS tieneConsulta
        FROM cita c
       WHERE c.id_cita = ?
@@ -365,6 +400,7 @@ export async function buscarCitaParaAtencion(
   return {
     id: Number(fila['id']),
     pacienteId: Number(fila['pacienteId']),
+    fecha: fechaISO(fila['fecha']),
     tieneConsulta: Number(fila['tieneConsulta']) === 1,
   };
 }

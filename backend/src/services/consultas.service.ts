@@ -5,7 +5,7 @@ import {
   errorProhibido,
   errorValidacion,
 } from '../utils/erroresHttp';
-import { fechaHoraTexto, fechaISO, horaCorta } from '../utils/fechas';
+import { fechaHoraTexto, fechaISO, horaCorta, hoyISO } from '../utils/fechas';
 import { buscarPersonalPorUsuario } from './personal.service';
 import { buscarUsuario } from './usuarios.service';
 import { asegurarPacienteExiste } from './pacientes.service';
@@ -33,7 +33,10 @@ import type {
  *   insumos del inventario (categorías 'Insumo' y 'Medicamento común');
  *   no suministra medicamentos especiales.
  * - Nutrición: como el personal médico, pero **siempre con cita agendada**
- *   (igual que odontología): no hay atención de llegada para sus consultas.
+ *   (igual que odontología) y sin insumos.
+ * - Odontología: como el personal médico con síntomas y exploración a nivel
+ *   bucal, **siempre con cita agendada**; sus insumos son medicamentos
+ *   (común y especial) e insumos dentales.
  *
  * Los insumos se descuentan del inventario en esa misma transacción; los
  * medicamentos agotados (stock 0) no se pueden usar en consultas.
@@ -155,6 +158,20 @@ function signosConDatos(signos: DatosSignosVitales | undefined): boolean {
 }
 
 /**
+ * Categorías del inventario que puede descontar cada tipo de consulta:
+ * - Médica: todo el inventario.
+ * - Enfermería: insumos y medicamentos comunes (no suministra medicamentos).
+ * - Odontología: medicamentos (común y especial) e insumos dentales.
+ * - Nutrición: ninguna (sus sesiones no registran insumos).
+ */
+const CATEGORIAS_PERMITIDAS: Record<string, string[]> = {
+  Médica: ['Insumo', 'Medicamento común', 'Medicamento especial', 'Insumo dental'],
+  Enfermería: ['Insumo', 'Medicamento común'],
+  Nutrición: [],
+  Odontología: ['Medicamento común', 'Medicamento especial', 'Insumo dental'],
+};
+
+/**
  * Registra una atención completa: primero la cita (auto-cita 'Atención
  * directa' o la cita agendada que se indique), después la consulta, sus
  * signos vitales y los insumos con su descuento de stock. Todo en una
@@ -182,7 +199,13 @@ export async function crearConsulta(
   const esNutricion = especialidad.includes('nutri');
   const esOdontologia = especialidad.includes('odontolog');
   const tipoConsulta =
-    cuenta?.rol === 'Enfermería' ? 'Enfermería' : esNutricion ? 'Nutrición' : 'Médica';
+    cuenta?.rol === 'Enfermería'
+      ? 'Enfermería'
+      : esNutricion
+        ? 'Nutrición'
+        : esOdontologia
+          ? 'Odontología'
+          : 'Médica';
 
   // Nutrición y odontología atienden únicamente con cita agendada:
   // no existe la atención de llegada para sus consultas
@@ -255,6 +278,11 @@ export async function crearConsulta(
     if (datos.citaId) {
       const cita = await buscarCitaParaAtencion(conexion, datos.citaId);
       if (!cita) throw errorNoEncontrado('La cita no existe.');
+      if (cita.fecha !== hoyISO()) {
+        throw errorValidacion('Solo se pueden atender las citas del día de hoy.', [
+          { campo: 'citaId', mensaje: 'Las citas se atienden el día que fueron agendadas.' },
+        ]);
+      }
       if (cita.pacienteId !== datos.pacienteId) {
         throw errorValidacion('La cita seleccionada no pertenece al paciente de la atención.', [
           { campo: 'citaId', mensaje: 'Selecciona una cita de este paciente.' },
@@ -338,11 +366,11 @@ export async function crearConsulta(
       const nombre = String(medicamento['nombre'] ?? '');
       const categoria = String(medicamento['categoria'] ?? '');
 
-      // Enfermería solo descuenta insumos y medicamentos comunes:
-      // los medicamentos especiales son del personal médico
-      if (tipoConsulta === 'Enfermería' && categoria === 'Medicamento especial') {
+      // Cada tipo de consulta solo usa sus categorías de inventario
+      const permitidas = CATEGORIAS_PERMITIDAS[tipoConsulta] ?? [];
+      if (!permitidas.includes(categoria)) {
         throw errorConflicto(
-          `"${nombre}" es un medicamento especial: no se puede usar en consultas de enfermería.`,
+          `"${nombre}" (${categoria.toLowerCase()}) no se puede usar en consultas de ${tipoConsulta.toLowerCase()}.`,
         );
       }
       if (stock <= 0) {

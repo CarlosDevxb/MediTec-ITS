@@ -454,15 +454,19 @@ export function rangosDeDia(
  * Horas de inicio disponibles dentro de los rangos de atención, respetando
  * la regla de agenda: cada cita dura `DURACION_CITA` minutos y después hay
  * `SEPARACION_MINIMA - DURACION_CITA` minutos de respiro (las citas quedan
- * cada 60 minutos). Las horas que chocan con las citas pasadas se descartan.
+ * cada 60 minutos). Las horas que chocan con las citas pasadas se descartan
+ * y, si la fecha es hoy, también las horas que ya pasaron.
  */
 export function horasDisponiblesPara(
   rangos: Array<{ inicio: string; fin: string }>,
   citas: Array<{ hora: string; estatus: string }>,
+  fecha: string,
 ): string[] {
   const ocupadas = citas
     .filter((cita) => cita.estatus !== 'Cancelada')
     .map((cita) => aMinutos(cita.hora));
+  const esHoy = fecha === hoyISO();
+  const minutosAhora = new Date().getHours() * 60 + new Date().getMinutes();
 
   const opciones: string[] = [];
   for (const rango of rangos) {
@@ -472,11 +476,33 @@ export function horasDisponiblesPara(
       const libre = ocupadas.every(
         (ocupada) => Math.abs(ocupada - minutos) >= SEPARACION_MINIMA,
       );
-      if (libre) opciones.push(hhmm(minutos));
+      const yaPaso = esHoy && minutos <= minutosAhora;
+      if (libre && !yaPaso) opciones.push(hhmm(minutos));
       minutos += SEPARACION_MINIMA;
     }
   }
   return [...new Set(opciones)];
+}
+
+/**
+ * Próximos días con horario de atención registrado (para que solo se pueda
+ * elegir fecha en los días en los que el personal realmente atiende).
+ */
+export function diasDisponiblesPara(horarios: Horario[], cantidad = 30): string[] {
+  const diasConHorario = new Set(horarios.map((horario) => horario.diaSemana));
+  if (diasConHorario.size === 0) return [];
+
+  const dias: string[] = [];
+  const cursor = new Date();
+  // Se buscan los siguientes días hábiles (máximo 120 días hacia adelante)
+  for (let intento = 0; intento < 120 && dias.length < cantidad; intento++) {
+    const fecha = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(
+      cursor.getDate(),
+    ).padStart(2, '0')}`;
+    if (diasConHorario.has(diaDeSemana(fecha))) dias.push(fecha);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dias;
 }
 
 /** "2026-10-15" → "15 oct 2026" */

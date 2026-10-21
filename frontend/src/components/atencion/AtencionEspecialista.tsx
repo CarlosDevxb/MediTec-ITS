@@ -13,13 +13,13 @@ import {
   hoyISO,
   type Cita,
 } from '../../services/atencion.service';
-import Atencion from '../atencion/Atencion';
+import Atencion from './Atencion';
 
 /* ============================================================
    ATENCIÓN (NUTRICIÓN) · Sesiones mediante cita agendada
    Si no hay cita elegida, se listan las citas del día para
    seleccionar cuál atender; la sesión se registra ligada a ella
-   (nutrición no tiene atención de llegada).
+   (sin atención de llegada).
    ============================================================ */
 
 const ESTILOS_ESTATUS: Record<string, 'pending' | 'confirmed' | 'cancelled' | 'completed'> = {
@@ -29,7 +29,9 @@ const ESTILOS_ESTATUS: Record<string, 'pending' | 'confirmed' | 'cancelled' | 'c
   Completada: 'completed',
 };
 
-export interface AtencionNutricionProps {
+export interface AtencionEspecialistaProps {
+  /** 'nutricion' u 'odontologia' (ambos atienden por cita) */
+  rol: 'nutricion' | 'odontologia';
   /** Cita elegida desde la agenda (si no, se elige aquí) */
   citaInicial?: Cita | null;
   /** Registra la cita elegida en el panel (pasa a mostrar el formulario) */
@@ -39,12 +41,13 @@ export interface AtencionNutricionProps {
   onVerAgenda: () => void;
 }
 
-export default function AtencionNutricion({
+export default function AtencionEspecialista({
+  rol,
   citaInicial = null,
   onAtenderCita,
   onElegirOtra,
   onVerAgenda,
-}: AtencionNutricionProps) {
+}: AtencionEspecialistaProps) {
   const [citas, setCitas] = useState<Cita[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -87,7 +90,7 @@ export default function AtencionNutricion({
             Elegir otra cita
           </Button>
         </div>
-        <Atencion rol="nutricion" citaInicial={citaInicial} />
+        <Atencion rol={rol} citaInicial={citaInicial} />
       </div>
     );
   }
@@ -130,7 +133,11 @@ export default function AtencionNutricion({
     <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
       <PageHeader
         title="Atención"
-        subtitle="Sesiones de nutrición mediante cita agendada"
+        subtitle={
+          rol === 'nutricion'
+            ? 'Sesiones de nutrición mediante cita agendada'
+            : 'Consultas odontológicas mediante cita agendada'
+        }
         meta={
           <Button variant="secondary" icon={CalendarClock} onClick={onVerAgenda}>
             Ver agenda
@@ -154,8 +161,11 @@ export default function AtencionNutricion({
                 No hay citas por atender hoy
               </p>
               <p className="text-gray-500 max-w-md">
-                Las sesiones de nutrición se registran atendiendo una cita. Agenda una cita
-                desde la sección Agenda y aparecerá aquí para atenderla.
+                {rol === 'nutricion'
+                  ? 'Las sesiones de nutrición'
+                  : 'Las consultas odontológicas'}{' '}
+                se registran atendiendo una cita. Agenda una cita desde la sección Agenda y
+                aparecerá aquí para atenderla.
               </p>
             </div>
           </div>

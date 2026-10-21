@@ -16,8 +16,8 @@ import { useProtegerSesion } from '../../hooks/useProtegerSesion';
 import Atencion from '../atencion/Atencion';
 import ConfiguracionPerfil from '../cuenta/ConfiguracionPerfil';
 import ResumenDoctor from './ResumenDoctor';
-import HistorialConsultas from './HistorialConsultas';
-import PacientesDoctor from './PacientesDoctor';
+import HistorialConsultas from '../atencion/HistorialConsultas';
+import ListaPacientes from '../atencion/ListaPacientes';
 
 /* ================= MENÚ DEL DOCTOR ================= */
 const MENU_DOCTOR: SidebarSection[] = [
@@ -79,7 +79,7 @@ export default function PanelDoctor() {
         ) : vista === 'Historial de consultas' ? (
           <HistorialConsultas />
         ) : vista === 'Pacientes' ? (
-          <PacientesDoctor />
+          <ListaPacientes />
         ) : vista === 'Configuración' ? (
           <ConfiguracionPerfil />
         ) : (

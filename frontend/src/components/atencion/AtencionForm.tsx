@@ -44,10 +44,18 @@ import {
    signos vitales y cantidad de insumos contra el stock).
    ============================================================ */
 
+/** Categorías del inventario que puede usar cada tipo de consulta */
+const CATEGORIAS_POR_ROL: Record<'medico' | 'enfermeria' | 'nutricion' | 'odontologia', string[]> = {
+  medico: ['Insumo', 'Medicamento común', 'Medicamento especial', 'Insumo dental'],
+  enfermeria: ['Insumo', 'Medicamento común'],
+  nutricion: [],
+  odontologia: ['Medicamento común', 'Medicamento especial', 'Insumo dental'],
+};
+
 export interface AtencionFormProps {
   expediente: ExpedientePaciente;
-  /** 'medico' (diagnóstico y tratamiento), 'enfermeria' (intervención) o 'nutricion' */
-  rol?: 'medico' | 'enfermeria' | 'nutricion';
+  /** 'medico', 'enfermeria', 'nutricion' u 'odontologia' */
+  rol?: 'medico' | 'enfermeria' | 'nutricion' | 'odontologia';
   /** Cita agendada que se atiende (nutrición y odontología siempre; el
    *  doctor y la enfermería atienden sin cita, con auto-cita) */
   citaInicial?: Cita | null;
@@ -76,7 +84,7 @@ function errorDeCampo(
     | 'peso'
     | 'talla',
   valores: Record<string, string>,
-  rol: 'medico' | 'enfermeria' | 'nutricion',
+  rol: 'medico' | 'enfermeria' | 'nutricion' | 'odontologia',
   esAtencionDirecta: boolean,
 ): string {
   const texto = (clave: string) => (valores[clave] ?? '').trim();
@@ -293,10 +301,10 @@ export default function AtencionForm({
   const marcarTocado = (campo: string) => setTocado((prev) => ({ ...prev, [campo]: true }));
 
   /* ---------- Insumos ----------
-     Enfermería solo descuenta insumos y medicamentos comunes: los
-     medicamentos especiales son del personal médico. */
+     Cada tipo de consulta solo descuenta sus categorías del inventario
+     (ver CATEGORIAS_POR_ROL). */
   const medicamentosDisponibles = medicamentos.filter(
-    (m) => m.disponible && (rol === 'medico' || m.categoria !== 'Medicamento especial'),
+    (m) => m.disponible && CATEGORIAS_POR_ROL[rol].includes(m.categoria),
   );
   const yaAgregados = insumos.map((renglon) => Number(renglon.medicamentoId));
   const opcionesInsumo = medicamentosDisponibles.filter((m) => !yaAgregados.includes(m.id));
@@ -543,7 +551,9 @@ export default function AtencionForm({
             ? 'Atención de enfermería'
             : rol === 'nutricion'
               ? 'Valoración nutricional'
-              : 'Consulta'
+              : rol === 'odontologia'
+                ? 'Consulta odontológica'
+                : 'Consulta'
         }
         icon={Stethoscope}
       >
@@ -551,7 +561,10 @@ export default function AtencionForm({
           {/* Las sesiones de nutrición no capturan síntomas ni exploración */}
           {rol !== 'nutricion' && (
             <>
-              <Field label="Síntomas" error={errorVisible('sintomas')}>
+              <Field
+                label={rol === 'odontologia' ? 'Síntomas bucales' : 'Síntomas'}
+                error={errorVisible('sintomas')}
+              >
                 <Textarea
                   rows={3}
                   value={sintomas}
@@ -560,16 +573,28 @@ export default function AtencionForm({
                     marcarTocado('sintomas');
                   }}
                   onBlur={() => marcarTocado('sintomas')}
-                  placeholder="Describe los síntomas que refiere el paciente al momento de la atención…"
+                  placeholder={
+                    rol === 'odontologia'
+                      ? 'Describe los síntomas bucales que refiere el paciente al momento de la atención…'
+                      : 'Describe los síntomas que refiere el paciente al momento de la atención…'
+                  }
                   aria-invalid={errorVisible('sintomas') ? true : undefined}
                 />
               </Field>
-              <Field label="Exploración" hint="Opcional." error={errorVisible('exploracion')}>
+              <Field
+                label={rol === 'odontologia' ? 'Exploración bucal' : 'Exploración'}
+                hint="Opcional."
+                error={errorVisible('exploracion')}
+              >
                 <Textarea
                   rows={3}
                   value={exploracion}
                   onChange={(e) => setExploracion(e.target.value)}
-                  placeholder="Hallazgos de la exploración física…"
+                  placeholder={
+                    rol === 'odontologia'
+                      ? 'Hallazgos de la exploración bucal: piezas dentales, encías, oclusión…'
+                      : 'Hallazgos de la exploración física…'
+                  }
                 />
               </Field>
             </>
@@ -608,7 +633,9 @@ export default function AtencionForm({
                   placeholder={
                     rol === 'nutricion'
                       ? 'Ej. Sobrepeso grado I con dieta desbalanceada'
-                      : 'Ej. Gastroenteritis aguda'
+                      : rol === 'odontologia'
+                        ? 'Ej. Caries dental en pieza 36'
+                        : 'Ej. Gastroenteritis aguda'
                   }
                   maxLength={255}
                   aria-invalid={errorVisible('diagnostico') ? true : undefined}
@@ -628,7 +655,9 @@ export default function AtencionForm({
                   placeholder={
                     rol === 'nutricion'
                       ? 'Ej. Plan hipocalórico de 1500 kcal y control mensual'
-                      : 'Ej. Hidratación y dieta blanda por 3 días'
+                      : rol === 'odontologia'
+                        ? 'Ej. Restauración con resina compuesta en pieza 36'
+                        : 'Ej. Hidratación y dieta blanda por 3 días'
                   }
                   aria-invalid={errorVisible('tratamiento') ? true : undefined}
                 />
@@ -715,7 +744,9 @@ export default function AtencionForm({
           <p className="text-sm text-gray-500">
             {rol === 'enfermeria'
               ? 'Opcionales. Solo insumos y medicamentos comunes: se descuentan del inventario al guardar. Los medicamentos especiales no aplican en consultas de enfermería.'
-              : 'Opcionales. Se descuentan del inventario al guardar la consulta. Los medicamentos agotados no están disponibles.'}
+              : rol === 'odontologia'
+                ? 'Opcionales. Medicamentos (común y especial) e insumos dentales: se descuentan del inventario al guardar.'
+                : 'Opcionales. Se descuentan del inventario al guardar la consulta. Los medicamentos agotados no están disponibles.'}
           </p>
           <Button
             variant="secondary"

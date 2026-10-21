@@ -38,9 +38,9 @@ import AtencionForm from './AtencionForm';
    ============================================================ */
 
 export interface AtencionProps {
-  /** 'medico', 'enfermeria' o 'nutricion' */
-  rol?: 'medico' | 'enfermeria' | 'nutricion';
-  /** Cita agendada que se atiende (obligatoria para nutrición) */
+  /** 'medico', 'enfermeria', 'nutricion' u 'odontologia' */
+  rol?: 'medico' | 'enfermeria' | 'nutricion' | 'odontologia';
+  /** Cita agendada que se atiende (obligatoria para nutrición y odontología) */
   citaInicial?: Cita | null;
 }
 
@@ -208,14 +208,18 @@ export default function Atencion({ rol = 'medico', citaInicial = null }: Atencio
             ? 'Nueva consulta de enfermería'
             : rol === 'nutricion'
               ? 'Nueva sesión de nutrición'
-              : 'Nueva consulta'
+              : rol === 'odontologia'
+                ? 'Nueva consulta odontológica'
+                : 'Nueva consulta'
         }
         subtitle={
           citaInicial
             ? `Atendiendo la cita de ${citaInicial.paciente} · ${citaInicial.fecha} ${citaInicial.hora}`
             : rol === 'enfermeria'
               ? 'Registra una atención de enfermería (atención directa)'
-              : 'Registra la atención de un paciente (atención directa)'
+              : rol === 'odontologia'
+                ? 'Registra una atención odontológica (por cita)'
+                : 'Registra la atención de un paciente (atención directa)'
         }
       />
 
@@ -232,12 +236,15 @@ export default function Atencion({ rol = 'medico', citaInicial = null }: Atencio
       )}
 
       <div className="space-y-6">
-        {/* Nutrición (y odontología) atiende solo desde una cita agendada */}
-        {rol === 'nutricion' && !citaInicial ? (
+        {/* Nutrición y odontología atienden solo desde una cita agendada */}
+        {(rol === 'nutricion' || rol === 'odontologia') && !citaInicial ? (
           <Card title="Atención por cita" icon={CalendarClock}>
             <p className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-              Las sesiones de nutrición se registran atendiendo una cita de la agenda. Ve a
-              Agenda (o Atención) y elige la cita que vas a atender.
+              {rol === 'nutricion'
+                ? 'Las sesiones de nutrición'
+                : 'Las consultas odontológicas'}{' '}
+              se registran atendiendo una cita de la agenda. Ve a Agenda (o Atención) y elige la
+              cita que vas a atender.
             </p>
           </Card>
         ) : citaInicial ? (
