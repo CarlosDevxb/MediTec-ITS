@@ -19,8 +19,6 @@ import { Field, Input, Select, Textarea } from '../ui/Input';
 import { detallesDe, mensajeDeError } from '../../services/api';
 import { listarMedicamentos, type Medicamento } from '../../services/operacion.service';
 import {
-  fechaCorta,
-  type Cita,
   type DatosAtencion,
   type ExpedientePaciente,
 } from '../../services/atencion.service';
@@ -29,10 +27,10 @@ import {
    FORMULARIO DE ATENCIÓN · Signos vitales, consulta e insumos
 
    Regla central del sistema: toda consulta deriva de una cita.
-   - Sin cita previa (atención directa): el formulario llena el
-     motivo de la atención y el sistema crea primero la auto-cita
-     'Atención directa' antes de guardar la consulta.
-   - Con cita agendada: la consulta se liga a esa cita.
+   El doctor registra atenciones de llegada (estado "Atención
+   directa") y el sistema crea la cita interna automáticamente
+   antes de guardar la consulta: la agenda de citas la administra
+   enfermería.
 
    La validación es en tiempo real (campos requeridos, rangos de
    signos vitales y cantidad de insumos contra el stock).
@@ -40,8 +38,6 @@ import {
 
 export interface AtencionFormProps {
   expediente: ExpedientePaciente;
-  /** Cita agendada que se atiende; si no viene, es atención directa */
-  citaInicial?: Cita | null;
   guardando?: boolean;
   onGuardar: (datos: DatosAtencion) => Promise<void>;
   onCancelar: () => void;
@@ -56,13 +52,11 @@ interface RenglonInsumo {
 function errorDeCampo(
   campo: 'motivo' | 'sintomas' | 'diagnostico' | 'tratamiento' | 'ta' | 'fc' | 'fr' | 'temp' | 'peso' | 'talla',
   valores: Record<string, string>,
-  esAtencionDirecta: boolean,
 ): string {
   const texto = (clave: string) => (valores[clave] ?? '').trim();
   switch (campo) {
     case 'motivo':
-      if (!esAtencionDirecta) return '';
-      if (!texto('motivo')) return 'Indica el motivo de la atención (se registra en la cita).';
+      if (!texto('motivo')) return 'Indica el motivo de la atención.';
       return texto('motivo').length > 255 ? 'El motivo no puede exceder 255 caracteres.' : '';
     case 'sintomas':
       if (!texto('sintomas')) return 'Describe los síntomas.';
@@ -110,12 +104,10 @@ function errorDeCampo(
 
 export default function AtencionForm({
   expediente,
-  citaInicial = null,
   guardando = false,
   onGuardar,
   onCancelar,
 }: AtencionFormProps) {
-  const esAtencionDirecta = !citaInicial;
 
   /* Datos de la atención (auto-cita) */
   const [motivo, setMotivo] = useState('');
@@ -173,11 +165,11 @@ export default function AtencionForm({
       'peso',
       'talla',
     ] as const) {
-      calculados[campo] = errorDeCampo(campo, valores, esAtencionDirecta);
+      calculados[campo] = errorDeCampo(campo, valores);
     }
     return calculados;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [motivo, sintomas, diagnostico, tratamiento, ta, fc, fr, temp, peso, talla, esAtencionDirecta]);
+  }, [motivo, sintomas, diagnostico, tratamiento, ta, fc, fr, temp, peso, talla]);
 
   /** Avisos de los renglones de insumos (cantidad contra stock) */
   const erroresInsumos = useMemo(
@@ -256,7 +248,7 @@ export default function AtencionForm({
     try {
       await onGuardar({
         pacienteId: expediente.id,
-        ...(citaInicial ? { citaId: citaInicial.id } : { motivo: motivo.trim() }),
+        motivo: motivo.trim(),
         sintomas: sintomas.trim(),
         exploracion: exploracion.trim() || undefined,
         diagnostico: diagnostico.trim(),
@@ -278,47 +270,32 @@ export default function AtencionForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-      {/* ===== Datos de la atención (la cita) ===== */}
+    <form onSubmit={handleSubmit} className="entrada space-y-6" noValidate>
+      {/* ===== Datos de la atención ===== */}
       <Card title="Datos de la atención" icon={CalendarClock}>
-        {citaInicial ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <Badge status="confirmed">Cita agendada</Badge>
-            <p className="text-gray-700">
-              {fechaCorta(citaInicial.fecha)} a las {citaInicial.hora} · {citaInicial.motivo}
-            </p>
-            <p className="text-sm text-gray-500">
-              La consulta se registrará ligada a esta cita.
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="flex flex-wrap items-center gap-3 mb-4">
-              <Badge status="scheduled">Atención directa</Badge>
-              <p className="text-sm text-gray-500">
-                Al guardar se registrará primero la cita de atención directa (hoy, en este
-                momento) y enseguida la consulta.
-              </p>
-            </div>
-            <Field
-              label="Motivo de la atención"
-              error={errorVisible('motivo')}
-              hint="Se registra como el motivo de la cita. Máximo 255 caracteres."
-            >
-              <Input
-                value={motivo}
-                onChange={(e) => {
-                  setMotivo(e.target.value);
-                  marcarTocado('motivo');
-                }}
-                onBlur={() => marcarTocado('motivo')}
-                placeholder="Ej. Dolor abdominal desde hace dos días"
-                maxLength={255}
-                aria-invalid={errorVisible('motivo') ? true : undefined}
-              />
-            </Field>
-          </>
-        )}
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <Badge status="scheduled">Atención directa</Badge>
+          <p className="text-sm text-gray-500">
+            Atención de llegada: se registra en este momento con estado "Atención directa".
+          </p>
+        </div>
+        <Field
+          label="Motivo de la atención"
+          error={errorVisible('motivo')}
+          hint="Motivo por el que el paciente solicita atención. Máximo 255 caracteres."
+        >
+          <Input
+            value={motivo}
+            onChange={(e) => {
+              setMotivo(e.target.value);
+              marcarTocado('motivo');
+            }}
+            onBlur={() => marcarTocado('motivo')}
+            placeholder="Ej. Dolor abdominal desde hace dos días"
+            maxLength={255}
+            aria-invalid={errorVisible('motivo') ? true : undefined}
+          />
+        </Field>
       </Card>
 
       {/* ===== Signos vitales ===== */}
@@ -498,9 +475,13 @@ export default function AtencionForm({
           </Button>
         </div>
 
-        {medicamentos.length > 0 && opcionesInsumo.length === 0 && insumos.length > 0 && (
+        {opcionesInsumo.length === 0 && (
           <p className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-            Ya agregaste todos los medicamentos disponibles (o los que quedan están agotados).
+            {medicamentos.length === 0
+              ? 'No hay medicamentos registrados en el inventario. Da de alta en el panel de administración (Medicamentos) para poder usarlos como insumos.'
+              : medicamentosDisponibles.length === 0
+                ? 'Los medicamentos del inventario están agotados y no están disponibles para consultas.'
+                : 'Ya agregaste como insumo todos los medicamentos disponibles.'}
           </p>
         )}
 
@@ -591,11 +572,7 @@ export default function AtencionForm({
       {confirmar && (
         <Modal
           titulo={`¿Registrar la atención de ${expediente.nombre}?`}
-          descripcion={
-            citaInicial
-              ? 'Se guardará la consulta ligada a la cita agendada.'
-              : 'Se registrará primero la cita de atención directa y enseguida la consulta.'
-          }
+          descripcion="Se guardará la consulta con estado de atención directa."
           icono={ClipboardPlus}
           onCerrar={() => setConfirmar(false)}
           acciones={

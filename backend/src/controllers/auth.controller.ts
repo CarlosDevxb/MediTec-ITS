@@ -1,9 +1,11 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { ENV } from '../config/env';
-import { buscarUsuarioPorControl } from '../services/auth.service';
+import { actualizarPerfil, buscarUsuarioPorControl } from '../services/auth.service';
+import { buscarUsuario } from '../services/usuarios.service';
 import { compararContrasena } from '../utils/contrasenas';
-import type { DatosLogin } from '../validaciones/auth.validacion';
+import { errorNoEncontrado, errorValidacion } from '../utils/erroresHttp';
+import type { DatosLogin, DatosActualizarPerfil } from '../validaciones/auth.validacion';
 import type { UsuarioToken } from '../middleware/verificarToken';
 
 /**
@@ -52,8 +54,42 @@ export async function login(req: Request, res: Response, next: NextFunction) {
 
 /**
  * GET /api/auth/perfil
- * Devuelve el usuario del token (público para cualquier rol autenticado).
+ * Devuelve los datos completos del usuario del token (cualquier rol
+ * autenticado). Nunca incluye la contraseña.
  */
-export function perfil(req: Request, res: Response) {
-  res.json({ datos: req.usuario });
+export async function perfil(req: Request, res: Response, next: NextFunction) {
+  try {
+    const usuarioId = req.usuario?.id;
+    if (!usuarioId) throw errorValidacion('No autenticado.');
+    const usuario = await buscarUsuario(usuarioId);
+    if (!usuario) throw errorNoEncontrado('El usuario no existe.');
+    res.json({ datos: usuario });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * PATCH /api/auth/perfil
+ * Actualización del propio perfil: teléfono y contraseña (con la contraseña
+ * actual como verificación). El correo no se modifica desde aquí.
+ */
+export async function actualizarPerfilUsuario(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const usuarioId = req.usuario?.id;
+    if (!usuarioId) throw errorValidacion('No autenticado.');
+    const usuario = await actualizarPerfil(usuarioId, req.body as DatosActualizarPerfil);
+    res.json({
+      mensaje:
+        'Perfil actualizado.' +
+        (req.body?.contrasenaNueva ? ' Tu contraseña cambió correctamente.' : ''),
+      datos: usuario,
+    });
+  } catch (error) {
+    next(error);
+  }
 }

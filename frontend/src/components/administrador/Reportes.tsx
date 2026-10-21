@@ -10,6 +10,8 @@ import {
 import PageHeader from '../ui/PageHeader';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
+import Aviso from '../ui/Aviso';
+import { useAviso } from '../ui/useAviso';
 import StatCard from '../ui/StatCard';
 import EstadoVista from '../ui/EstadoVista';
 import { Input, Select } from '../ui/Input';
@@ -124,6 +126,7 @@ export default function Reportes() {
   const [hasta, setHasta] = useState(() => hoyISO());
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { aviso, tipo, mostrar, cerrar } = useAviso();
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -341,16 +344,22 @@ export default function Reportes() {
     }
   };
 
-  const descargarPDF = () =>
-    generarReportePDF(
-      reporte === 'actividad'
-        ? `meditec-reporte-${reporte}-${inicio}_a_${fin}`
-        : `meditec-reporte-${reporte}`,
-      construirPDF(),
-    );
+  const descargarPDF = () => {
+    try {
+      generarReportePDF(
+        reporte === 'actividad'
+          ? `meditec-reporte-${reporte}-${inicio}_a_${fin}`
+          : `meditec-reporte-${reporte}`,
+        construirPDF(),
+      );
+      mostrar('Reporte PDF descargado correctamente.');
+    } catch {
+      mostrar('No se pudo generar el PDF. Intenta de nuevo.', 'error');
+    }
+  };
 
   return (
-    <div className="p-10 xl:p-12 max-w-7xl mx-auto font-sans">
+    <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
       <PageHeader
         title="Reportes"
         subtitle={REPORTES[reporte].descripcion}
@@ -403,6 +412,8 @@ export default function Reportes() {
           </div>
         }
       />
+
+      {aviso && <Aviso mensaje={aviso} tipo={tipo} onCerrar={cerrar} />}
 
       <EstadoVista cargando={cargando} error={error} onReintentar={() => void cargar()}>
         <>

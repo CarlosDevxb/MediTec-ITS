@@ -38,7 +38,7 @@ export default function Aviso({ mensaje, tipo = 'exito', onCerrar }: AvisoProps)
     <div
       role={tipo === 'error' ? 'alert' : 'status'}
       aria-live={tipo === 'error' ? 'assertive' : 'polite'}
-      className={`mb-6 flex items-center justify-between gap-4 border text-base font-medium px-5 py-4 rounded-lg shadow-md ${clases}`}
+      className={`entrada mb-6 flex items-center justify-between gap-4 border text-base font-medium px-5 py-4 rounded-lg shadow-md ${clases}`}
     >
       <span className="flex items-center gap-2.5">
         <Icono size={20} className="shrink-0" aria-hidden="true" />

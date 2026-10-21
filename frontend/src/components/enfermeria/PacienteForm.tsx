@@ -7,6 +7,7 @@ import { Field, Input, Select, Textarea } from '../ui/Input';
 import { detallesDe, mensajeDeError } from '../../services/api';
 import type { ValorCatalogo } from '../../services/administracion.service';
 import {
+  TIPOS_SANGRE,
   type ExpedientePaciente,
   type PacienteResumen,
   type DatosPaciente,
@@ -20,7 +21,6 @@ import {
    temporal que se entrega una sola vez.
    ============================================================ */
 
-const TIPOS_SANGRE = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'];
 const GENEROS = ['Masculino', 'Femenino', 'Otro'];
 
 export interface PacienteFormProps {
@@ -174,7 +174,7 @@ export default function PacienteForm({
   };
 
   return (
-    <div className="p-10 xl:p-12 max-w-5xl mx-auto font-sans">
+    <div className="entrada p-10 xl:p-12 max-w-5xl mx-auto font-sans">
       <PageHeader
         title={esAlta ? 'Nuevo paciente' : `Expediente de ${paciente?.nombre ?? ''}`}
         subtitle={

@@ -1,70 +1,43 @@
-import React, { useEffect, useState } from 'react';
-import { ClipboardPlus, CheckCircle2, CalendarClock, Stethoscope } from 'lucide-react';
+import React, { useState } from 'react';
+import { ClipboardPlus, CheckCircle2, Stethoscope } from 'lucide-react';
 import PageHeader from '../ui/PageHeader';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import Aviso from '../ui/Aviso';
+import ModalResultado from '../ui/ModalResultado';
 import { useAviso } from '../ui/useAviso';
-import EstadoVista from '../ui/EstadoVista';
-import { mensajeDeError } from '../../services/api';
 import {
   crearConsulta,
-  obtenerExpediente,
-  type Cita,
   type ConsultaDetalle,
+  type DatosAtencion,
   type ExpedientePaciente,
 } from '../../services/atencion.service';
 import SelectorPaciente from '../atencion/SelectorPaciente';
-import FichaPaciente from '../atencion/FichaPaciente';
+import CuestionarioSalud from '../atencion/CuestionarioSalud';
 import AtencionForm from './AtencionForm';
 
 /* ============================================================
    NUEVA CONSULTA · Flujo completo de atención del doctor
-   Paciente → ficha con alertas → signos vitales → consulta →
-   insumos. Sin cita previa, el sistema crea primero la auto-cita
-   'Atención directa' y enseguida la consulta (una transacción).
+   Paciente → ficha con alertas → **cuestionario de salud** (si
+   aún no lo tiene) → signos vitales → consulta → insumos.
+   Se registra como atención de llegada con estado "Atención
+   directa" (la cita interna la crea el sistema).
    ============================================================ */
 
-export interface AtencionProps {
-  /** Cita agendada que se está atendiendo (vino desde la Agenda) */
-  citaInicial?: Cita | null;
-  /** Lleva a la vista de Agenda */
-  onVerAgenda?: () => void;
-  /** Limpia la cita pendiente en el panel */
-  onNuevaAtencion?: () => void;
-}
-
-export default function Atencion({ citaInicial = null, onVerAgenda, onNuevaAtencion }: AtencionProps) {
+export default function Atencion() {
   const [expediente, setExpediente] = useState<ExpedientePaciente | null>(null);
-  const [cargando, setCargando] = useState(Boolean(citaInicial));
-  const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [consultaCreada, setConsultaCreada] = useState<ConsultaDetalle | null>(null);
+  /** Confirmación visible del cuestionario guardado (modal) */
+  const [resultado, setResultado] = useState<{
+    titulo: string;
+    mensaje: string;
+  } | null>(null);
   const { aviso, tipo, mostrar, cerrar } = useAviso();
 
-  /* Si se atiende una cita agendada, su paciente ya está definido */
-  useEffect(() => {
-    if (!citaInicial) return;
-    let vigente = true;
-    setCargando(true);
-    obtenerExpediente(citaInicial.pacienteId)
-      .then((datos) => {
-        if (vigente) setExpediente(datos);
-      })
-      .catch((e) => {
-        if (vigente) setError(mensajeDeError(e));
-      })
-      .finally(() => {
-        if (vigente) setCargando(false);
-      });
-    return () => {
-      vigente = false;
-    };
-  }, [citaInicial]);
-
   /* ---------- Guardado de la atención ---------- */
-  const guardarAtencion = async (datos: Parameters<typeof crearConsulta>[0]) => {
+  const guardarAtencion = async (datos: DatosAtencion) => {
     setGuardando(true);
     try {
       const consulta = await crearConsulta(datos);
@@ -78,17 +51,29 @@ export default function Atencion({ citaInicial = null, onVerAgenda, onNuevaAtenc
     }
   };
 
+  /**
+   * El cuestionario quedó guardado: se confirma con modal y se regresa al
+   * inicio de la página para comenzar el llenado de la consulta.
+   */
+  const cuestionarioGuardado = (actualizado: ExpedientePaciente) => {
+    setExpediente(actualizado);
+    const reducirMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reducirMovimiento ? 'auto' : 'smooth' });
+    setResultado({
+      titulo: 'Cuestionario de salud guardado',
+      mensaje: `El cuestionario de ${actualizado.nombre} quedó registrado y sus alertas están al día. Ahora puedes capturar la consulta.`,
+    });
+  };
+
   const nuevaAtencion = () => {
     setConsultaCreada(null);
     setExpediente(null);
-    setError('');
-    onNuevaAtencion?.();
   };
 
   /* ---------- Vista de éxito ---------- */
   if (consultaCreada) {
     return (
-      <div className="p-10 xl:p-12 max-w-5xl mx-auto font-sans">
+      <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
         <PageHeader
           title="Consulta registrada"
           subtitle={`Atención de ${consultaCreada.paciente.nombre} · ${consultaCreada.fechaHora}`}
@@ -101,10 +86,7 @@ export default function Atencion({ citaInicial = null, onVerAgenda, onNuevaAtenc
             <div className="flex flex-wrap items-center gap-3">
               <Badge status="confirmed">Consulta #{consultaCreada.id}</Badge>
               <Badge status="scheduled">{consultaCreada.cita.tipo}</Badge>
-              <p className="text-sm text-gray-500">
-                Cita {consultaCreada.cita.fecha} {consultaCreada.cita.hora} ·{' '}
-                {consultaCreada.cita.motivo}
-              </p>
+              <p className="text-sm text-gray-500">{consultaCreada.cita.motivo}</p>
             </div>
 
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -142,11 +124,6 @@ export default function Atencion({ citaInicial = null, onVerAgenda, onNuevaAtenc
         </Card>
 
         <div className="flex flex-wrap justify-end gap-4 pb-10 mt-8">
-          {onVerAgenda && (
-            <Button variant="secondary" icon={CalendarClock} onClick={onVerAgenda}>
-              Ver agenda
-            </Button>
-          )}
           <Button icon={Stethoscope} onClick={nuevaAtencion}>
             Nueva atención
           </Button>
@@ -157,37 +134,43 @@ export default function Atencion({ citaInicial = null, onVerAgenda, onNuevaAtenc
 
   /* ---------- Flujo de captura ---------- */
   return (
-    <div className="p-10 xl:p-12 max-w-5xl mx-auto font-sans">
+    <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
       <PageHeader
         title="Nueva consulta"
-        subtitle={
-          citaInicial
-            ? `Atendiendo la cita de ${citaInicial.paciente}`
-            : 'Registra la atención de un paciente (se crea su cita y su consulta)'
-        }
+        subtitle="Registra la atención de un paciente (atención directa)"
       />
 
       {aviso && <Aviso mensaje={aviso} tipo={tipo} onCerrar={cerrar} />}
 
-      <EstadoVista cargando={cargando} error={error} textoCargando="Cargando al paciente…">
-        <div className="space-y-6">
-          {citaInicial && expediente ? (
-            <FichaPaciente expediente={expediente} />
-          ) : (
-            <SelectorPaciente paciente={expediente} onChange={setExpediente} />
-          )}
+      <div className="space-y-6">
+        <SelectorPaciente paciente={expediente} onChange={setExpediente} />
 
-          {expediente && (
-            <AtencionForm
-              expediente={expediente}
-              citaInicial={citaInicial}
-              guardando={guardando}
-              onGuardar={guardarAtencion}
-              onCancelar={nuevaAtencion}
-            />
-          )}
-        </div>
-      </EstadoVista>
+        {/* Sin cuestionario completado, primero se llena el cuestionario */}
+        {expediente && expediente.cuestionario?.estatus !== 'Completado' ? (
+          <CuestionarioSalud
+            expediente={expediente}
+            contexto="consulta"
+            onGuardado={cuestionarioGuardado}
+            onCancelar={nuevaAtencion}
+          />
+        ) : expediente ? (
+          <AtencionForm
+            expediente={expediente}
+            guardando={guardando}
+            onGuardar={guardarAtencion}
+            onCancelar={nuevaAtencion}
+          />
+        ) : null}
+      </div>
+
+      {/* Confirmación del cuestionario guardado (modal) */}
+      {resultado && (
+        <ModalResultado
+          titulo={resultado.titulo}
+          mensaje={resultado.mensaje}
+          onCerrar={() => setResultado(null)}
+        />
+      )}
     </div>
   );
 }

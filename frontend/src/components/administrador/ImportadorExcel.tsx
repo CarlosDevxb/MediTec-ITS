@@ -143,9 +143,9 @@ export default function ImportadorExcel({
   };
 
   const descargarPlantilla = () =>
-    descargarExcel(nombreArchivo(`plantilla-${entidad}`), columnas, plantilla).catch(() =>
-      mostrar('No se pudo generar la plantilla. Intenta de nuevo.', 'error'),
-    );
+    descargarExcel(nombreArchivo(`plantilla-${entidad}`), columnas, plantilla)
+      .then(() => mostrar(`Plantilla de ${entidad} descargada.`))
+      .catch(() => mostrar('No se pudo generar la plantilla. Intenta de nuevo.', 'error'));
 
   const descargarReporte = () => {
     if (!resultado) return;
@@ -153,7 +153,9 @@ export default function ImportadorExcel({
       nombreArchivo(`reporte-importacion-${entidad}`),
       resultado.resultados,
       mostrarContrasenas,
-    ).catch(() => mostrar('No se pudo generar el reporte. Intenta de nuevo.', 'error'));
+    )
+      .then(() => mostrar('Reporte de resultados descargado.'))
+      .catch(() => mostrar('No se pudo generar el reporte. Intenta de nuevo.', 'error'));
   };
 
   /* ---------- Vista de resultados ---------- */
@@ -197,7 +199,7 @@ export default function ImportadorExcel({
     }
 
     return (
-      <div className="p-10 xl:p-12 max-w-6xl mx-auto font-sans">
+      <div className="entrada p-10 xl:p-12 max-w-6xl mx-auto font-sans">
         <PageHeader
           title="Resultado de la importación"
           subtitle={`${resultado.creados} creados · ${resultado.fallidos} con errores`}
@@ -287,7 +289,7 @@ export default function ImportadorExcel({
   ];
 
   return (
-    <div className="p-10 xl:p-12 max-w-6xl mx-auto font-sans">
+    <div className="entrada p-10 xl:p-12 max-w-6xl mx-auto font-sans">
       <PageHeader title={titulo} subtitle={descripcion} />
 
       {aviso && <Aviso mensaje={aviso} tipo={tipo} onCerrar={cerrar} />}

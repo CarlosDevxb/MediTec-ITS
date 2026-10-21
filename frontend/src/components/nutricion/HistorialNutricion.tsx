@@ -72,7 +72,7 @@ export default function HistorialNutricion({ pacienteInicial, planes, onNuevoPla
     : [];
 
   return (
-    <div className="p-10 xl:p-12 max-w-6xl mx-auto font-sans">
+    <div className="entrada p-10 xl:p-12 max-w-6xl mx-auto font-sans">
       <PageHeader
         title="Historial nutricional"
         subtitle={sel ? `Expediente de ${sel.nombre}` : 'Busca y carga el expediente del paciente'}

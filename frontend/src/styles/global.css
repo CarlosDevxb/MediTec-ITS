@@ -29,3 +29,40 @@
   --color-brand-100: #dbe5ef;
   --color-brand-50: #eff4f9; /* Fondos sutiles (hover fantasma, rings) */
 }
+
+/* ============================================================
+   TRANSICIONES DE VISTA · Entrada suave de secciones y formularios
+   Toda vista que aparece (una sección del panel, un formulario de
+   alta/edición, un paso de captura, un resultado) usa la clase
+   `entrada` para evitar cambios bruscos en la interfaz. Los modales
+   usan `entrada-modal`. Ver ESPECIFICACIONES.md.
+   ============================================================ */
+@keyframes entrada {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.entrada {
+  animation: entrada 0.28s ease-out both;
+}
+
+@keyframes entradaModal {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.entrada-modal {
+  animation: entradaModal 0.22s ease-out both;
+}

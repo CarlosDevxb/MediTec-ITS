@@ -146,7 +146,7 @@ export default function MedicamentoForm({
   };
 
   return (
-    <div className="p-10 xl:p-12 max-w-5xl mx-auto font-sans">
+    <div className="entrada p-10 xl:p-12 max-w-5xl mx-auto font-sans">
       <PageHeader
         title={modo === 'alta' ? 'Nuevo medicamento' : 'Editar medicamento'}
         subtitle={

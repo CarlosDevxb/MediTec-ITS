@@ -52,7 +52,7 @@ export default function PlanForm({ modo, plan, onCancelar, onGuardar }: PlanForm
   };
 
   return (
-    <div className="p-10 xl:p-12 max-w-5xl mx-auto font-sans">
+    <div className="entrada p-10 xl:p-12 max-w-5xl mx-auto font-sans">
       <PageHeader
         title={modo === 'alta' ? 'Nuevo plan' : 'Editar plan'}
         subtitle={

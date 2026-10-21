@@ -37,14 +37,16 @@ en la interfaz.
    HTML crudo, y tokens `brand-*` antes que colores sueltos.
    Componentes disponibles: `Button`, `Card`, `DataTable<T>`, `Badge`, `Input` (+ `Field`,
    `Textarea`, `Select`, `PasswordInput`), `PageHeader`, `StatCard`, `EmptyState`,
-   `IconButton`, `Aviso`/`useAviso`, `Modal` y `EstadoVista`.
-5. **Accesibilidad obligatoria**: foco visible, estados con texto además de color,
+   `IconButton`, `Aviso`/`useAviso`, `Modal`, `ModalResultado` y `EstadoVista`.
+5. **Cumple `ESPECIFICACIONES.md`**: toda acción confirma su resultado (aviso o modal)
+   y ninguna vista aparece de golpe (animación `entrada` / `entrada-modal`).
+6. **Accesibilidad obligatoria**: foco visible, estados con texto además de color,
    `label` en todo campo.
-6. **Sin datos personales reales** en código, pruebas ni commits; sin credenciales
+7. **Sin datos personales reales** en código, pruebas ni commits; sin credenciales
    reales en el repositorio.
-7. **No rompas el login**: sus mensajes genéricos y el orden de validación son
+8. **No rompas el login**: sus mensajes genéricos y el orden de validación son
    deliberados (ver `seguridad-clinica`).
-8. Verifica tu trabajo: `cd backend && npm run typecheck` y compila la pantalla
+9. Verifica tu trabajo: `cd backend && npm run typecheck` y compila la pantalla
    afectada.
 
 ## Estado actual (referencia)
@@ -62,11 +64,31 @@ una cita**: al atender sin cita previa (doctor y enfermería) el alta crea antes
 la auto-cita `Atención directa` y enseguida la consulta, en una transacción con
 descuento de insumos.
 
-**Paneles por rol:** `/doctor` (Personal médico: resumen, nueva consulta,
-agenda y expedientes) y `/enfermeria` (Enfermería: resumen, altas de pacientes
-y agenda; Recepción entra aquí de forma provisional). Los componentes clínicos
+**Paneles por rol:** `/doctor` (Personal médico) y `/enfermeria` (Enfermería;
+Recepción entra aquí de forma provisional). Los componentes clínicos
 compartidos viven en `frontend/src/components/atencion/` y el cliente API en
 `src/services/atencion.service.ts`.
+
+Módulos del panel del doctor: **Inicio** (saludo por hora + nombre y
+especialidad), **Nueva consulta** (atención directa), **Historial de
+consultas**, **Pacientes** (expedientes) y **Configuración** (teléfono y
+contraseña propia; el correo no se cambia). La agenda de citas **no** forma
+parte de este panel: es trabajo de enfermería (`/api/citas`).
+
+Cuestionario de salud (`POST /api/pacientes/:id/cuestionario`): único por
+paciente, se llena al primer acceso del paciente a su portal o antes de su
+primera consulta cuando llega de manera directa (el flujo de atención lo exige
+antes de abrir el formulario de consulta). Las alergias y enfermedades que no
+existan en los catálogos se dan de alta al guardarlo y se vinculan al paciente
+como alertas (`components/atencion/CuestionarioSalud.tsx`, reutilizable por el
+futuro portal del paciente, que solo podrá llenar el suyo).
+
+Expediente en PDF (`frontend/src/services/expedientePdf.ts`): documento tipo
+expediente con encabezado MediTeC-ITS, identificación, alertas clínicas,
+antecedentes, cuestionario e historial de consultas completo; el pie lleva los
+logotipos de la empresa (`logo-cuchipu.png`) y del software
+(`logo-meditec.png`, ambos en `frontend/public/`). Se descarga desde
+Pacientes → Expediente.
 
 Importación / exportación en Excel (`frontend/src/services/excel.service.ts` +
 `ImportadorExcel.tsx`): plantilla descargable, avisos previos de captura,

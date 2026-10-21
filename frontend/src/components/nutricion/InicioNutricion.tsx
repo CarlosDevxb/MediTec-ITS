@@ -37,7 +37,7 @@ export default function InicioNutricion({ planes, onNavigate }: Props) {
   const destacados = vigentes.slice(0, 3);
 
   return (
-    <div className="p-10 xl:p-12 max-w-7xl mx-auto">
+    <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto">
       
       {/* Cabecera */}
       <PageHeader

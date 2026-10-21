@@ -1,10 +1,15 @@
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { LucideIcon } from 'lucide-react';
 import { X } from 'lucide-react';
 
 /* ============================================================
    MODAL · Diálogo de confirmación (accesible)
 
+   - Se renderiza en el `body` (portal): así el fondo siempre
+     cubre toda la página, sin importar los contenedores,
+     animaciones o transforms de los ancestros (que convertirían
+     al `position: fixed` en absoluto).
    - Cierra con la tecla Escape, con clic en el fondo o con el
      botón de cerrar de la cabecera
    - role="dialog" + aria-modal + título asociado
@@ -62,7 +67,10 @@ export default function Modal({
     return () => document.removeEventListener('keydown', alPresionar);
   }, [onCerrar]);
 
-  return (
+  // En el renderizado estático (prerender) aún no hay documento
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-gray-900/40"
       onClick={onCerrar}
@@ -74,7 +82,7 @@ export default function Modal({
         aria-label={titulo}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-xl focus-visible:outline-none"
+        className="entrada-modal w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-xl focus-visible:outline-none"
       >
         {/* Cabecera */}
         <div className="flex items-start justify-between gap-4 px-7 pt-7 pb-5">
@@ -112,6 +120,7 @@ export default function Modal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

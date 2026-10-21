@@ -1,11 +1,13 @@
 import type { Request, Response, NextFunction } from 'express';
-import { errorValidacion } from '../utils/erroresHttp';
+import { errorProhibido, errorValidacion } from '../utils/erroresHttp';
 import { textoObligatorio } from '../utils/parametros';
 import type {
   DatosCrearPaciente,
   DatosActualizarExpediente,
 } from '../validaciones/pacientes.validacion';
+import type { DatosCuestionario } from '../validaciones/cuestionario.validacion';
 import * as servicio from '../services/pacientes.service';
+import * as servicioCuestionario from '../services/cuestionarios.service';
 
 /**
  * Controlador de pacientes (expedientes clínicos).
@@ -31,13 +33,50 @@ export async function listarPacientes(_req: Request, res: Response, next: NextFu
   }
 }
 
+/**
+ * Un paciente solo puede consultar y llenar su propio expediente
+ * (el resto del personal clínico opera sobre cualquiera).
+ */
+async function asegurarPropioExpediente(req: Request, pacienteId: number): Promise<void> {
+  const solicitante = req.usuario;
+  if (!solicitante || solicitante.rol !== 'Paciente') return;
+  const propio = await servicio.buscarPacientePorUsuario(solicitante.id);
+  if (!propio || propio !== pacienteId) {
+    throw errorProhibido('Solo puedes consultar y llenar tu propio cuestionario de salud.');
+  }
+}
+
 /** GET /api/pacientes/:id · expediente con alergias, enfermedades y cuestionario */
 export async function obtenerPaciente(req: Request, res: Response, next: NextFunction) {
   try {
     const id = leerId(req.params.id);
+    await asegurarPropioExpediente(req, id);
     const expediente = await servicio.buscarPaciente(id);
     if (!expediente) throw servicio.errorPacienteNoEncontrado();
     res.json({ datos: expediente });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /api/pacientes/:id/cuestionario · cuestionario de salud inicial.
+ * Lo llena el personal clínico antes de una primera consulta o el propio
+ * paciente al entrar a su portal. Es único por expediente: si ya existe, se
+ * actualiza.
+ */
+export async function guardarCuestionario(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = leerId(req.params.id);
+    await asegurarPropioExpediente(req, id);
+    const expediente = await servicioCuestionario.guardarCuestionario(
+      id,
+      req.body as DatosCuestionario,
+    );
+    res.json({
+      mensaje: `Cuestionario de salud guardado para ${expediente.nombre}.`,
+      datos: expediente,
+    });
   } catch (error) {
     next(error);
   }

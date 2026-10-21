@@ -175,7 +175,7 @@ export default function Catalogos() {
   /* ---------- Estado inicial: cargando o con error ---------- */
   if (!catalogo) {
     return (
-      <div className="p-10 xl:p-12 max-w-6xl mx-auto font-sans">
+      <div className="entrada p-10 xl:p-12 max-w-6xl mx-auto font-sans">
         <PageHeader
           title="Catálogos"
           subtitle="Opciones que alimentan los formularios del sistema"
@@ -254,7 +254,7 @@ export default function Catalogos() {
   ];
 
   return (
-    <div className="p-10 xl:p-12 max-w-6xl mx-auto font-sans">
+    <div className="entrada p-10 xl:p-12 max-w-6xl mx-auto font-sans">
       <PageHeader
         title="Catálogos"
         subtitle="Opciones que alimentan los formularios del sistema"

@@ -53,27 +53,30 @@ export default function PanelEnfermeria() {
         };
       })()}
     >
-      {vista === 'Inicio' ? (
-        <ResumenEnfermeria
-          onNuevaCita={() => setVista('Agenda')}
-          onNuevoPaciente={() => setVista('Pacientes')}
-        />
-      ) : vista === 'Pacientes' ? (
-        <PacientesEnfermeria />
-      ) : vista === 'Agenda' ? (
-        <AgendaEnfermeria />
-      ) : (
-        <EmptyState
-          icon={FileText}
-          title={`Vista de ${vista}`}
-          description="Aún no hay nada que mostrar aquí."
-          action={
-            <Button variant="secondary" onClick={() => setVista('Inicio')}>
-              Volver al inicio
-            </Button>
-          }
-        />
-      )}
+      {/* Cada sección entra con animación (la key reinicia la animación al cambiar) */}
+      <div key={vista} className="entrada">
+        {vista === 'Inicio' ? (
+          <ResumenEnfermeria
+            onNuevaCita={() => setVista('Agenda')}
+            onNuevoPaciente={() => setVista('Pacientes')}
+          />
+        ) : vista === 'Pacientes' ? (
+          <PacientesEnfermeria />
+        ) : vista === 'Agenda' ? (
+          <AgendaEnfermeria />
+        ) : (
+          <EmptyState
+            icon={FileText}
+            title={`Vista de ${vista}`}
+            description="Aún no hay nada que mostrar aquí."
+            action={
+              <Button variant="secondary" onClick={() => setVista('Inicio')}>
+                Volver al inicio
+              </Button>
+            }
+          />
+        )}
+      </div>
     </AppShell>
   );
 }

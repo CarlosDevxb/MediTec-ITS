@@ -164,7 +164,7 @@ export default function Roles() {
   ];
 
   return (
-    <div className="p-10 xl:p-12 max-w-6xl mx-auto font-sans">
+    <div className="entrada p-10 xl:p-12 max-w-6xl mx-auto font-sans">
       <PageHeader
         title="Roles"
         subtitle="Permisos y perfiles de acceso del sistema"

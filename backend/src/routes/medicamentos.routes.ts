@@ -21,15 +21,21 @@ import * as controlador from '../controllers/medicamentos.controller';
  * deja con stock en 0 y entonces deja de estar disponible para las consultas
  * futuras (así se conserva el historial de `consulta_insumo`).
  *
- * El inventario es exclusivo del rol Administrador.
+ * La **lectura** también es del personal clínico: es la lista que se usa para
+ * elegir los insumos de una consulta. El alta y la edición siguen siendo
+ * exclusivas del Administrador.
  */
 const rutas = Router();
 
-rutas.use(verificarToken, requerirRol('Administrador'));
+rutas.use(verificarToken);
 
-rutas.get('/', controlador.listarMedicamentos);
-rutas.post('/', validar(esquemaCrearMedicamento), controlador.crearMedicamento);
-rutas.post('/importar', validar(esquemaImportarFilas), controlador.importarMedicamentos);
-rutas.put('/:id', validar(esquemaActualizarMedicamento), controlador.actualizarMedicamento);
+rutas.get(
+  '/',
+  requerirRol('Administrador', 'Personal médico', 'Enfermería'),
+  controlador.listarMedicamentos,
+);
+rutas.post('/', requerirRol('Administrador'), validar(esquemaCrearMedicamento), controlador.crearMedicamento);
+rutas.post('/importar', requerirRol('Administrador'), validar(esquemaImportarFilas), controlador.importarMedicamentos);
+rutas.put('/:id', requerirRol('Administrador'), validar(esquemaActualizarMedicamento), controlador.actualizarMedicamento);
 
 export default rutas;

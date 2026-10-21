@@ -81,7 +81,7 @@ export default function Configuracion({
   };
 
   return (
-    <div className="p-10 xl:p-12 max-w-5xl mx-auto font-sans">
+    <div className="entrada p-10 xl:p-12 max-w-5xl mx-auto font-sans">
       <PageHeader
         title="Configuración"
         subtitle="Actualiza tus datos de contacto y contraseña"

@@ -109,7 +109,7 @@ export default function Login() {
              <img 
                src="/logo-cuchipu.png" 
                alt="Cuchipu Cloud Logo" 
-               className="h-10 sm:h-12 xl:h-14 w-auto flex-shrink-0 px-4 transition-all opacity-90" 
+               className="h-10 sm:h-12 xl:h-14 w-auto shrink-0 px-4 transition-all opacity-90" 
              />
              
              <div className="grow border-t border-gray-300"></div>

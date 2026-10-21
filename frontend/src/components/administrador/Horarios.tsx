@@ -451,7 +451,7 @@ export default function Horarios() {
   ];
 
   return (
-    <div className="p-10 xl:p-12 max-w-7xl mx-auto font-sans">
+    <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
       <PageHeader
         title="Horarios"
         subtitle="Disponibilidad semanal del personal médico · lunes a viernes"

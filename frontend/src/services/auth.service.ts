@@ -1,9 +1,10 @@
 import { apiFetch } from './api';
 import { guardarSesion, type UsuarioSesion } from './sesion';
+import type { Usuario } from './administracion.service';
 
 /* ============================================================
-   SERVICIO DE AUTENTICACIÓN · login contra la API
-   (POST /api/auth/login)
+   SERVICIO DE AUTENTICACIÓN · login y perfil propio
+   (POST /api/auth/login · GET/PATCH /api/auth/perfil)
    ============================================================ */
 
 export interface RespuestaLogin {
@@ -28,4 +29,25 @@ export async function iniciarSesion(
 
   guardarSesion(datos.token, datos.usuario);
   return datos;
+}
+
+/** Datos completos de la cuenta en sesión (incluye especialidad del personal) */
+export function obtenerPerfil(): Promise<Usuario> {
+  return apiFetch<{ datos: Usuario }>('/auth/perfil').then((r) => r.datos);
+}
+
+/**
+ * Actualiza el propio perfil: teléfono y contraseña.
+ * El correo no se modifica desde aquí (es el identificador de la cuenta) y
+ * para cambiar la contraseña se exige la contraseña actual.
+ */
+export function actualizarPerfil(datos: {
+  telefono?: string;
+  contrasenaActual?: string;
+  contrasenaNueva?: string;
+}): Promise<Usuario> {
+  return apiFetch<{ datos: Usuario }>('/auth/perfil', {
+    method: 'PATCH',
+    body: JSON.stringify(datos),
+  }).then((r) => r.datos);
 }

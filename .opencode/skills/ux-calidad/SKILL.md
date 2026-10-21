@@ -13,6 +13,10 @@ debe **prevenir errores mientras el usuario escribe**, no únicamente rechazarlo
 al guardar. Una pantalla está terminada cuando cumple este estándar, no cuando
 "ya funciona".
 
+> El detalle completo de las reglas de interacción vive en
+> **`ESPECIFICACIONES.md`** (raíz del repositorio): confirmación de toda acción
+> y ausencia de transiciones bruscas. Ante conflicto, manda ese archivo.
+
 ## 1. Diseño de UI
 
 - **Design system primero**: componentes de `frontend/src/components/ui/`
@@ -111,7 +115,15 @@ const duplicado = existentes.some(
 - El estado de la tabla se actualiza en memoria con la respuesta de la API, sin
   recargar la vista entera.
 
-## 4. Accesibilidad inseparable de la calidad
+## 4. Sin transiciones bruscas
+
+Ninguna vista, formulario, paso de captura ni resultado aparece de golpe: todo
+usa la clase `entrada` (y `entrada-modal` los diálogos), definida en
+`frontend/src/styles/global.css` y desactivable con `prefers-reduced-motion`.
+Las secciones de los paneles se envuelven con `key={vista}` para reiniciar la
+animación en cada cambio.
+
+## 5. Accesibilidad inseparable de la calidad
 
 - `label` visible en todo campo (`Field`), `aria-invalid` cuando hay error y el
   error junto al campo, no solo en un resumen.

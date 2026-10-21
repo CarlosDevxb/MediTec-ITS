@@ -9,6 +9,9 @@ import { apiFetch } from './api';
 
 /* ---------------- Pacientes ---------------- */
 
+/** Tipos de sangre del expediente (tabla `pacientes`) */
+export const TIPOS_SANGRE = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'] as const;
+
 export interface PacienteResumen {
   id: number;
   nombre: string;
@@ -89,6 +92,49 @@ export function actualizarExpediente(
 ): Promise<ExpedientePaciente> {
   return apiFetch<{ datos: ExpedientePaciente }>(`/pacientes/${id}/expediente`, {
     method: 'PATCH',
+    body: JSON.stringify(datos),
+  }).then((r) => r.datos);
+}
+
+/* ---------------- Cuestionario de salud ---------------- */
+
+/** Datos del cuestionario de salud inicial (único por paciente) */
+export interface DatosCuestionario {
+  /**
+   * Tipo de sangre: dato del expediente que se captura en el cuestionario
+   * inicial (si se deja vacío, se conserva el que ya tenga el expediente)
+   */
+  tipoSangre?: string;
+  /** Obligatorios: medidas básicas y hábitos */
+  peso: number;
+  talla: number;
+  actividadFisica: 'Ninguna' | 'Leve' | 'Moderada' | 'Intensa';
+  tabaco: 'Nunca' | 'Ex-fumador' | 'Fumador';
+  alcohol: 'Nunca' | 'Ocasional' | 'Frecuente';
+  /* Historial y contexto (opcionales) */
+  medicamentosActuales?: string;
+  cirugiasPrevias?: string;
+  alergiaOtra?: string;
+  enfermedadOtra?: string;
+  horasSueno?: number;
+  sintomasActuales?: string;
+  comentarios?: string;
+  /** Nombres: los que no existan en el catálogo se dan de alta al guardar */
+  alergias?: string[];
+  enfermedades?: string[];
+}
+
+/**
+ * Guarda el cuestionario de salud del paciente (crea o actualiza) y
+ * sincroniza sus alergias y enfermedades crónicas. Devuelve el expediente
+ * actualizado, con las alertas ya reflejadas.
+ */
+export function guardarCuestionario(
+  pacienteId: number,
+  datos: DatosCuestionario,
+): Promise<ExpedientePaciente> {
+  return apiFetch<{ datos: ExpedientePaciente }>(`/pacientes/${pacienteId}/cuestionario`, {
+    method: 'POST',
     body: JSON.stringify(datos),
   }).then((r) => r.datos);
 }

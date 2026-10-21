@@ -1,16 +1,23 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Stethoscope, CalendarClock, Users, FileText } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Stethoscope,
+  ClipboardList,
+  Users,
+  Settings,
+  FileText,
+} from 'lucide-react';
 import type { SidebarSection } from '../layout/Sidebar';
 import AppShell from '../layout/AppShell';
 import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
 import { obtenerSesion, cerrarSesion, inicialesDe } from '../../services/sesion';
 import { useProtegerSesion } from '../../hooks/useProtegerSesion';
-import type { Cita } from '../../services/atencion.service';
 import ResumenDoctor from './ResumenDoctor';
 import Atencion from './Atencion';
-import Agenda from './Agenda';
+import HistorialConsultas from './HistorialConsultas';
 import PacientesDoctor from './PacientesDoctor';
+import Configuracion from './Configuracion';
 
 /* ================= MENÚ DEL DOCTOR ================= */
 const MENU_DOCTOR: SidebarSection[] = [
@@ -19,12 +26,16 @@ const MENU_DOCTOR: SidebarSection[] = [
     items: [
       { label: 'Inicio', icon: LayoutDashboard },
       { label: 'Nueva consulta', icon: Stethoscope },
-      { label: 'Agenda', icon: CalendarClock },
+      { label: 'Historial de consultas', icon: ClipboardList },
     ],
   },
   {
     grupo: 'Expedientes',
     items: [{ label: 'Pacientes', icon: Users }],
+  },
+  {
+    grupo: 'Sistema',
+    items: [{ label: 'Configuración', icon: Settings }],
   },
 ];
 
@@ -32,30 +43,22 @@ const MENU_DOCTOR: SidebarSection[] = [
    PANEL DEL DOCTOR · Shell con las secciones del personal médico
    Ruta: /doctor (rol Personal médico)
 
-   Su opción estrella es la Nueva consulta: al atender sin cita
-   previa, el sistema registra primero la auto-cita 'Atención
-   directa' y enseguida la consulta.
+   El doctor registra atenciones de llegada (estado "Atención
+   directa"), consulta el historial y los expedientes. La agenda
+   de citas es trabajo de enfermería, no de este panel.
    ============================================================ */
 export default function PanelDoctor() {
   // Sin sesión iniciada, regresa al login
   useProtegerSesion();
 
   const [vista, setVista] = useState('Inicio');
-  /** Cita agendada que se está atendiendo (vista Agenda → Nueva consulta) */
-  const [citaAAtender, setCitaAAtender] = useState<Cita | null>(null);
-
-  /** Cambia de vista y limpia la cita pendiente de atención */
-  const navegar = (destino: string) => {
-    setCitaAAtender(null);
-    setVista(destino);
-  };
 
   return (
     <AppShell
       sidebarId="menu-doctor"
       sections={MENU_DOCTOR}
       activo={vista}
-      onNavigate={navegar}
+      onNavigate={setVista}
       onCerrarSesion={cerrarSesion}
       perfil={(() => {
         const sesion = obtenerSesion();
@@ -67,35 +70,31 @@ export default function PanelDoctor() {
         };
       })()}
     >
-      {vista === 'Inicio' ? (
-        <ResumenDoctor onNuevaConsulta={() => navegar('Nueva consulta')} />
-      ) : vista === 'Nueva consulta' ? (
-        <Atencion
-          citaInicial={citaAAtender}
-          onVerAgenda={() => navegar('Agenda')}
-          onNuevaAtencion={() => setCitaAAtender(null)}
-        />
-      ) : vista === 'Agenda' ? (
-        <Agenda
-          onAtender={(cita) => {
-            setCitaAAtender(cita);
-            setVista('Nueva consulta');
-          }}
-        />
-      ) : vista === 'Pacientes' ? (
-        <PacientesDoctor />
-      ) : (
-        <EmptyState
-          icon={FileText}
-          title={`Vista de ${vista}`}
-          description="Aún no hay nada que mostrar aquí."
-          action={
-            <Button variant="secondary" onClick={() => navegar('Inicio')}>
-              Volver al inicio
-            </Button>
-          }
-        />
-      )}
+      {/* Cada sección entra con animación (la key reinicia la animación al cambiar) */}
+      <div key={vista} className="entrada">
+        {vista === 'Inicio' ? (
+          <ResumenDoctor onNuevaConsulta={() => setVista('Nueva consulta')} />
+        ) : vista === 'Nueva consulta' ? (
+          <Atencion />
+        ) : vista === 'Historial de consultas' ? (
+          <HistorialConsultas />
+        ) : vista === 'Pacientes' ? (
+          <PacientesDoctor />
+        ) : vista === 'Configuración' ? (
+          <Configuracion />
+        ) : (
+          <EmptyState
+            icon={FileText}
+            title={`Vista de ${vista}`}
+            description="Aún no hay nada que mostrar aquí."
+            action={
+              <Button variant="secondary" onClick={() => setVista('Inicio')}>
+                Volver al inicio
+              </Button>
+            }
+          />
+        )}
+      </div>
     </AppShell>
   );
 }

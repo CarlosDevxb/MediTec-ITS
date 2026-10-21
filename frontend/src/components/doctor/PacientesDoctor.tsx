@@ -1,15 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Search, ArrowLeft, FileText, Loader2, CircleAlert } from 'lucide-react';
+import { Search, ArrowLeft, FileText, Loader2, CircleAlert, Download } from 'lucide-react';
 import PageHeader from '../ui/PageHeader';
 import Button from '../ui/Button';
 import Card from '../ui/Card';
-import Badge from '../ui/Badge';
 import DataTable from '../ui/DataTable';
 import EstadoVista from '../ui/EstadoVista';
-import Modal from '../ui/Modal';
+import Aviso from '../ui/Aviso';
+import { useAviso } from '../ui/useAviso';
 import type { Column } from '../ui/DataTable';
 import { Input } from '../ui/Input';
 import { mensajeDeError } from '../../services/api';
+import { generarExpedientePDF } from '../../services/expedientePdf';
 import {
   listarPacientes,
   obtenerExpediente,
@@ -22,6 +23,7 @@ import {
   type ConsultaDetalle,
 } from '../../services/atencion.service';
 import FichaPaciente from '../atencion/FichaPaciente';
+import DetalleConsulta from '../atencion/DetalleConsulta';
 
 /* ============================================================
    PACIENTES (DOCTOR) · Buscador + expediente con historial de
@@ -45,6 +47,9 @@ export default function PacientesDoctor() {
   /** Consulta abierta en el modal de detalle */
   const [detalle, setDetalle] = useState<ConsultaDetalle | null>(null);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  /** Generación del expediente en PDF */
+  const [generandoPdf, setGenerandoPdf] = useState(false);
+  const { aviso, tipo, mostrar, cerrar } = useAviso();
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -86,6 +91,22 @@ export default function PacientesDoctor() {
       setError(mensajeDeError(e));
     } finally {
       setCargandoDetalle(false);
+    }
+  };
+
+  /* ---------- Expediente en PDF (formato tipo expediente) ---------- */
+  const descargarExpediente = async () => {
+    if (vista.modo !== 'expediente') return;
+    setGenerandoPdf(true);
+    try {
+      // El documento incluye el detalle completo de cada consulta
+      const detalles = await Promise.all(consultas.map((c) => obtenerConsulta(c.id)));
+      await generarExpedientePDF({ expediente: vista.expediente, consultas: detalles });
+      mostrar(`Expediente de ${vista.expediente.nombre} descargado.`);
+    } catch {
+      mostrar('No se pudo generar el expediente. Intenta de nuevo.', 'error');
+    } finally {
+      setGenerandoPdf(false);
     }
   };
 
@@ -148,16 +169,28 @@ export default function PacientesDoctor() {
     ];
 
     return (
-      <div className="p-10 xl:p-12 max-w-6xl mx-auto font-sans">
+      <div className="entrada p-10 xl:p-12 max-w-6xl mx-auto font-sans">
         <PageHeader
           title="Expediente clínico"
           subtitle={vista.expediente.nombre}
           meta={
-            <Button variant="secondary" icon={ArrowLeft} onClick={() => setVista({ modo: 'lista' })}>
-              Volver a pacientes
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                icon={Download}
+                loading={generandoPdf}
+                disabled={generandoPdf}
+                onClick={() => void descargarExpediente()}
+              >
+                Descargar expediente
+              </Button>
+              <Button variant="secondary" icon={ArrowLeft} onClick={() => setVista({ modo: 'lista' })}>
+                Volver a pacientes
+              </Button>
+            </div>
           }
         />
+
+        {aviso && <Aviso mensaje={aviso} tipo={tipo} onCerrar={cerrar} />}
 
         {error && (
           <p
@@ -188,88 +221,18 @@ export default function PacientesDoctor() {
         </div>
 
         {/* Detalle de una consulta */}
-        {(detalle || cargandoDetalle) && (
-          <Modal
-            titulo={detalle ? `Consulta del ${fechaCorta(detalle.cita.fecha)}` : 'Cargando consulta…'}
-            icono={FileText}
-            onCerrar={() => setDetalle(null)}
-            acciones={
-              <Button variant="secondary" onClick={() => setDetalle(null)}>
-                Cerrar
-              </Button>
-            }
-          >
-            {detalle ? (
-              <div className="space-y-3 text-sm">
-                <p className="flex items-center gap-2">
-                  <Badge status="scheduled">{detalle.cita.tipo}</Badge>
-                  <span className="text-gray-600">
-                    {detalle.cita.motivo} · atendió {detalle.personal.nombre}
-                  </span>
-                </p>
-                <div>
-                  <p className="font-semibold text-gray-700">Síntomas</p>
-                  <p className="text-gray-600">{detalle.sintomas}</p>
-                </div>
-                {detalle.exploracion && (
-                  <div>
-                    <p className="font-semibold text-gray-700">Exploración</p>
-                    <p className="text-gray-600">{detalle.exploracion}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="font-semibold text-gray-700">Diagnóstico</p>
-                  <p className="text-gray-600">{detalle.diagnostico}</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-700">Tratamiento</p>
-                  <p className="text-gray-600">{detalle.tratamiento}</p>
-                </div>
-                {detalle.signosVitales && (
-                  <div>
-                    <p className="font-semibold text-gray-700">Signos vitales</p>
-                    <p className="text-gray-600 tabular-nums">
-                      {[
-                        detalle.signosVitales.ta && `TA ${detalle.signosVitales.ta}`,
-                        detalle.signosVitales.fc && `FC ${detalle.signosVitales.fc} lpm`,
-                        detalle.signosVitales.fr && `FR ${detalle.signosVitales.fr} rpm`,
-                        detalle.signosVitales.temp && `Temp ${detalle.signosVitales.temp} °C`,
-                        detalle.signosVitales.peso && `Peso ${detalle.signosVitales.peso} kg`,
-                        detalle.signosVitales.talla && `Talla ${detalle.signosVitales.talla} m`,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </p>
-                  </div>
-                )}
-                {detalle.insumos.length > 0 && (
-                  <div>
-                    <p className="font-semibold text-gray-700">Insumos usados</p>
-                    <ul className="text-gray-600">
-                      {detalle.insumos.map((insumo) => (
-                        <li key={insumo.medicamentoId}>
-                          {insumo.nombre} · {insumo.cantidad} {insumo.abreviatura || insumo.unidad}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="flex items-center gap-2 text-gray-600">
-                <Loader2 size={18} className="animate-spin text-brand-600" aria-hidden="true" />
-                Cargando el detalle…
-              </p>
-            )}
-          </Modal>
-        )}
+        <DetalleConsulta
+          consulta={detalle}
+          cargando={cargandoDetalle}
+          onCerrar={() => setDetalle(null)}
+        />
       </div>
     );
   }
 
   /* ---------- Lista de pacientes ---------- */
   return (
-    <div className="p-10 xl:p-12 max-w-6xl mx-auto font-sans">
+    <div className="entrada p-10 xl:p-12 max-w-6xl mx-auto font-sans">
       <PageHeader title="Pacientes" subtitle="Consulta los expedientes de la clínica" />
 
       {error && (

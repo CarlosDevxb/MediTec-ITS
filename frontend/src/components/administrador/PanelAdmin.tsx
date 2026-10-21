@@ -63,7 +63,9 @@ export default function PanelAdmin() {
         };
       })()}
     >
-      {vista === 'Roles' ? (
+      {/* Cada sección entra con animación (la key reinicia la animación al cambiar) */}
+      <div key={vista} className="entrada">
+        {vista === 'Roles' ? (
           <Roles />
         ) : vista === 'Usuarios' ? (
           <Usuarios />
@@ -87,6 +89,7 @@ export default function PanelAdmin() {
             }
           />
         )}
+      </div>
     </AppShell>
   );
 }

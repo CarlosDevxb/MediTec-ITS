@@ -198,6 +198,19 @@ export async function asegurarPacienteExiste(pacienteId: number): Promise<void> 
   }
 }
 
+/**
+ * Expediente de una cuenta con rol Paciente (para que cada paciente solo
+ * opere sobre su propia información desde su portal).
+ */
+export async function buscarPacientePorUsuario(usuarioId: number): Promise<number | null> {
+  const [filas] = await pool.query(
+    'SELECT id_paciente FROM pacientes WHERE usuarios_id_usuarios = ? LIMIT 1',
+    [usuarioId],
+  );
+  const fila = (filas as Array<Record<string, unknown>>)[0];
+  return fila ? Number(fila['id_paciente']) : null;
+}
+
 /** Mensaje estándar cuando se pide un expediente inexistente */
 export function errorPacienteNoEncontrado(): Error {
   return errorNoEncontrado('El expediente del paciente no existe.');

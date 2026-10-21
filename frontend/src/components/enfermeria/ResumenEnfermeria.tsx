@@ -100,7 +100,7 @@ export default function ResumenEnfermeria({ onNuevaCita, onNuevoPaciente }: Resu
   ];
 
   return (
-    <div className="p-10 xl:p-12 max-w-7xl mx-auto font-sans">
+    <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
       <PageHeader
         title="Inicio"
         subtitle="Resumen de la jornada de enfermería"

@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Pencil, FileText, KeyRound, CircleAlert } from 'lucide-react';
+import { Plus, Search, Pencil, FileText, KeyRound, CircleAlert, ClipboardPlus } from 'lucide-react';
 import PageHeader from '../ui/PageHeader';
 import Button from '../ui/Button';
 import Aviso from '../ui/Aviso';
 import { useAviso } from '../ui/useAviso';
 import DataTable from '../ui/DataTable';
 import EstadoVista from '../ui/EstadoVista';
+import IconButton from '../ui/IconButton';
 import Modal from '../ui/Modal';
 import type { Column } from '../ui/DataTable';
 import { Input } from '../ui/Input';
@@ -25,17 +26,19 @@ import {
   type ValorCatalogo,
 } from '../../services/administracion.service';
 import PacienteForm from './PacienteForm';
+import CuestionarioSalud from '../atencion/CuestionarioSalud';
 
 /* ============================================================
-   PACIENTES (ENFERMERÍA) · Altas, actualización de expedientes y
-   consulta del listado. Sin diagnósticos ni tratamientos: esa es
-   la atención del doctor.
+   PACIENTES (ENFERMERÍA) · Altas, actualización de expedientes,
+   cuestionario de salud y consulta del listado. Sin diagnósticos
+   ni tratamientos: esa es la atención del doctor.
    ============================================================ */
 
 type Subvista =
   | { modo: 'lista' }
   | { modo: 'alta' }
-  | { modo: 'editar'; expediente: ExpedientePaciente };
+  | { modo: 'editar'; expediente: ExpedientePaciente }
+  | { modo: 'cuestionario'; expediente: ExpedientePaciente };
 
 export default function PacientesEnfermeria() {
   const [pacientes, setPacientes] = useState<PacienteResumen[]>([]);
@@ -73,14 +76,17 @@ export default function PacientesEnfermeria() {
     void cargar();
   }, [cargar]);
 
-  /* ---------- Edición de expediente (carga los datos completos) ---------- */
-  const editarExpediente = async (paciente: PacienteResumen) => {
+  /* ---------- Apertura del expediente (edición o cuestionario) ---------- */
+  const abrirExpediente = async (
+    paciente: PacienteResumen,
+    modo: 'editar' | 'cuestionario',
+  ) => {
     setGuardando(true);
     setError('');
     try {
       // Se carga el expediente completo: editarlo con datos parciales
       // perdería los antecedentes ya registrados
-      setSubvista({ modo: 'editar', expediente: await obtenerExpediente(paciente.id) });
+      setSubvista({ modo, expediente: await obtenerExpediente(paciente.id) });
     } catch (e) {
       setError(mensajeDeError(e));
     } finally {
@@ -126,6 +132,29 @@ export default function PacientesEnfermeria() {
       setGuardando(false);
     }
   };
+
+  /* ---------- Subpágina de cuestionario de salud ---------- */
+  if (subvista.modo === 'cuestionario') {
+    return (
+      <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
+        <PageHeader
+          title="Cuestionario de salud"
+          subtitle={`${subvista.expediente.nombre} · único por paciente`}
+        />
+        {aviso && <Aviso mensaje={aviso} tipo={tipo} onCerrar={cerrar} />}
+        <CuestionarioSalud
+          expediente={subvista.expediente}
+          contexto="directo"
+          onGuardado={(actualizado) => {
+            mostrar(`Cuestionario de salud de ${actualizado.nombre} guardado.`);
+            setSubvista({ modo: 'lista' });
+            void cargar();
+          }}
+          onCancelar={() => setSubvista({ modo: 'lista' })}
+        />
+      </div>
+    );
+  }
 
   /* ---------- Subpáginas (alta / edición) ---------- */
   if (subvista.modo !== 'lista') {
@@ -216,11 +245,16 @@ export default function PacientesEnfermeria() {
       className: 'w-40',
       render: (paciente) => (
         <div className="flex items-center justify-end gap-1">
+          <IconButton
+            icon={ClipboardPlus}
+            label={`Cuestionario de salud de ${paciente.nombre}`}
+            onClick={() => void abrirExpediente(paciente, 'cuestionario')}
+          />
           <Button
             size="sm"
             variant="secondary"
             icon={Pencil}
-            onClick={() => void editarExpediente(paciente)}
+            onClick={() => void abrirExpediente(paciente, 'editar')}
           >
             Expediente
           </Button>
@@ -230,7 +264,7 @@ export default function PacientesEnfermeria() {
   ];
 
   return (
-    <div className="p-10 xl:p-12 max-w-6xl mx-auto font-sans">
+    <div className="entrada p-10 xl:p-12 max-w-6xl mx-auto font-sans">
       <PageHeader
         title="Pacientes"
         subtitle="Altas y expedientes de la clínica"

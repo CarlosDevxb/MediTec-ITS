@@ -78,7 +78,7 @@ export default function NuevoPlan({ onAlta, onCancelar }: Props) {
   };
 
   return (
-    <div className="p-10 xl:p-12 max-w-5xl mx-auto font-sans">
+    <div className="entrada p-10 xl:p-12 max-w-5xl mx-auto font-sans">
       <PageHeader
         title="Nuevo plan alimenticio"
         subtitle="Define la dieta y el seguimiento del paciente"

@@ -56,7 +56,7 @@ export default function Sidebar({
   return (
     <aside
       id={id}
-      className={`relative ${colapsado ? 'w-24' : 'w-72'} bg-brand-950 text-white flex flex-col justify-between flex-shrink-0 transition-[width] duration-200 ease-in-out`}
+      className={`relative ${colapsado ? 'w-24' : 'w-72'} bg-brand-950 text-white flex flex-col justify-between shrink-0 transition-[width] duration-200 ease-in-out`}
     >
       {/* Botón de colapso flotante sobre el borde */}
       <button
