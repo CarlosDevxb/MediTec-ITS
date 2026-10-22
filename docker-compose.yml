@@ -1,4 +1,13 @@
-
+# ============================================================
+# MediTec-ITS · todo el proyecto con `docker compose up`
+#
+#   db       MySQL 8.0 con el esquema de database/init.sql
+#   backend  API de Express (TypeScript con tsx)
+#   frontend Web de Astro servida por nginx (proxea /api al backend)
+#
+# La web queda en http://localhost:8080 y la API en http://localhost:3000.
+# Requiere backend/.env (ver backend/.env.example).
+# ============================================================
 
 services:
   db:
@@ -17,6 +26,38 @@ services:
       - mysql_data:/var/lib/mysql
       # Ejecuta tu script automáticamente al crear el contenedor por primera vez
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpassword"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    container_name: meditec_api
+    restart: always
+    # La configuración sensible vive en backend/.env (nunca se versiona)
+    env_file: ./backend/.env
+    environment:
+      # Dentro de compose, la base de datos se alcanza por el nombre del servicio
+      DB_HOST: db
+      DB_PORT: "3306"
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    container_name: meditec_web
+    restart: always
+    ports:
+      # 4321: la URL habitual del login · 8080: alternativa
+      - "4321:80"
+      - "8080:80"
+    depends_on:
+      - backend
 
 volumes:
   mysql_data:

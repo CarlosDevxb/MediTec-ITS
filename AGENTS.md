@@ -7,10 +7,23 @@ monorepo ni workspaces**: cada uno se instala y ejecuta por separado.
 ## Arranque rápido
 
 ```bash
-docker compose up -d                 # MySQL 8.0 con esquema de database/init.sql
-cd backend && npm run crear:admin    # roles + primer administrador (idempotente)
-cd backend && npm run dev            # API en http://localhost:3000
-cd frontend && npm run dev           # Web en http://localhost:4321 (o astro dev --background)
+# Todo el proyecto (MySQL + API + Web) con un solo comando
+cp backend/.env.example backend/.env   # solo la primera vez
+docker compose up -d --build
+
+# Web en http://localhost:8080 · API en http://localhost:3000
+# MySQL en localhost:3307 (usuario meditec_user)
+
+cd backend && npm run crear:admin     # roles + primer administrador (idempotante)
+```
+
+Para desarrollo (sin Docker, servidores en caliente):
+
+```bash
+docker compose up -d                  # solo MySQL
+cd backend && npm run crear:admin    # roles + primer administrador (idempotante)
+cd backend && npm run dev             # API en http://localhost:3000
+cd frontend && npm run dev            # Web en http://localhost:4321 (o astro dev --background)
 ```
 
 ## Skills disponibles (cárgalos con el tool `skill`)
@@ -48,6 +61,15 @@ en la interfaz.
    deliberados (ver `seguridad-clinica`).
 9. Verifica tu trabajo: `cd backend && npm run typecheck` y compila la pantalla
    afectada.
+
+## Docker (todo el proyecto)
+
+`docker compose up -d --build` levanta los tres servicios: `db` (MySQL con el
+esquema de `database/init.sql`), `backend` (API en el puerto 3000) y
+`frontend` (Astro estático servido por nginx en el puerto 8080, que proxea
+`/api` al backend — el navegador siempre habla con un solo origen). Requiere
+`backend/.env` (plantilla en `backend/.env.example`). Los Dockerfiles viven en
+`backend/Dockerfile` y `frontend/Dockerfile` (con `frontend/nginx.conf`).
 
 ## Estado actual (referencia)
 
