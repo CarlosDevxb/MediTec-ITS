@@ -46,5 +46,12 @@ export const esquemaEstatusCita = z.object({
   estatus: z.enum(ESTATUS_CITA, { error: 'El estatus no es válido.' }),
 });
 
+/** Reagendar: cambia la fecha y la hora de una cita existente */
+export const esquemaReagendarCita = z.object({
+  fecha: fechaValida,
+  hora: horaValida,
+});
+
 export type DatosCrearCita = z.infer<typeof esquemaCrearCita>;
 export type DatosEstatusCita = z.infer<typeof esquemaEstatusCita>;
+export type DatosReagendarCita = z.infer<typeof esquemaReagendarCita>;

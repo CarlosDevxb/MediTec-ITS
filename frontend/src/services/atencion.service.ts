@@ -197,6 +197,28 @@ export function cambiarEstatusCita(
   }).then((r) => r.datos);
 }
 
+/** Reagenda una cita: cambia su fecha y su hora (con las reglas de la agenda) */
+export function reagendarCita(id: number, datos: { fecha: string; hora: string }): Promise<Cita> {
+  return apiFetch<{ datos: Cita }>(`/citas/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(datos),
+  }).then((r) => r.datos);
+}
+
+/**
+ * Horas ocupadas del personal en una fecha (sin datos de pacientes): la
+ * interfaz las descarta al ofrecer los horarios libres para agendar o
+ * reagendar.
+ */
+export function obtenerDisponibilidad(
+  personalMedicoId: number,
+  fecha: string,
+): Promise<{ fecha: string; personalMedicoId: number; horasOcupadas: string[] }> {
+  return apiFetch<{ datos: { fecha: string; personalMedicoId: number; horasOcupadas: string[] } }>(
+    `/citas/disponibilidad?personalMedicoId=${personalMedicoId}&fecha=${fecha}`,
+  ).then((r) => r.datos);
+}
+
 /* ---------------- Consultas ---------------- */
 
 export interface SignosVitales {

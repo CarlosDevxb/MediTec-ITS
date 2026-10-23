@@ -5,7 +5,7 @@ import { fechaISO, horaCorta, hoyISO } from '../utils/fechas';
 import { NOMBRES_DIA } from '../validaciones/horarios.validacion';
 import { asegurarPacienteExiste, buscarPacientePorUsuario } from './pacientes.service';
 import { asegurarPersonalActivo, buscarPersonal, buscarPersonalPorUsuario } from './personal.service';
-import type { DatosCrearCita, DatosEstatusCita } from '../validaciones/citas.validacion';
+import type { DatosCrearCita, DatosEstatusCita, DatosReagendarCita } from '../validaciones/citas.validacion';
 
 /**
  * Capa de datos de citas (tabla `cita`).
@@ -293,15 +293,19 @@ async function asegurarDisponibilidad(
   personalMedicoId: number,
   fecha: string,
   hora: string,
+  excluirId?: number,
 ): Promise<void> {
   const [filas] = await pool.query(
-    `SELECT hora FROM cita
+    `SELECT id_cita, hora FROM cita
       WHERE personal_medico_id_personal_medico = ? AND fecha = ? AND estatus <> 'Cancelada'`,
     [personalMedicoId, fecha],
   );
   const inicio = aMinutos(hora);
   const choque = (filas as Array<Record<string, unknown>>).find(
-    (fila) => Math.abs(aMinutos(horaCorta(fila['hora'])) - inicio) < SEPARACION_MINIMA,
+    (fila) =>
+      // Al reagendar, la propia cita no se considera ocupación
+      (!excluirId || Number(fila['id_cita']) !== excluirId) &&
+      Math.abs(aMinutos(horaCorta(fila['hora'])) - inicio) < SEPARACION_MINIMA,
   );
   if (choque) {
     const horaChoque = horaCorta(choque['hora']);
@@ -364,6 +368,79 @@ export async function cambiarEstatusCita(
   const actualizada = await buscarCita(id);
   if (!actualizada) throw errorNoEncontrado('La cita no existe.');
   return actualizada;
+}
+
+/**
+ * Reagenda una cita: cambia su fecha y su hora respetando las mismas reglas
+ * de la agenda (día con horario de atención, hora futura, sin empalmes y con
+ * 30 minutos de respiro). Solo las citas Pendientes o Confirmadas se pueden
+ * reagendar (las de atención directa no aplican).
+ *
+ * Quien reagenda sin ser el propio especialista deja la cita en **Pendiente**:
+ * el nuevo horario tiene que ser confirmado de nuevo.
+ */
+export async function reagendarCita(
+  id: number,
+  datos: DatosReagendarCita,
+  usuario: { id: number; rol: string },
+): Promise<Cita> {
+  await cancelarCitasVencidas();
+
+  const cita = await buscarCita(id);
+  if (!cita) throw errorNoEncontrado('La cita no existe.');
+  if (cita.tipo === 'Atención directa') {
+    throw errorConflicto('Las citas de atención directa no se pueden reagendar.');
+  }
+  if (cita.estatus !== 'Pendiente' && cita.estatus !== 'Confirmada') {
+    throw errorConflicto('Solo se pueden reagendar citas pendientes o confirmadas.');
+  }
+
+  // Puede reagendar: quien gestiona la agenda, el propio especialista
+  // (su cita) o el propio paciente (su cita)
+  const gestionaAgenda = usuario.rol === 'Administrador' || usuario.rol === 'Enfermería';
+  if (!gestionaAgenda) {
+    const esPropia =
+      usuario.rol === 'Paciente'
+        ? (await buscarPacientePorUsuario(usuario.id)) === cita.pacienteId
+        : (await buscarPersonalPorUsuario(usuario.id))?.id === cita.personalMedicoId;
+    if (!esPropia) throw errorProhibido('Solo puedes reagendar tus propias citas.');
+  }
+
+  await asegurarFechaFutura(datos.fecha, datos.hora);
+  await asegurarHorarioDisponible(cita.personalMedicoId, datos.fecha, datos.hora);
+  await asegurarDisponibilidad(cita.personalMedicoId, datos.fecha, datos.hora, id);
+  await asegurarCitaLibre(cita.pacienteId, datos.fecha, datos.hora, id);
+
+  const creador = await buscarPersonalPorUsuario(usuario.id);
+  const esDelEspecialista = creador?.id === cita.personalMedicoId;
+
+  await pool.query('UPDATE cita SET fecha = ?, hora = ?, estatus = ? WHERE id_cita = ?', [
+    datos.fecha,
+    datos.hora,
+    esDelEspecialista ? 'Confirmada' : 'Pendiente',
+    id,
+  ]);
+
+  const actualizada = await buscarCita(id);
+  if (!actualizada) throw errorNoEncontrado('La cita no existe.');
+  return actualizada;
+}
+
+/**
+ * Horas ocupadas del personal en una fecha (citas no canceladas), para que la
+ * interfaz ofrezca solo los horarios libres. No incluye datos de pacientes.
+ */
+export async function horasOcupadasDe(
+  personalMedicoId: number,
+  fecha: string,
+): Promise<string[]> {
+  await cancelarCitasVencidas();
+  const [filas] = await pool.query(
+    `SELECT hora FROM cita
+      WHERE personal_medico_id_personal_medico = ? AND fecha = ? AND estatus <> 'Cancelada'`,
+    [personalMedicoId, fecha],
+  );
+  return (filas as Array<Record<string, unknown>>).map((fila) => horaCorta(fila['hora']));
 }
 
 /**
@@ -437,6 +514,7 @@ async function asegurarCitaLibre(
   pacienteId: number,
   fecha: string,
   hora: string,
+  excluirId?: number,
 ): Promise<void> {
   const [filas] = await pool.query(
     `SELECT id_cita FROM cita
@@ -444,7 +522,8 @@ async function asegurarCitaLibre(
       LIMIT 1`,
     [pacienteId, fecha, hora],
   );
-  if ((filas as Array<Record<string, unknown>>)[0]) {
+  const encontrada = (filas as Array<Record<string, unknown>>)[0];
+  if (encontrada && (!excluirId || Number(encontrada['id_cita']) !== excluirId)) {
     throw errorConflicto(
       `Ese paciente ya tiene una cita el ${fecha} a las ${hora}. Revisa su agenda.`,
     );

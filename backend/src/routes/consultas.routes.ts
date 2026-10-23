@@ -15,14 +15,17 @@ import * as controlador from '../controllers/consultas.controller';
  * Regla central: toda consulta deriva de una cita. Si el paciente llega sin
  * cita (doctor y enfermería), el alta crea primero la auto-cita
  * 'Atención directa' y enseguida la consulta. El personal clínico registra
- * consultas; el **paciente solo consulta lo suyo** (expediente).
+ * consultas; el **paciente solo consulta lo suyo** (expediente) y el
+ * **Administrador las lee** para el reporte de actividad.
  */
 const rutas = Router();
 
 rutas.use(verificarToken);
 
-rutas.get('/', requerirRol('Personal médico', 'Enfermería', 'Paciente'), controlador.listarConsultas);
+const LECTURA_CONSULTAS = ['Administrador', 'Personal médico', 'Enfermería', 'Paciente'] as const;
+
+rutas.get('/', requerirRol(...LECTURA_CONSULTAS), controlador.listarConsultas);
 rutas.post('/', requerirRol('Personal médico', 'Enfermería'), validar(esquemaCrearConsulta), controlador.crearConsulta);
-rutas.get('/:id', requerirRol('Personal médico', 'Enfermería', 'Paciente'), controlador.obtenerConsulta);
+rutas.get('/:id', requerirRol(...LECTURA_CONSULTAS), controlador.obtenerConsulta);
 
 export default rutas;

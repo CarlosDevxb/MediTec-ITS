@@ -1,12 +1,12 @@
 # ============================================================
-# MediTec-ITS · todo el proyecto con `docker compose up`
+# MediTec-ITS · todo el proyecto con es ejecutable con docker compose up --build si es la primera vez, o docker compose up si ya se ha construido antes.
 #
 #   db       MySQL 8.0 con el esquema de database/init.sql
 #   backend  API de Express (TypeScript con tsx)
 #   frontend Web de Astro servida por nginx (proxea /api al backend)
 #
 # La web queda en http://localhost:8080 y la API en http://localhost:3000.
-# Requiere backend/.env (ver backend/.env.example).
+# Requiere backend/.env (ver backend/.env.example para referencia de variables).
 # ============================================================
 
 services:

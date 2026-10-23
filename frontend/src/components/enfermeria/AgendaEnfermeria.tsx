@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CalendarClock,
+  CalendarDays,
   Plus,
   CheckCircle2,
   XCircle,
@@ -15,6 +16,7 @@ import Badge from '../ui/Badge';
 import Aviso from '../ui/Aviso';
 import { useAviso } from '../ui/useAviso';
 import AgendaPorDia from '../atencion/AgendaPorDia';
+import ReagendarCita from '../atencion/ReagendarCita';
 import EstadoVista from '../ui/EstadoVista';
 import Modal from '../ui/Modal';
 import { Field, Input, Select } from '../ui/Input';
@@ -80,6 +82,8 @@ export default function AgendaEnfermeria() {
   const [errorGeneral, setErrorGeneral] = useState('');
   /** Cita pendiente de cancelar (espera confirmación en el modal) */
   const [pendiente, setPendiente] = useState<Cita | null>(null);
+  /** Cita elegida para reagendar (cambio de fecha y hora) */
+  const [citaAReagendar, setCitaAReagendar] = useState<Cita | null>(null);
   /** Disponibilidad del especialista (horarios registrados y citas ocupadas) */
   const [horariosPersonal, setHorariosPersonal] = useState<Horario[]>([]);
   const [citasDelDia, setCitasDelDia] = useState<Cita[]>([]);
@@ -287,6 +291,15 @@ export default function AgendaEnfermeria() {
             Confirmar
           </Button>
         )}
+        <Button
+          size="sm"
+          variant="secondary"
+          icon={CalendarDays}
+          disabled={!atendible}
+          onClick={() => setCitaAReagendar(cita)}
+        >
+          Reagendar
+        </Button>
         <Button
           size="sm"
           variant="secondary"
@@ -554,6 +567,19 @@ export default function AgendaEnfermeria() {
             La cita quedará registrada como cancelada y no se podrá atender.
           </p>
         </Modal>
+      )}
+
+      {/* Reagendar: cambio de fecha y hora con las reglas de la agenda */}
+      {citaAReagendar && (
+        <ReagendarCita
+          cita={citaAReagendar}
+          onCerrar={() => setCitaAReagendar(null)}
+          onGuardada={(cita) => {
+            setCitas((prev) => prev.map((c) => (c.id === cita.id ? cita : c)));
+            setCitaAReagendar(null);
+            mostrar(`Cita reagendada al ${fechaCorta(cita.fecha)} a las ${cita.hora}.`);
+          }}
+        />
       )}
     </div>
   );

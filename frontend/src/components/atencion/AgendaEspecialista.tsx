@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CalendarClock,
+  CalendarDays,
   Plus,
   CheckCircle2,
   XCircle,
@@ -16,6 +17,7 @@ import Badge from '../ui/Badge';
 import Aviso from '../ui/Aviso';
 import { useAviso } from '../ui/useAviso';
 import AgendaPorDia from './AgendaPorDia';
+import ReagendarCita from './ReagendarCita';
 import EstadoVista from '../ui/EstadoVista';
 import Modal from '../ui/Modal';
 import { Field, Input, Select } from '../ui/Input';
@@ -60,6 +62,8 @@ export default function AgendaEspecialista({ onAtender }: AgendaEspecialistaProp
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  /** Cita elegida para reagendar (cambio de fecha y hora) */
+  const [citaAReagendar, setCitaAReagendar] = useState<Cita | null>(null);
 
   /* Alta de cita */
   const [paciente, setPaciente] = useState<ExpedientePaciente | null>(null);
@@ -214,8 +218,8 @@ export default function AgendaEspecialista({ onAtender }: AgendaEspecialistaProp
 
   /**
    * Acciones de cada cita: **atender solo las del día de hoy** (las demás se
-   * atienden el día que fueron agendadas); confirmar y cancelar sí aplican a
-   * las citas por venir.
+   * atienden el día que fueron agendadas); reagendar, confirmar y cancelar
+   * sí aplican a las citas por venir.
    */
   const accionesDeCita = (cita: Cita, esHoy: boolean) => {
     const atendible = cita.estatus === 'Pendiente' || cita.estatus === 'Confirmada';
@@ -229,6 +233,15 @@ export default function AgendaEspecialista({ onAtender }: AgendaEspecialistaProp
           onClick={() => onAtender(cita)}
         >
           Atender
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          icon={CalendarDays}
+          disabled={!atendible}
+          onClick={() => setCitaAReagendar(cita)}
+        >
+          Reagendar
         </Button>
         {cita.estatus === 'Pendiente' && (
           <Button
@@ -461,6 +474,19 @@ export default function AgendaEspecialista({ onAtender }: AgendaEspecialistaProp
             La cita quedará registrada como cancelada y su horario volverá a estar disponible.
           </p>
         </Modal>
+      )}
+
+      {/* Reagendar: cambio de fecha y hora con las reglas de la agenda */}
+      {citaAReagendar && (
+        <ReagendarCita
+          cita={citaAReagendar}
+          onCerrar={() => setCitaAReagendar(null)}
+          onGuardada={(cita) => {
+            setCitas((prev) => prev.map((c) => (c.id === cita.id ? cita : c)));
+            setCitaAReagendar(null);
+            mostrar(`Cita reagendada al ${fechaCorta(cita.fecha)} a las ${cita.hora}.`);
+          }}
+        />
       )}
     </div>
   );

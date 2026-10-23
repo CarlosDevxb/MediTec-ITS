@@ -137,7 +137,12 @@ comparten con nutrición los módulos `atencion/AgendaEspecialista.tsx` y
 (`atencion/AgendaPorDia.tsx`), de hoy en adelante, con la sección de **citas
 anteriores** (completadas o canceladas) hasta el final. **Atender solo está
 disponible para las citas del día de hoy** (el backend lo exige al ligar la
-consulta a su cita); confirmar y cancelar aplican a las citas por venir.
+consulta a su cita); reagendar, confirmar y cancelar aplican a las citas por
+venir. **Reagendar** (`atencion/ReagendarCita.tsx`, `PUT /api/citas/:id`)
+cambia fecha y hora respetando las reglas de la agenda; quien no es el propio
+especialista deja la cita en **Pendiente** para que vuelva a confirmarse. La
+disponibilidad se consulta con `GET /api/citas/disponibilidad` (horas ocupadas
+del personal en una fecha, sin datos de pacientes).
 
 Portal del paciente (`/paciente`, rol Paciente): **Inicio** (saludo, próximas
 citas y accesos), **Mis citas** (agenda con Odontología y Nutrición respetando

@@ -1,7 +1,11 @@
 import type { Request, Response, NextFunction } from 'express';
 import { errorValidacion } from '../utils/erroresHttp';
 import { textoObligatorio, textoDe } from '../utils/parametros';
-import type { DatosCrearCita, DatosEstatusCita } from '../validaciones/citas.validacion';
+import type {
+  DatosCrearCita,
+  DatosEstatusCita,
+  DatosReagendarCita,
+} from '../validaciones/citas.validacion';
 import { buscarPacientePorUsuario } from '../services/pacientes.service';
 import * as servicio from '../services/citas.service';
 
@@ -51,6 +55,46 @@ export async function crearCita(req: Request, res: Response, next: NextFunction)
     if (!usuario) throw errorValidacion('No autenticado.');
     const cita = await servicio.crearCita(req.body as DatosCrearCita, usuario);
     res.status(201).json({ mensaje: `Cita creada para ${cita.paciente}.`, datos: cita });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** PUT /api/citas/:id · reagendar (cambia fecha y hora) */
+export async function reagendar(req: Request, res: Response, next: NextFunction) {
+  try {
+    const usuario = req.usuario;
+    if (!usuario) throw errorValidacion('No autenticado.');
+    const cita = await servicio.reagendarCita(
+      leerId(req.params.id),
+      req.body as DatosReagendarCita,
+      usuario,
+    );
+    res.json({
+      mensaje: `Cita reagendada al ${cita.fecha} a las ${cita.hora}.`,
+      datos: cita,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/citas/disponibilidad?personalMedicoId=N&fecha=AAAA-MM-DD
+ * Horas ocupadas del personal en esa fecha (sin datos de pacientes), para
+ * ofrecer en la interfaz solo los horarios libres al agendar o reagendar.
+ */
+export async function disponibilidad(req: Request, res: Response, next: NextFunction) {
+  try {
+    const personalMedicoId = Number(req.query['personalMedicoId'] ?? 0);
+    const fecha = textoDe(req.query['fecha'] as string | undefined);
+    if (!Number.isInteger(personalMedicoId) || personalMedicoId <= 0) {
+      throw errorValidacion('Indica al profesional de la salud.');
+    }
+    if (!fecha) throw errorValidacion('Indica la fecha.');
+
+    const horasOcupadas = await servicio.horasOcupadasDe(personalMedicoId, fecha);
+    res.json({ datos: { fecha, personalMedicoId, horasOcupadas } });
   } catch (error) {
     next(error);
   }

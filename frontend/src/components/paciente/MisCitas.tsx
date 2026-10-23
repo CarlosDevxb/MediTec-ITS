@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarClock, Plus, XCircle, CircleAlert, RefreshCw, Save } from 'lucide-react';
+import { CalendarClock, CalendarDays, Plus, XCircle, CircleAlert, RefreshCw, Save } from 'lucide-react';
 import PageHeader from '../ui/PageHeader';
 import Button from '../ui/Button';
 import Card from '../ui/Card';
@@ -14,6 +14,7 @@ import {
   listarCitas,
   crearCita,
   cambiarEstatusCita,
+  obtenerDisponibilidad,
   hoyISO,
   fechaCorta,
   diaDeSemana,
@@ -32,6 +33,7 @@ import {
   type Horario,
 } from '../../services/operacion.service';
 import AgendaPorDia from '../atencion/AgendaPorDia';
+import ReagendarCita from '../atencion/ReagendarCita';
 
 /* ============================================================
    MIS CITAS (PACIENTE) · El paciente agenda sus citas con el
@@ -74,6 +76,8 @@ export default function MisCitas({ expediente }: MisCitasProps) {
 
   /* Alta de cita */
   const [especialistaId, setEspecialistaId] = useState('');
+  /** Horas ocupadas del especialista en la fecha elegida (de todos sus pacientes) */
+  const [ocupadas, setOcupadas] = useState<string[]>([]);
   const [fechaCita, setFechaCita] = useState(hoyISO());
   const [hora, setHora] = useState('');
   const [motivo, setMotivo] = useState('');
@@ -83,6 +87,8 @@ export default function MisCitas({ expediente }: MisCitasProps) {
   const [errorGeneral, setErrorGeneral] = useState('');
   /** Cita propia pendiente de cancelar (confirmación) */
   const [pendiente, setPendiente] = useState<Cita | null>(null);
+  /** Cita propia elegida para reagendar (cambio de fecha y hora) */
+  const [citaAReagendar, setCitaAReagendar] = useState<Cita | null>(null);
 
   const { aviso, tipo: tipoAviso, mostrar, cerrar } = useAviso();
 
@@ -127,18 +133,35 @@ export default function MisCitas({ expediente }: MisCitasProps) {
     };
   }, [especialistaId]);
 
-  const citasDelDia = useMemo(
-    () =>
-      citas.filter(
-        (cita) => cita.fecha === fechaCita && cita.estatus !== 'Cancelada' && cita.personalMedicoId === Number(especialistaId),
-      ),
-    [citas, fechaCita, especialistaId],
-  );
+  /* Horas ocupadas del especialista (el endpoint no revela datos de pacientes) */
+  useEffect(() => {
+    if (!especialistaId || !fechaCita) {
+      setOcupadas([]);
+      return;
+    }
+    let vigente = true;
+    obtenerDisponibilidad(Number(especialistaId), fechaCita)
+      .then((datos) => {
+        if (vigente) setOcupadas(datos.horasOcupadas);
+      })
+      .catch(() => {
+        if (vigente) setOcupadas([]);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [especialistaId, fechaCita]);
+
   const rangos = useMemo(() => rangosDeDia(horarios, fechaCita), [horarios, fechaCita]);
   // Cada cita dura 30 minutos con 30 de respiro: horas cada 60 min
   const horasDisponibles = useMemo(
-    () => horasDisponiblesPara(rangos, citasDelDia, fechaCita),
-    [rangos, citasDelDia, fechaCita],
+    () =>
+      horasDisponiblesPara(
+        rangos,
+        ocupadas.map((ocupada) => ({ hora: ocupada, estatus: 'Pendiente' })),
+        fechaCita,
+      ),
+    [rangos, ocupadas, fechaCita],
   );
   /** Solo se puede elegir fecha en los días con horario del especialista */
   const fechasDisponibles = useMemo(
@@ -250,16 +273,28 @@ export default function MisCitas({ expediente }: MisCitasProps) {
   const accionesDeCita = (cita: Cita) => {
     const cancelable = cita.estatus === 'Pendiente' || cita.estatus === 'Confirmada';
     return (
-      <Button
-        size="sm"
-        variant="secondary"
-        icon={XCircle}
-        disabled={!cancelable}
-        title={cancelable ? undefined : 'Solo puedes cancelar citas pendientes o confirmadas'}
-        onClick={() => setPendiente(cita)}
-      >
-        Cancelar
-      </Button>
+      <>
+        <Button
+          size="sm"
+          variant="secondary"
+          icon={CalendarDays}
+          disabled={!cancelable}
+          title={cancelable ? undefined : 'Solo puedes reagendar citas pendientes o confirmadas'}
+          onClick={() => setCitaAReagendar(cita)}
+        >
+          Reagendar
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          icon={XCircle}
+          disabled={!cancelable}
+          title={cancelable ? undefined : 'Solo puedes cancelar citas pendientes o confirmadas'}
+          onClick={() => setPendiente(cita)}
+        >
+          Cancelar
+        </Button>
+      </>
     );
   };
 
@@ -487,6 +522,21 @@ export default function MisCitas({ expediente }: MisCitasProps) {
             El horario quedará libre y podrás agendar otra cita cuando quieras.
           </p>
         </Modal>
+      )}
+
+      {/* Reagendar: cambio de fecha y hora con las reglas de la agenda */}
+      {citaAReagendar && (
+        <ReagendarCita
+          cita={citaAReagendar}
+          onCerrar={() => setCitaAReagendar(null)}
+          onGuardada={(cita) => {
+            setCitas((prev) => prev.map((c) => (c.id === cita.id ? cita : c)));
+            setCitaAReagendar(null);
+            mostrar(
+              `Tu cita se reagendó al ${fechaCorta(cita.fecha)} a las ${cita.hora}. Queda pendiente de confirmación.`,
+            );
+          }}
+        />
       )}
     </div>
   );
