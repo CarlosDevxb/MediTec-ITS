@@ -4,6 +4,13 @@ Sistema de gestión clínica y de enfermería (odontología, nutrición, adminis
 y portal del paciente). Repositorio con tres proyectos independientes, **sin
 monorepo ni workspaces**: cada uno se instala y ejecuta por separado.
 
+## Handoff
+
+**`handoff.md`** (raíz del repositorio) es el documento de contexto completo
+del proyecto: objetivo, qué quedó hecho, qué falta, decisiones tomadas y
+archivos importantes. Léelo primero si retomas el desarrollo después de un
+tiempo.
+
 ## Arranque rápido
 
 ```bash
