@@ -16,7 +16,7 @@ Odontología · Nutrición · Administración · Portal del paciente
 
 
 
-MediTec-ITS digitaliza la operación de una clínica institucional: expedientes
+MediTec-ITS digitaliza la -operación de una clínica institucional: expedientes
 clínicos, consultas, citas, planes alimenticios, horarios del personal,
 inventario de medicamentos y reportes. Cada tipo de usuario tiene un panel
 propio diseñado para su trabajo diario, incluyendo un portal donde los
