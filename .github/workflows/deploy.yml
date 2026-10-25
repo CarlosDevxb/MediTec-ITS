@@ -1,0 +1,29 @@
+name: Deploy MediTec-ITS
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  despliegue-docker:
+    runs-on: self-hosted
+
+    steps:
+    - name: Descargar el código
+      uses: actions/checkout@v4
+
+    - name: Sincronizar código a producción
+      run: |
+        # rsync sincroniza el repositorio excluyendo el archivo .env de producción
+        rsync -av --delete --exclude='backend/.env' --exclude='.git/' ./ /home/carloslnx/meditec-prod/
+
+    - name: Reconstruir y levantar contenedores
+      working-directory: /home/carloslnx/meditec-prod
+      run: |
+        docker compose down
+        docker compose up -d --build
+        
+    - name: Limpieza de sistema
+      run: |
+        # Elimina imágenes viejas para no saturar el disco de tu servidor
+        docker image prune -f
