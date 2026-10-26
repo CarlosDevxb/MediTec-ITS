@@ -67,7 +67,7 @@ export default function Login() {
               
               <div>
                 <label className="block text-gray-700 text-sm sm:text-base xl:text-lg mb-2 font-medium">
-                  Numero de trabajador segun el anchura
+                  Numero de trabajador one poin extra
                 </label>
                 <input 
                   type="text" 
