@@ -39,6 +39,13 @@ bun.lockb
 
 AGENTS.md
 # =========================
+# Utilidades locales (nunca se versionan)
+# =========================
+# Scripts de operación locales; las herramientas de producción viven fuera
+# del repositorio.
+util/
+
+# =========================
 # Archivos del sistema y editores
 # =========================
 .DS_Store

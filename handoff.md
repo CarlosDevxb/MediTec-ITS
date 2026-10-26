@@ -1,9 +1,10 @@
 # Handoff · MediTec-ITS
 
 Documento de contexto del proyecto para quien continúe el desarrollo (persona o
-asistente). Fecha de corte: **octubre 2026**. Complementa a `AGENTS.md`
-(reglas de trabajo), `ESPECIFICACIONES.md` (reglas de interacción) y las
-skills de `.opencode/skills/`.
+asistente). Fecha de corte: **octubre 2026** (fase de correcciones cerrada y
+commiteada; la aplicación corre en servidor con despliegues automáticos).
+Complementa a `AGENTS.md` (reglas de trabajo), `ESPECIFICACIONES.md` (reglas de
+interacción) y las skills de `.opencode/skills/`.
 
 ---
 
@@ -105,10 +106,26 @@ transiciones suaves (`entrada`/`entrada-modal`, sin cambios bruscos), modales a
 pantalla completa (portal al body) y accesibilidad (estados con texto, labels,
 foco).
 
-### Infraestructura
+### Infraestructura y despliegue
 `docker compose up -d --build` → `db` (MySQL + healthcheck), `backend`
 (node:22-slim + tsx, puerto 3000), `frontend` (Astro estático + nginx con proxy
 `/api`, puertos **4321** y 8080). Volumen `mysql_data` persistente.
+
+La aplicación está **desplegada en un servidor con despliegues automáticos**
+desde el repositorio: los cambios llegan al servidor al hacer commit + push. En
+el servidor la BD se crea con `database/init.sql` (script portable: identificadores
+ASCII como `contrasena`, sin directivas `VISIBLE` y con `SET NAMES utf8mb4`),
+por lo que puede recrearse sin más que dejar correr el script.
+
+### Correcciones de la fase de prueba manual (cerrada)
+- **Reportes del admin**: el acceso a `GET /api/consultas` (base del reporte de
+  Actividad de la enfermería) acepta también al rol Administrador.
+- **Reagendar citas** en las 3 agendas (enfermería, nutrición, odontología) y
+  del paciente: `PUT /api/citas/:id` + `GET /api/citas/disponibilidad` (horas
+  ocupadas del personal en una fecha, sin datos de pacientes) — corrige el bug
+  latente de mostrar horas ocupadas por citas de otros pacientes.
+- **Portabilidad de la BD**: columna `contrasena` (ASCII), sin `VISIBLE` y con
+  charset explícito (ver decisión "BD portable").
 
 ---
 
@@ -127,17 +144,19 @@ foco).
 - **Pruebas automatizadas** (hoy la verificación es manual + typecheck + build).
 - **Migraciones de esquema**: los cambios se aplican con `ALTER` documentados y
   `init.sql` actualizado; para producción conviene un sistema de migraciones.
-- **Despliegue real**: HTTPS, secretos de producción, backups de `mysql_data`,
-  aviso de privacidad y captura de consentimientos (checklist LFPDPPP en la
-  skill `seguridad-clinica`).
+- **Endurecimiento del despliegue**: el servidor ya corre la app (despliegues
+  automáticos), pero faltan HTTPS, secretos de producción, backups de
+  `mysql_data`, aviso de privacidad y captura de consentimientos (checklist
+  LFPDPPP en la skill `seguridad-clinica`).
 - **Notificaciones** (recordatorios de cita por correo/SMS) y **recuperación de
   contraseña** por el propio usuario.
 - El JWT caduca a las 8h y no hay refresh; las contraseñas se restablecen desde
   el admin (por diseño actual).
 
-**En curso:** fase de **correcciones de errores** por prueba manual del
-usuario (se van reportando y resolviendo; los fixes de esta fase aún no están
-commiteados).
+**Estado actual:** la fase de **correcciones de errores** por prueba manual ya
+está cerrada y commiteada (reagendar citas, reportes del admin, portabilidad de
+la BD). Las pruebas manuales continúan: cada detalle nuevo reportado se
+corrige, se verifica (typecheck + build) y se commitea.
 
 ---
 
