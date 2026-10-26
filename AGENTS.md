@@ -68,6 +68,10 @@ en la interfaz.
    deliberados (ver `seguridad-clinica`).
 9. Verifica tu trabajo: `cd backend && npm run typecheck` y compila la pantalla
    afectada.
+10. **La BD debe ser portable**: identificadores en **ASCII** (sin ñ ni acentos
+    en nombres de columnas) y sin directivas `VISIBLE` en `init.sql`; el script
+    debe correr también en MariaDB o MySQL ligeros. Los valores (ENUM, textos)
+    sí van en español y con acentos.
 
 ## Docker (todo el proyecto)
 

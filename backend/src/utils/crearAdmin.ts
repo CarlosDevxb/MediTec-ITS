@@ -104,7 +104,7 @@ async function main() {
     if (existente) {
       await pool.query(
         `UPDATE usuarios
-            SET roles_id_rol = ?, nombre = ?, correo = ?, contraseña = ?,
+            SET roles_id_rol = ?, nombre = ?, correo = ?, contrasena = ?,
                 fecha_nacimiento = ?, genero = ?, estatus = 1
           WHERE id_usuarios = ?`,
         [idRolAdmin, nombre, correo, hash, fechaNacimiento, genero, existente.id_usuarios]
@@ -113,7 +113,7 @@ async function main() {
     } else {
       await pool.query(
         `INSERT INTO usuarios
-           (roles_id_rol, numero_control, nombre, correo, contraseña, fecha_nacimiento, genero, estatus)
+           (roles_id_rol, numero_control, nombre, correo, contrasena, fecha_nacimiento, genero, estatus)
          VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
         [idRolAdmin, numeroControl, nombre, correo, hash, fechaNacimiento, genero]
       );

@@ -44,7 +44,7 @@ export async function buscarUsuarioPorControl(numeroControl: string): Promise<Us
     numeroControl: String(registro.numero_control),
     nombre: String(registro.nombre),
     correo: String(registro.correo),
-    contrasenaHash: String(registro.contraseña),
+    contrasenaHash: String(registro.contrasena),
     estatus: Number(registro.estatus),
     rol: String(registro.rol),
     especialidad:
@@ -66,7 +66,7 @@ export async function actualizarPerfil(
   // Verificación de la contraseña actual antes de cualquier cambio
   if (datos.contrasenaNueva) {
     const [filas] = await pool.query(
-      'SELECT contraseña FROM usuarios WHERE id_usuarios = ? LIMIT 1',
+      'SELECT contrasena FROM usuarios WHERE id_usuarios = ? LIMIT 1',
       [usuarioId],
     );
     const registro = (filas as Array<Record<string, unknown>>)[0];
@@ -74,7 +74,7 @@ export async function actualizarPerfil(
 
     const coincide = await compararContrasena(
       datos.contrasenaActual ?? '',
-      String(registro['contraseña']),
+      String(registro['contrasena']),
     );
     if (!coincide) {
       throw errorValidacion('La contraseña actual no es correcta.', [
@@ -91,7 +91,7 @@ export async function actualizarPerfil(
     parametros.push(datos.telefono.trim() || null);
   }
   if (datos.contrasenaNueva) {
-    campos.push('contraseña = ?');
+    campos.push('contrasena = ?');
     parametros.push(await hashearContrasena(datos.contrasenaNueva));
   }
 

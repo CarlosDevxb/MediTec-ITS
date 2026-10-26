@@ -11,8 +11,9 @@ const pool = mysql.createPool({
   user: ENV.db.usuario,
   password: ENV.db.password,
   database: ENV.db.nombre,
-  // Codificación explícita: sin esto, identificadores como
-  // `contraseña` o datos con acentos se corrompen en la conexión
+  // Codificación explícita: sin esto, los valores con acentos o ñ
+  // (ENUM, textos) se corrompen en la conexión. Los identificadores
+  // de la BD van en ASCII (p. ej. `contrasena`) por compatibilidad.
   charset: 'utf8mb4',
   waitForConnections: true,
   connectionLimit: 10,

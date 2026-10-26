@@ -7,7 +7,7 @@ import { errorConflicto, errorNoEncontrado, errorValidacion } from '../utils/err
  * Capa de datos de usuarios (tablas `usuarios`, `personal_medico`, `pacientes`).
  *
  * Reglas de seguridad que se cumplen aquí:
- *   · Ninguna consulta devuelve la columna `contraseña` (solo el login la lee).
+ *   · Ninguna consulta devuelve la columna `contrasena` (solo el login la lee).
  *   · Todos los valores viajan como parámetros `?`, nunca interpolados.
  *   · Alta y edición usan transacción para que `usuarios` y sus tablas hijas
  *     (`personal_medico`, `pacientes`) nunca queden en estados inconsistentes.
@@ -56,7 +56,7 @@ export interface DatosUsuario {
   carreraId?: number;
 }
 
-/** Proyección de columnas (sin `contraseña`) compartida por las consultas */
+/** Proyección de columnas (sin `contrasena`) compartida por las consultas */
 const COLUMNAS_USUARIO = `
   u.id_usuarios AS id,
   u.roles_id_rol AS rolId,
@@ -288,7 +288,7 @@ export async function crearUsuario(
     const hash = await hashearContrasena(contrasena);
     const [resultado] = await conexion.query(
       `INSERT INTO usuarios
-         (roles_id_rol, numero_control, nombre, correo, telefono, contraseña,
+         (roles_id_rol, numero_control, nombre, correo, telefono, contrasena,
           fecha_nacimiento, genero, estatus)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -458,7 +458,7 @@ export async function restablecerContrasena(
   const contrasenaPropia = contrasena?.trim();
   const nueva = contrasenaPropia || generarContrasenaTemporal();
   const hash = await hashearContrasena(nueva);
-  await pool.query('UPDATE usuarios SET contraseña = ? WHERE id_usuarios = ?', [hash, id]);
+  await pool.query('UPDATE usuarios SET contrasena = ? WHERE id_usuarios = ?', [hash, id]);
 
   return {
     nombre: actual.nombre,

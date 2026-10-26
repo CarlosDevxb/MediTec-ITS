@@ -27,14 +27,14 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`cat_alergias` (
   `id_alergia` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `nombre` VARCHAR(100) NOT NULL,
   PRIMARY KEY (`id_alergia`),
-  UNIQUE INDEX `nombre_UNIQUE` (`nombre` ASC) VISIBLE)
+  UNIQUE INDEX `nombre_UNIQUE` (`nombre` ASC))
 ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `meditec_its`.`cat_enfermedades` (
   `id_enfermedad` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `nombre` VARCHAR(100) NOT NULL,
   PRIMARY KEY (`id_enfermedad`),
-  UNIQUE INDEX `nombre_UNIQUE` (`nombre` ASC) VISIBLE)
+  UNIQUE INDEX `nombre_UNIQUE` (`nombre` ASC))
 ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `meditec_its`.`cat_unidades_medida` (
@@ -48,14 +48,14 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`cat_tipo_paciente` (
   `id_tipo` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `nombre` VARCHAR(50) NOT NULL COMMENT 'Ej: Alumno, Docente, Administrativo, Enfermería',
   PRIMARY KEY (`id_tipo`),
-  UNIQUE INDEX `nombre_UNIQUE` (`nombre` ASC) VISIBLE)
+  UNIQUE INDEX `nombre_UNIQUE` (`nombre` ASC))
 ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `meditec_its`.`cat_carreras` (
   `id_carrera` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `nombre` VARCHAR(100) NOT NULL COMMENT 'Ej: Ing. en Sistemas, Ing. Industrial, Lic. en Administración',
   PRIMARY KEY (`id_carrera`),
-  UNIQUE INDEX `nombre_UNIQUE` (`nombre` ASC) VISIBLE)
+  UNIQUE INDEX `nombre_UNIQUE` (`nombre` ASC))
 ENGINE = InnoDB;
 
 -- -----------------------------------------------------
@@ -69,14 +69,14 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`usuarios` (
   `nombre` VARCHAR(100) NOT NULL,
   `correo` VARCHAR(150) NOT NULL,
   `telefono` VARCHAR(20) NULL DEFAULT NULL,
-  `contraseña` VARCHAR(255) NOT NULL,
+  `contrasena` VARCHAR(255) NOT NULL,
   `fecha_nacimiento` DATE NOT NULL,
   `genero` ENUM('Masculino', 'Femenino', 'Otro') NOT NULL,
   `estatus` TINYINT(1) NOT NULL DEFAULT '1',
   PRIMARY KEY (`id_usuarios`),
-  UNIQUE INDEX `numero_control` (`numero_control` ASC) VISIBLE,
-  UNIQUE INDEX `correo` (`correo` ASC) VISIBLE,
-  INDEX `roles_id_rol` (`roles_id_rol` ASC) VISIBLE,
+  UNIQUE INDEX `numero_control` (`numero_control` ASC),
+  UNIQUE INDEX `correo` (`correo` ASC),
+  INDEX `roles_id_rol` (`roles_id_rol` ASC),
   CONSTRAINT `usuarios_ibfk_1`
     FOREIGN KEY (`roles_id_rol`) REFERENCES `meditec_its`.`roles` (`id_rol`)
     ON DELETE RESTRICT ON UPDATE CASCADE)
@@ -88,8 +88,8 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`personal_medico` (
   `cedula` VARCHAR(50) NOT NULL,
   `especialidad` VARCHAR(100) NOT NULL,
   PRIMARY KEY (`id_personal_medico`),
-  UNIQUE INDEX `usuarios_id_usuarios` (`usuarios_id_usuarios` ASC) VISIBLE,
-  UNIQUE INDEX `cedula` (`cedula` ASC) VISIBLE,
+  UNIQUE INDEX `usuarios_id_usuarios` (`usuarios_id_usuarios` ASC),
+  UNIQUE INDEX `cedula` (`cedula` ASC),
   CONSTRAINT `personal_medico_ibfk_1`
     FOREIGN KEY (`usuarios_id_usuarios`) REFERENCES `meditec_its`.`usuarios` (`id_usuarios`)
     ON DELETE CASCADE ON UPDATE CASCADE)
@@ -108,9 +108,9 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`pacientes` (
   `apertura_expediente` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
   `antecedentes` TEXT NULL DEFAULT NULL,
   PRIMARY KEY (`id_paciente`),
-  UNIQUE INDEX `usuarios_id_usuarios` (`usuarios_id_usuarios` ASC) VISIBLE,
-  INDEX `fk_tipo_paciente_idx` (`cat_tipo_paciente_id_tipo` ASC) VISIBLE,
-  INDEX `fk_carrera_paciente_idx` (`cat_carreras_id_carrera` ASC) VISIBLE,
+  UNIQUE INDEX `usuarios_id_usuarios` (`usuarios_id_usuarios` ASC),
+  INDEX `fk_tipo_paciente_idx` (`cat_tipo_paciente_id_tipo` ASC),
+  INDEX `fk_carrera_paciente_idx` (`cat_carreras_id_carrera` ASC),
   CONSTRAINT `pacientes_ibfk_1`
     FOREIGN KEY (`usuarios_id_usuarios`) REFERENCES `meditec_its`.`usuarios` (`id_usuarios`)
     ON DELETE CASCADE ON UPDATE CASCADE,
@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`cuestionario_salud` (
   `fecha_llenado` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
   `estatus` ENUM('Borrador', 'Completado') NOT NULL DEFAULT 'Borrador',
   PRIMARY KEY (`id_cuestionario`),
-  UNIQUE INDEX `pacientes_id_paciente_UNIQUE` (`pacientes_id_paciente` ASC) VISIBLE,
+  UNIQUE INDEX `pacientes_id_paciente_UNIQUE` (`pacientes_id_paciente` ASC),
   CONSTRAINT `cuestionario_salud_ibfk_1`
     FOREIGN KEY (`pacientes_id_paciente`) REFERENCES `meditec_its`.`pacientes` (`id_paciente`)
     ON DELETE CASCADE ON UPDATE CASCADE)
@@ -184,8 +184,8 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`cita` (
   `tipo_cita` ENUM('Programada', 'Emergencia', 'Atención directa') NOT NULL DEFAULT 'Programada' COMMENT 'Atención directa = cita creada automáticamente al atender sin cita previa (doctor y enfermería)',
   `estatus` ENUM('Pendiente', 'Confirmada', 'Cancelada', 'Completada') NULL DEFAULT 'Pendiente',
   PRIMARY KEY (`id_cita`),
-  INDEX `personal_medico_id_personal_medico` (`personal_medico_id_personal_medico` ASC) VISIBLE,
-  INDEX `pacientes_id_paciente` (`pacientes_id_paciente` ASC) VISIBLE,
+  INDEX `personal_medico_id_personal_medico` (`personal_medico_id_personal_medico` ASC),
+  INDEX `pacientes_id_paciente` (`pacientes_id_paciente` ASC),
   CONSTRAINT `cita_ibfk_1`
     FOREIGN KEY (`personal_medico_id_personal_medico`) REFERENCES `meditec_its`.`personal_medico` (`id_personal_medico`)
     ON DELETE RESTRICT ON UPDATE CASCADE,
@@ -205,7 +205,7 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`consulta` (
   `tratamiento` TEXT NULL DEFAULT NULL COMMENT 'Solo consultas médicas',
   `intervencion_enfermeria` TEXT NULL DEFAULT NULL COMMENT 'Solo consultas de enfermería',
   PRIMARY KEY (`id_consulta`),
-  UNIQUE INDEX `cita_id_cita_UNIQUE` (`cita_id_cita` ASC) VISIBLE,
+  UNIQUE INDEX `cita_id_cita_UNIQUE` (`cita_id_cita` ASC),
   CONSTRAINT `consulta_ibfk_1`
     FOREIGN KEY (`cita_id_cita`) REFERENCES `meditec_its`.`cita` (`id_cita`)
     ON DELETE RESTRICT ON UPDATE CASCADE)
@@ -221,7 +221,7 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`signos_vitales` (
   `peso` DECIMAL(5,2) NULL DEFAULT NULL,
   `talla` DECIMAL(4,2) NULL DEFAULT NULL,
   PRIMARY KEY (`id_signos_vitales`),
-  UNIQUE INDEX `consulta_id_consulta_UNIQUE` (`consulta_id_consulta` ASC) VISIBLE,
+  UNIQUE INDEX `consulta_id_consulta_UNIQUE` (`consulta_id_consulta` ASC),
   CONSTRAINT `signos_vitales_ibfk_1`
     FOREIGN KEY (`consulta_id_consulta`) REFERENCES `meditec_its`.`consulta` (`id_consulta`)
     ON DELETE CASCADE ON UPDATE CASCADE)
@@ -239,7 +239,7 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`medicamentos` (
   `stock` DECIMAL(10,2) NOT NULL DEFAULT '0.00',
   `descripcion` TEXT NULL DEFAULT NULL,
   PRIMARY KEY (`id_medicamento`),
-  INDEX `fk_unidad_medida_idx` (`cat_unidades_medida_id_unidad` ASC) VISIBLE,
+  INDEX `fk_unidad_medida_idx` (`cat_unidades_medida_id_unidad` ASC),
   CONSTRAINT `fk_medicamento_unidad`
     FOREIGN KEY (`cat_unidades_medida_id_unidad`) REFERENCES `meditec_its`.`cat_unidades_medida` (`id_unidad`)
     ON DELETE RESTRICT ON UPDATE CASCADE)
@@ -250,7 +250,7 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`consulta_insumo` (
   `medicamentos_id_medicamento` INT UNSIGNED NOT NULL,
   `cantidad_usada` DECIMAL(10,2) NOT NULL,
   PRIMARY KEY (`consulta_id_consulta`, `medicamentos_id_medicamento`),
-  INDEX `medicamentos_id_medicamento` (`medicamentos_id_medicamento` ASC) VISIBLE,
+  INDEX `medicamentos_id_medicamento` (`medicamentos_id_medicamento` ASC),
   CONSTRAINT `consulta_insumo_ibfk_1`
     FOREIGN KEY (`consulta_id_consulta`) REFERENCES `meditec_its`.`consulta` (`id_consulta`)
     ON DELETE CASCADE ON UPDATE CASCADE,
@@ -270,7 +270,7 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`horarios` (
   `hora_inicio` TIME NOT NULL,
   `hora_fin` TIME NOT NULL,
   PRIMARY KEY (`id_horario`),
-  INDEX `personal_medico_id_personal_medico` (`personal_medico_id_personal_medico` ASC) VISIBLE,
+  INDEX `personal_medico_id_personal_medico` (`personal_medico_id_personal_medico` ASC),
   CONSTRAINT `horarios_ibfk_1`
     FOREIGN KEY (`personal_medico_id_personal_medico`) REFERENCES `meditec_its`.`personal_medico` (`id_personal_medico`)
     ON DELETE CASCADE ON UPDATE CASCADE)
@@ -286,8 +286,8 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`plan_alimenticio` (
   `calorias_diarias` INT UNSIGNED NOT NULL,
   `estatus` ENUM('Por iniciar', 'Vigente', 'Finalizado', 'Cancelado') NOT NULL DEFAULT 'Por iniciar',
   PRIMARY KEY (`id_plan`),
-  INDEX `personal_medico_id_personal_medico` (`personal_medico_id_personal_medico` ASC) VISIBLE,
-  INDEX `pacientes_id_paciente` (`pacientes_id_paciente` ASC) VISIBLE,
+  INDEX `personal_medico_id_personal_medico` (`personal_medico_id_personal_medico` ASC),
+  INDEX `pacientes_id_paciente` (`pacientes_id_paciente` ASC),
   CONSTRAINT `plan_alimenticio_ibfk_1`
     FOREIGN KEY (`personal_medico_id_personal_medico`) REFERENCES `meditec_its`.`personal_medico` (`id_personal_medico`)
     ON DELETE RESTRICT ON UPDATE CASCADE,

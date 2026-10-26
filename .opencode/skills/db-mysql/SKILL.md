@@ -71,3 +71,15 @@ actualiza también `backend/src/utils/crearAdmin.ts`.
 - [ ] El script se verificó tras `docker compose down -v && docker compose up -d`
 - [ ] Los datos de demostración del frontend siguen reflejando el esquema real
 - [ ] No hay datos personales reales ni contraseñas reales en el repositorio
+
+## Portabilidad del esquema (MariaDB / MySQL ligeros)
+
+`init.sql` debe correr fuera de MySQL 8:
+
+- **Identificadores en ASCII**: sin ñ ni acentos en nombres de columnas
+  (la columna de contraseñas se llama `contrasena`, no `contraseña`); un
+  identificador no ASCII rompe la creación en servidores con charset no UTF-8.
+- **Sin directivas `VISIBLE`** en los índices: es el comportamiento por
+  defecto y MariaDB no la reconoce.
+- `SET NAMES utf8mb4;` al inicio del script: los **valores** (ENUM, textos)
+  sí van en español y con acentos, y necesitan el juego de caracteres.

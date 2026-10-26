@@ -11,7 +11,6 @@ export const ROLES_BASE = [
   { nombre: 'Administrador', descripcion: 'Acceso total a la configuración del sistema' },
   { nombre: 'Personal médico', descripcion: 'Registra consultas, diagnósticos y recetas' },
   { nombre: 'Enfermería', descripcion: 'Captura signos vitales y apoya la atención' },
-  { nombre: 'Recepción', descripcion: 'Gestiona la agenda y los datos de pacientes' },
   { nombre: 'Paciente', descripcion: 'Consulta su información y gestiona sus citas' },
 ] as const;
 

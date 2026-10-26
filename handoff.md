@@ -159,6 +159,7 @@ commiteados).
 | Citas del paciente | Nacen Pendientes; solo puede agendar/reagendar/cancelar las suyas |
 | PDFs | Una sola base (`documentosPdf.ts`) para toda la identidad visual |
 | Docker | nginx proxea `/api` (mismo origen, sin CORS); `absolute_redirect off` para no perder el puerto en redirecciones; secretos solo en `backend/.env` |
+| BD portable | Identificadores **ASCII** (`contrasena`, no `contraseña`), **sin `VISIBLE`** en índices y `SET NAMES utf8mb4` al inicio: `init.sql` corre en MariaDB/MySQL ligeros y con cualquier charset de servidor |
 | UX | `ESPECIFICACIONES.md` manda: confirmación de toda acción, sin transiciones bruscas, validación en tiempo real |
 
 ---
