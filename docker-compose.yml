@@ -30,7 +30,8 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpassword"]
       interval: 5s
       timeout: 3s
-      retries: 20
+      retries: 30              # Aumentamos a 30 intentos
+      start_period: 120s       # Le da 2 minutos de gracia al servidor antes de empezar a contar los fallos
 
   backend:
     build: ./backend
