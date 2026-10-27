@@ -379,6 +379,34 @@ export function alergiaEnConflicto(
   return null;
 }
 
+/* ---------------- Nombres clínicos ----------------
+   Mismo criterio que `backend/src/validaciones/comunes.ts`: lo que se
+   escribe como alergia o enfermedad se limita a texto razonable y se
+   normaliza, para que no entre basura ni conceptos duplicados. */
+
+/** Nombre clínico normalizado: espacios colapsados y mayúscula inicial */
+export function normalizarNombreClinico(texto: string): string {
+  const limpio = texto.replace(/\s+/g, ' ').trim();
+  return limpio ? limpio.charAt(0).toUpperCase() + limpio.slice(1) : limpio;
+}
+
+/** Devuelve el problema del nombre, o cadena vacía si es válido */
+export function errorNombreClinico(texto: string): string {
+  const nombre = texto.trim();
+  if (nombre.length < 3) return 'El nombre debe tener al menos 3 caracteres.';
+  if (nombre.length > 100) return 'El nombre no puede exceder 100 caracteres.';
+  if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 .,()&+-]*$/.test(nombre)) {
+    return 'Usa solo letras, números y signos de puntuación (sin emojis ni símbolos).';
+  }
+  if ((nombre.match(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g) ?? []).length < 2) {
+    return 'El nombre debe contener al menos dos letras.';
+  }
+  if (/(.)\1{2,}/.test(nombre)) {
+    return 'El nombre no debe repetir la misma letra tres veces seguidas.';
+  }
+  return '';
+}
+
 /* ---------------- Planes alimenticios ---------------- */
 
 export interface PlanAlimenticio {

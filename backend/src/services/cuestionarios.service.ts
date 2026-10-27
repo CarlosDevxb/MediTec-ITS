@@ -1,6 +1,7 @@
 import type { PoolConnection } from 'mysql2/promise';
 import pool from '../db/pool';
 import { errorValidacion } from '../utils/erroresHttp';
+import { compararNombre, normalizarNombreClinico } from '../validaciones/comunes';
 import { asegurarPacienteExiste, buscarPaciente, type ExpedientePaciente } from './pacientes.service';
 import type { DatosCuestionario } from '../validaciones/cuestionario.validacion';
 
@@ -14,7 +15,9 @@ import type { DatosCuestionario } from '../validaciones/cuestionario.validacion'
  *   actualiza la misma fila (nunca hay dos).
  * - Las alergias y las enfermedades crónicas que no existan en sus catálogos
  *   se dan de alta al terminar el cuestionario y se vinculan al paciente,
- *   para que aparezcan como alertas en el flujo de atención.
+ *   para que aparezcan como alertas en el flujo de atención. Los nombres
+ *   pasan por el formato de nombre clínico y se normalizan, de modo que el
+ *   mismo concepto escrito distinto no se duplica.
  * - El vínculo se sincroniza: los nombres capturados quedan asociados y los
  *   que ya no se mencionan se desvinculan (el catálogo nunca se borra).
  */
@@ -93,11 +96,17 @@ async function sincronizarVinculos(
     [pacienteId],
   );
 
-  // Se normalizan y evitan duplicados (sin distinguir mayúsculas)
-  const unicos = [...new Map(nombres.map((n) => [n.trim().toLowerCase(), n.trim()])).values()];
+  // Se normalizan y evitan duplicados (también por el id resuelto: en la BD
+  // 'Paracetamol' y 'paracetámol' son el mismo concepto)
+  const unicos = [
+    ...new Map(nombres.map((n) => [compararNombre(n), normalizarNombreClinico(n)])).values(),
+  ];
 
+  const vinculados = new Set<number>();
   for (const nombre of unicos) {
     const id = await idDeConcepto(conexion, concepto, nombre);
+    if (vinculados.has(id)) continue;
+    vinculados.add(id);
     await conexion.query(
       `INSERT INTO ${concepto.tablaPuente} (${concepto.columnaPaciente}, ${concepto.columnaCatalogo})
        VALUES (?, ?)`,

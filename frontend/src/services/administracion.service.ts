@@ -223,3 +223,24 @@ export function eliminarValorCatalogo(catalogoId: string, id: number): Promise<v
     method: 'DELETE',
   }).then(() => undefined);
 }
+
+/** Resultado de unir un valor de catálogo en otro (limpieza de duplicados) */
+export interface ConsolidacionCatalogo {
+  nombre: string;
+  destino: string;
+  movidos: number;
+}
+
+/**
+ * Consolida un valor en otro: los registros que lo referencian pasan al valor
+ * destino y el valor origen se elimina del catálogo.
+ */
+export function consolidarValorCatalogo(
+  catalogoId: string,
+  datos: { origenId: number; destinoId: number },
+): Promise<ConsolidacionCatalogo> {
+  return apiFetch<{ datos: ConsolidacionCatalogo }>(`/catalogos/${catalogoId}/consolidar`, {
+    method: 'POST',
+    body: JSON.stringify(datos),
+  }).then((r) => r.datos);
+}

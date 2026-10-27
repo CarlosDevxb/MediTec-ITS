@@ -1,6 +1,7 @@
 import pool from '../db/pool';
 import { errorConflicto, errorNoEncontrado } from '../utils/erroresHttp';
 import type { DefinicionCatalogo } from '../config/catalogos';
+import type { DatosConsolidarValor } from '../validaciones/catalogos.validacion';
 
 /**
  * Capa de datos de los catálogos (`cat_*`).
@@ -147,6 +148,57 @@ export async function eliminarValor(
 
   await pool.query(`DELETE FROM ${def.tabla} WHERE ${def.columnaId} = ?`, [id]);
   return { nombre: actual.nombre };
+}
+
+/**
+ * Consolida un valor dentro de su catálogo: los registros que lo referencian
+ * pasan al valor destino y el valor origen se elimina. Sirve para limpiar
+ * duplicados o basura sin perder historiales (todo en una transacción).
+ */
+export async function consolidarValor(
+  def: DefinicionCatalogo,
+  datos: DatosConsolidarValor,
+): Promise<{ nombre: string; destino: string; movidos: number }> {
+  const origen = await buscarValor(def, datos.origenId);
+  if (!origen) throw errorNoEncontrado(`${def.singular} no encontrada en el catálogo.`);
+  const destino = await buscarValor(def, datos.destinoId);
+  if (!destino) throw errorNoEncontrado('El valor destino no existe en el catálogo.');
+
+  const conexion = await pool.getConnection();
+  let movidos = 0;
+  try {
+    await conexion.beginTransaction();
+
+    for (const referencia of def.uso) {
+      if (referencia.columnaRelacion) {
+        // Tabla puente con clave compuesta: primero se quitan los vínculos
+        // duplicados (el registro ya tiene el valor destino)
+        await conexion.query(
+          `DELETE origen FROM ${referencia.tabla} origen
+             JOIN ${referencia.tabla} destino
+               ON destino.${referencia.columnaRelacion} = origen.${referencia.columnaRelacion}
+              AND destino.${referencia.columna} = ?
+            WHERE origen.${referencia.columna} = ?`,
+          [datos.destinoId, datos.origenId],
+        );
+      }
+      const [resultado] = await conexion.query(
+        `UPDATE ${referencia.tabla} SET ${referencia.columna} = ? WHERE ${referencia.columna} = ?`,
+        [datos.destinoId, datos.origenId],
+      );
+      movidos += Number((resultado as { affectedRows: number }).affectedRows ?? 0);
+    }
+
+    await conexion.query(`DELETE FROM ${def.tabla} WHERE ${def.columnaId} = ?`, [datos.origenId]);
+    await conexion.commit();
+  } catch (error) {
+    await conexion.rollback();
+    throw error;
+  } finally {
+    conexion.release();
+  }
+
+  return { nombre: origen.nombre, destino: destino.nombre, movidos };
 }
 
 /** Evita nombres repetidos dentro del mismo catálogo */

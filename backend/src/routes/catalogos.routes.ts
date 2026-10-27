@@ -24,6 +24,8 @@ rutas.get('/:catalogo', verificarToken, controlador.listarValores);
 
 // La administración de catálogos es exclusiva del Administrador
 rutas.post('/:catalogo', verificarToken, requerirRol('Administrador'), controlador.crearValor);
+// Antes que las rutas con :id, para que "consolidar" no se interprete como id
+rutas.post('/:catalogo/consolidar', verificarToken, requerirRol('Administrador'), controlador.consolidarValor);
 rutas.put('/:catalogo/:id', verificarToken, requerirRol('Administrador'), controlador.actualizarValor);
 rutas.delete('/:catalogo/:id', verificarToken, requerirRol('Administrador'), controlador.eliminarValor);
 

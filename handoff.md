@@ -87,7 +87,12 @@ Arquitectura **rutas → controladores → servicios** (el SQL solo vive en
   completo).
 - **Cuestionario de salud**: único por paciente; se llena al primer login del
   paciente o antes de su primera consulta; las alergias/enfermedades nuevas se
-  dan de alta solas en los catálogos y se vinculan como alertas clínicas.
+  dan de alta solas en los catálogos y se vinculan como alertas clínicas. Los
+  nombres pasan por el **formato de nombre clínico** (letras, números y
+  puntuación; sin basura ni emojis) y se normalizan para no duplicar el mismo
+  concepto (`validaciones/comunes.ts`, mismo criterio en el cliente); en
+  Catálogos se pueden **consolidar** valores para unir duplicados sin perder
+  expedientes.
 - **Inventario**: los medicamentos no se eliminan (stock 0 = agotado y no
   disponible para consultas); el stock se descuenta al registrar la consulta.
 - **Alergias al dispensar**: un insumo que coincide con las alergias

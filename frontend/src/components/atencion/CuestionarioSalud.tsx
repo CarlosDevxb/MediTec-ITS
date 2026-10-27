@@ -8,6 +8,9 @@ import { detallesDe, mensajeDeError } from '../../services/api';
 import { listarValoresCatalogo } from '../../services/administracion.service';
 import {
   guardarCuestionario,
+  errorNombreClinico,
+  normalizarNombre,
+  normalizarNombreClinico,
   TIPOS_SANGRE,
   type DatosCuestionario,
   type ExpedientePaciente,
@@ -60,11 +63,19 @@ function CampoConceptos({
 }) {
   const [texto, setTexto] = useState('');
 
+  // Validación en vivo: el mismo criterio que el servidor (nombre clínico)
+  const problema = texto.trim() ? errorNombreClinico(texto) : '';
+
   const agregar = () => {
-    const nombre = texto.trim();
-    if (!nombre) return;
-    if (!valores.some((valor) => valor.toLowerCase() === nombre.toLowerCase())) {
-      onChange([...valores, nombre]);
+    const nombre = normalizarNombreClinico(texto);
+    if (!nombre || errorNombreClinico(nombre)) return;
+    // Si el concepto ya existe en el catálogo escrito distinto, se usa su nombre
+    const existente = opciones.find(
+      (opcion) => normalizarNombre(opcion) === normalizarNombre(nombre),
+    );
+    const definitivo = existente ?? nombre;
+    if (!valores.some((valor) => normalizarNombre(valor) === normalizarNombre(definitivo))) {
+      onChange([...valores, definitivo]);
     }
     setTexto('');
   };
@@ -86,25 +97,43 @@ function CampoConceptos({
             }}
             placeholder="Escribe o selecciona y presiona Agregar…"
             aria-label={etiqueta}
+            aria-invalid={problema ? true : undefined}
             maxLength={100}
           />
           <datalist id={`opciones-${clave}`}>
             {opciones
-              .filter((opcion) => !valores.some((v) => v.toLowerCase() === opcion.toLowerCase()))
+              .filter(
+                (opcion) =>
+                  !valores.some((v) => normalizarNombre(v) === normalizarNombre(opcion)),
+              )
               .map((opcion) => (
                 <option key={opcion} value={opcion} />
               ))}
           </datalist>
         </div>
-        <Button variant="secondary" icon={Plus} onClick={agregar} type="button">
+        <Button
+          variant="secondary"
+          icon={Plus}
+          onClick={agregar}
+          type="button"
+          disabled={Boolean(problema) || !texto.trim()}
+        >
           Agregar
         </Button>
       </div>
 
+      {problema && (
+        <p className="text-xs text-red-600 mt-1 font-medium" role="alert">
+          {problema}
+        </p>
+      )}
+
       {valores.length > 0 ? (
         <ul className="flex flex-wrap gap-2 mt-3">
           {valores.map((valor) => {
-            const esNuevo = !opciones.some((opcion) => opcion.toLowerCase() === valor.toLowerCase());
+            const esNuevo = !opciones.some(
+              (opcion) => normalizarNombre(opcion) === normalizarNombre(valor),
+            );
             return (
               <li
                 key={valor}
@@ -114,7 +143,9 @@ function CampoConceptos({
                 {esNuevo && <span className="text-xs text-brand-600">(nuevo)</span>}
                 <button
                   type="button"
-                  onClick={() => onChange(valores.filter((v) => v !== valor))}
+                  onClick={() =>
+                    onChange(valores.filter((v) => normalizarNombre(v) !== normalizarNombre(valor)))
+                  }
                   aria-label={`Quitar ${valor}`}
                   className="text-brand-500 hover:text-brand-800 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
                 >

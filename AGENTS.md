@@ -205,7 +205,12 @@ primera consulta cuando llega de manera directa (el flujo de atención lo exige
 antes de abrir el formulario de consulta). Las alergias y enfermedades que no
 existan en los catálogos se dan de alta al guardarlo y se vinculan al paciente
 como alertas (`components/atencion/CuestionarioSalud.tsx`, reutilizable por el
-futuro portal del paciente, que solo podrá llenar el suyo).
+futuro portal del paciente, que solo podrá llenar el suyo). Los nombres pasan
+por el **formato de nombre clínico** y se normalizan: no entra basura ni
+símbolos y el mismo concepto escrito distinto no se duplica
+(`validaciones/comunes.ts`, mismo criterio en el cliente). En Catálogos, los
+valores duplicados o capturados por error se pueden **consolidar** en el valor
+correcto sin perder expedientes.
 
 Expediente en PDF (`frontend/src/services/expedientePdf.ts`): documento tipo
 expediente con encabezado MediTeC-ITS, identificación, alertas clínicas,
