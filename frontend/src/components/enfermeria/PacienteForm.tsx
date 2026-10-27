@@ -72,6 +72,7 @@ export default function PacienteForm({
     nombre,
     numeroControl,
     correo,
+    telefono,
     fechaNacimiento,
     genero,
     tipoPacienteId,
@@ -117,6 +118,10 @@ export default function PacienteForm({
       : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(texto('correo'))
         ? 'Escribe un correo electrónico válido.'
         : '';
+    calculados.telefono =
+      texto('telefono') && !/^\d{7,10}$/.test(texto('telefono'))
+        ? 'Escribe un teléfono válido: solo números, entre 7 y 10 dígitos.'
+        : '';
     calculados.fechaNacimiento = !/^\d{4}-\d{2}-\d{2}$/.test(texto('fechaNacimiento'))
       ? 'La fecha debe tener el formato AAAA-MM-DD.'
       : texto('fechaNacimiento') > new Date().toISOString().slice(0, 10)
@@ -145,6 +150,7 @@ export default function PacienteForm({
     nombre,
     numeroControl,
     correo,
+    telefono,
     fechaNacimiento,
     genero,
     tipoPacienteId,
@@ -172,6 +178,7 @@ export default function PacienteForm({
       nombre: true,
       numeroControl: true,
       correo: true,
+      telefono: true,
       fechaNacimiento: true,
       genero: true,
       tipoPacienteId: true,
@@ -282,11 +289,18 @@ export default function PacienteForm({
                   aria-invalid={errorVisible('correo') ? true : undefined}
                 />
               </Field>
-              <Field label="Teléfono" hint="Opcional.">
+              <Field label="Teléfono" hint="Opcional." error={errorVisible('telefono')}>
                 <Input
                   value={telefono}
-                  onChange={(e) => setTelefono(e.target.value)}
+                  onChange={(e) => {
+                    setTelefono(e.target.value.replace(/\D/g, ''));
+                    marcarTocado('telefono');
+                  }}
+                  onBlur={() => marcarTocado('telefono')}
                   placeholder="Ej. 5512345678"
+                  inputMode="numeric"
+                  maxLength={10}
+                  aria-invalid={errorVisible('telefono') ? true : undefined}
                 />
               </Field>
               <Field label="Fecha de nacimiento" error={errorVisible('fechaNacimiento')}>

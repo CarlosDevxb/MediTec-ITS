@@ -8,8 +8,8 @@ import { z } from 'zod';
  * algo que el servidor vaya a rechazar después.
  */
 
-/** Formato aceptado: dígitos, espacios, +, - o paréntesis (7 a 20 caracteres) */
-export const FORMATO_TELEFONO = /^[0-9+\-() ]{7,20}$/;
+/** Formato aceptado: solo números, de 7 a 10 dígitos (teléfonos nacionales) */
+export const FORMATO_TELEFONO = /^\d{7,10}$/;
 
 /** Teléfono opcional: si se captura, debe cumplir el formato aceptado */
 export const telefonoOpcional = z
@@ -18,7 +18,7 @@ export const telefonoOpcional = z
   .max(20, 'El teléfono no puede exceder 20 caracteres.')
   .refine(
     (valor) => valor === '' || FORMATO_TELEFONO.test(valor),
-    'Escribe un teléfono válido (solo números, espacios, +, - o paréntesis).',
+    'Escribe un teléfono válido: solo números, entre 7 y 10 dígitos.',
   )
   .optional()
   .or(z.literal(''));

@@ -168,8 +168,14 @@ export default function AtencionForm({
   const [fc, setFc] = useState('');
   const [fr, setFr] = useState('');
   const [temp, setTemp] = useState('');
-  const [peso, setPeso] = useState('');
-  const [talla, setTalla] = useState('');
+  // Peso y talla se precargan con la última medición del paciente (signos de
+  // su consulta previa o cuestionario de salud): se pueden ajustar si cambió
+  const [peso, setPeso] = useState(
+    expediente.ultimaMedicion?.peso != null ? String(expediente.ultimaMedicion.peso) : '',
+  );
+  const [talla, setTalla] = useState(
+    expediente.ultimaMedicion?.talla != null ? String(expediente.ultimaMedicion.talla) : '',
+  );
   /* Consulta (según el rol: médica, de enfermería o de nutrición) */
   const [sintomas, setSintomas] = useState('');
   const [exploracion, setExploracion] = useState('');
@@ -537,7 +543,15 @@ export default function AtencionForm({
               aria-invalid={errorVisible('temp') ? true : undefined}
             />
           </Field>
-          <Field label="Peso (kg)" error={errorVisible('peso')}>
+          <Field
+            label="Peso (kg)"
+            error={errorVisible('peso')}
+            hint={
+              expediente.ultimaMedicion?.peso != null
+                ? `Se cargó el último registro (${expediente.ultimaMedicion.fecha}): ${expediente.ultimaMedicion.peso} kg. Edítalo si cambió.`
+                : 'Obligatorio.'
+            }
+          >
             <Input
               type="number"
               step="0.01"
@@ -554,7 +568,15 @@ export default function AtencionForm({
               aria-invalid={errorVisible('peso') ? true : undefined}
             />
           </Field>
-          <Field label="Talla (m)" error={errorVisible('talla')}>
+          <Field
+            label="Talla (m)"
+            error={errorVisible('talla')}
+            hint={
+              expediente.ultimaMedicion?.talla != null
+                ? `Se cargó el último registro (${expediente.ultimaMedicion.fecha}): ${expediente.ultimaMedicion.talla} m. Edítalo si cambió.`
+                : 'Obligatorio.'
+            }
+          >
             <Input
               type="number"
               step="0.01"

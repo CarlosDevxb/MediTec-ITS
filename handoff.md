@@ -84,7 +84,9 @@ Arquitectura **rutas → controladores → servicios** (el SQL solo vive en
   plan alimenticio en la misma transacción), Odontología (campos bucales +
   insumos comunes/especiales/dentales). Los paneles muestran **solo las
   consultas propias** (el expediente del paciente conserva su historial
-  completo).
+  completo). Al registrar una consulta, **peso y talla se precargan** con la
+  última medición del paciente (signos de su consulta previa o cuestionario,
+  `pacientes.ultimaMedicion`) y el personal los ajusta si cambiaron.
 - **Cuestionario de salud**: único por paciente; se llena al primer login del
   paciente o antes de su primera consulta; las alergias/enfermedades nuevas se
   dan de alta solas en los catálogos y se vinculan como alertas clínicas. Los

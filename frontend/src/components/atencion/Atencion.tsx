@@ -270,6 +270,9 @@ export default function Atencion({ rol = 'medico', citaInicial = null }: Atencio
           />
         ) : expediente ? (
           <AtencionForm
+            // Se remonta por paciente: así peso y talla se precargan con los de
+            // quien se está atendiendo
+            key={expediente.id}
             expediente={expediente}
             rol={rol}
             citaInicial={citaInicial}

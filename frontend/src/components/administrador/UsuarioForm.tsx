@@ -53,7 +53,7 @@ const ESPECIALIDAD_ENFERMERIA = 'Enfermería';
 const TIPOS_CON_CARRERA = ['Alumno'];
 
 /** Formato aceptado para el teléfono (mismo criterio que el servidor) */
-const FORMATO_TELEFONO = /^[0-9+\-() ]{7,20}$/;
+const FORMATO_TELEFONO = /^\d{7,10}$/;
 
 export interface UsuarioFormProps {
   modo: 'alta' | 'editar';
@@ -175,6 +175,17 @@ export default function UsuarioForm({
     [correo, existentes, usuario?.id],
   );
 
+  /* ---------- Avisos vivos de la contraseña ----------
+     La confirmación se compara mientras se escribe, no al guardar. */
+  const contrasenaCortaViva =
+    modo === 'alta' && contrasena.length > 0 && contrasena.length < 8
+      ? 'La contraseña debe tener al menos 8 caracteres.'
+      : '';
+  const confirmacionViva =
+    modo === 'alta' && confirmarContrasena && confirmarContrasena !== contrasena
+      ? 'Las contraseñas no coinciden.'
+      : '';
+
   /* ---------- Selectores: opción única y rol Paciente ---------- */
   /** El rol Paciente se bloquea si no hay tipos de paciente registrados
    *  (sin tipo no se abre expediente). Una cuenta que ya es Paciente
@@ -216,7 +227,7 @@ export default function UsuarioForm({
       nuevos.correo = 'Ese correo ya está registrado.';
     }
     if (telefono.trim() && !FORMATO_TELEFONO.test(telefono.trim())) {
-      nuevos.telefono = 'Escribe un teléfono válido (solo números, espacios, +, - o paréntesis).';
+      nuevos.telefono = 'Escribe un teléfono válido: solo números, entre 7 y 10 dígitos.';
     }
     if (!fechaNacimiento) {
       nuevos.fechaNacimiento = 'Indica la fecha de nacimiento.';
@@ -365,9 +376,10 @@ export default function UsuarioForm({
             >
               <Input
                 value={telefono}
-                onChange={(e) => setTelefono(e.target.value)}
+                onChange={(e) => setTelefono(e.target.value.replace(/\D/g, ''))}
                 placeholder="Ej. 4811234567"
-                maxLength={20}
+                inputMode="numeric"
+                maxLength={10}
                 disabled={guardando}
                 aria-invalid={errores.telefono ? true : undefined}
               />
@@ -583,7 +595,7 @@ export default function UsuarioForm({
               <>
                 <Field
                   label="Contraseña inicial"
-                  error={errores.contrasena}
+                  error={contrasenaCortaViva || errores.contrasena}
                   hint="Mínimo 8 caracteres. El usuario deberá cambiarla."
                 >
                   <PasswordInput
@@ -593,9 +605,14 @@ export default function UsuarioForm({
                     autoComplete="new-password"
                     maxLength={72}
                     disabled={guardando}
+                    aria-invalid={contrasenaCortaViva || errores.contrasena ? true : undefined}
                   />
                 </Field>
-                <Field label="Confirmar contraseña" error={errores.confirmarContrasena}>
+                <Field
+                  label="Confirmar contraseña"
+                  error={confirmacionViva || errores.confirmarContrasena}
+                  hint="Debe coincidir con la contraseña anterior."
+                >
                   <PasswordInput
                     value={confirmarContrasena}
                     onChange={(e) => setConfirmarContrasena(e.target.value)}
@@ -603,6 +620,7 @@ export default function UsuarioForm({
                     autoComplete="new-password"
                     maxLength={72}
                     disabled={guardando}
+                    aria-invalid={confirmacionViva || errores.confirmarContrasena ? true : undefined}
                   />
                 </Field>
               </>

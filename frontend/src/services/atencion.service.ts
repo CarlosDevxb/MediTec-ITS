@@ -43,6 +43,14 @@ export interface CuestionarioSalud {
   estatus: string;
 }
 
+/** Última medición de peso y talla registrada del paciente */
+export interface UltimaMedicion {
+  peso: number | null;
+  talla: number | null;
+  /** AAAA-MM-DD HH:mm */
+  fecha: string;
+}
+
 export interface ExpedientePaciente extends PacienteResumen {
   antecedentes: string;
   /** AAAA-MM-DD HH:mm */
@@ -50,6 +58,8 @@ export interface ExpedientePaciente extends PacienteResumen {
   alergias: string[];
   enfermedades: string[];
   cuestionario: CuestionarioSalud | null;
+  /** Último peso y talla (signos de consultas o cuestionario); se precargan al atender */
+  ultimaMedicion: UltimaMedicion | null;
 }
 
 export function listarPacientes(): Promise<PacienteResumen[]> {
