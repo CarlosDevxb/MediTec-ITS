@@ -1,7 +1,12 @@
 import type { Request, Response, NextFunction } from 'express';
 import { errorValidacion } from '../utils/erroresHttp';
 import { textoObligatorio } from '../utils/parametros';
-import type { DatosHorarios, DatosHorario } from '../validaciones/horarios.validacion';
+import type {
+  DatosHorarios,
+  DatosHorario,
+  DatosActualizarTurno,
+  DatosEliminarTurno,
+} from '../validaciones/horarios.validacion';
 import * as servicio from '../services/horarios.service';
 
 /**
@@ -40,8 +45,8 @@ export async function crearHorarios(req: Request, res: Response, next: NextFunct
     res.status(201).json({
       mensaje:
         horarios.length === 1
-          ? 'Turno creado.'
-          : `${horarios.length} turnos creados.`,
+          ? 'Turno creado (1 día).'
+          : `Turno creado (${horarios.length} días).`,
       datos: horarios,
     });
   } catch (error) {
@@ -55,6 +60,37 @@ export async function actualizarHorario(req: Request, res: Response, next: NextF
     const id = leerId(req.params.id);
     const horario = await servicio.actualizarHorario(id, req.body as DatosHorario);
     res.json({ mensaje: 'Turno actualizado.', datos: horario });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** PUT /api/horarios/turno · reemplaza un turno completo (todos sus días) */
+export async function actualizarTurno(req: Request, res: Response, next: NextFunction) {
+  try {
+    const datos = req.body as DatosActualizarTurno;
+    const horarios = await servicio.actualizarTurno(datos);
+    res.json({
+      mensaje:
+        horarios.length === 1
+          ? 'Turno actualizado (1 día).'
+          : `Turno actualizado (${horarios.length} días).`,
+      datos: horarios,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** DELETE /api/horarios/turno · baja de un turno completo (todos sus días) */
+export async function eliminarTurno(req: Request, res: Response, next: NextFunction) {
+  try {
+    const datos = req.body as DatosEliminarTurno;
+    const eliminados = await servicio.eliminarTurno(datos);
+    res.json({
+      mensaje: `Turno de ${eliminados[0]?.personal ?? 'personal'} eliminado.`,
+      datos: eliminados,
+    });
   } catch (error) {
     next(error);
   }

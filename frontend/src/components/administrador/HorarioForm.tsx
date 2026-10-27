@@ -8,20 +8,22 @@ import { detallesDe, mensajeDeError } from '../../services/api';
 import { useOpcionUnica } from '../../hooks/useOpcionUnica';
 import {
   DIAS_SEMANA,
+  diasEnTexto,
   nombreDeDia,
   type Horario,
   type PersonalMedico,
+  type TurnoHorario,
   type DatosHorarios,
-  type DatosHorario,
+  type DatosActualizarTurno,
 } from '../../services/operacion.service';
 
 /* ============================================================
-   FORMULARIO DE HORARIO · alta y edición (subpágina)
+   FORMULARIO DE TURNO · alta y edición (subpágina)
 
-   - Alta: la selección de días es múltiple y se crea un turno por
-     cada día marcado (solo lunes a viernes: la clínica no opera
-     fines de semana).
-   - Edición: un turno, un solo día.
+   Un turno es un bloque: una persona, un rango de horas y los días
+   en los que aplica (solo lunes a viernes: la clínica no opera
+   fines de semana). Al editarlo se cambia el bloque completo: las
+   horas mueven todos sus días y los días se agregan o se quitan.
 
    La validación es en tiempo real: los días que ya tienen ese
    turno exacto (mismo personal, día y rango) se señalan mientras
@@ -30,21 +32,22 @@ import {
 
 export interface HorarioFormProps {
   modo: 'alta' | 'editar';
-  horario?: Horario;
+  /** Requerido en edición: el bloque que se está editando */
+  turno?: TurnoHorario;
   /** Personal clínico activo, para el selector */
   personal: PersonalMedico[];
   /** Turnos ya existentes: para detectar duplicados exactos mientras se escribe */
   horarios: Horario[];
   guardando?: boolean;
   onCancelar: () => void;
-  onGuardar: (datos: DatosHorarios | DatosHorario) => Promise<void>;
+  onGuardar: (datos: DatosHorarios | DatosActualizarTurno) => Promise<void>;
   /** Solo en edición: la vista principal pide confirmación antes de borrar */
   onEliminar?: () => void;
 }
 
 export default function HorarioForm({
   modo,
-  horario,
+  turno,
   personal,
   horarios,
   guardando = false,
@@ -53,12 +56,12 @@ export default function HorarioForm({
   onEliminar,
 }: HorarioFormProps) {
   const [personalId, setPersonalId] = useState(
-    horario ? String(horario.personalMedicoId) : '',
+    turno ? String(turno.personalMedicoId) : '',
   );
-  /** En edición el turno ya tiene un día fijo; en alta se marcan varios */
-  const [dias, setDias] = useState<number[]>(horario ? [horario.diaSemana] : []);
-  const [horaInicio, setHoraInicio] = useState(horario?.horaInicio ?? '08:00');
-  const [horaFin, setHoraFin] = useState(horario?.horaFin ?? '14:00');
+  /** Días del turno (1-5): en alta y en edición se marcan varios */
+  const [dias, setDias] = useState<number[]>(turno ? [...turno.dias] : []);
+  const [horaInicio, setHoraInicio] = useState(turno?.horaInicio ?? '08:00');
+  const [horaFin, setHoraFin] = useState(turno?.horaFin ?? '14:00');
   const [tocado, setTocado] = useState<Record<string, boolean>>({});
   const [erroresServidor, setErroresServidor] = useState<Record<string, string>>({});
   const [errorGeneral, setErrorGeneral] = useState('');
@@ -81,20 +84,24 @@ export default function HorarioForm({
 
   /* ---------- Duplicados exactos en tiempo real ---------- */
   // Mismo personal, mismo día y mismo rango de horas que un turno ya cargado
-  // (el turno que se edita se excluye para no confundirse consigo mismo)
+  // (los días del turno que se edita se excluyen para no confundirse consigo mismo)
+  const idsDelTurno = useMemo(
+    () => new Set((turno?.horarios ?? []).map((horario) => horario.id)),
+    [turno],
+  );
   const diasDuplicados = useMemo(() => {
     if (!personalId || !horaInicio || !horaFin || horaInicio >= horaFin) return [];
     return dias.filter((dia) =>
       horarios.some(
         (h) =>
-          h.id !== horario?.id &&
+          !idsDelTurno.has(h.id) &&
           h.personalMedicoId === Number(personalId) &&
           h.diaSemana === dia &&
           h.horaInicio === horaInicio &&
           h.horaFin === horaFin,
       ),
     );
-  }, [dias, personalId, horaInicio, horaFin, horarios, horario]);
+  }, [dias, personalId, horaInicio, horaFin, horarios, idsDelTurno]);
 
   const duplicadosTexto =
     diasDuplicados.length > 0
@@ -136,13 +143,16 @@ export default function HorarioForm({
     if (hayErrores) return;
 
     try {
-      if (esEdicion && horario) {
+      if (esEdicion && turno) {
         await onGuardar({
           personalMedicoId: Number(personalId),
-          diaSemana: dias[0],
-          horaInicio,
-          horaFin,
-        } satisfies DatosHorario);
+          // El rango original identifica el bloque que se está editando
+          horaInicio: turno.horaInicio,
+          horaFin: turno.horaFin,
+          nuevaHoraInicio: horaInicio,
+          nuevaHoraFin: horaFin,
+          dias,
+        } satisfies DatosActualizarTurno);
       } else {
         await onGuardar({
           personalMedicoId: Number(personalId),
@@ -159,12 +169,11 @@ export default function HorarioForm({
     }
   };
 
-  /* ---------- Resumen vivo de lo que se va a crear ---------- */
-  const resumenAlta = !esEdicion && dias.length > 0 && !hayErrores
-    ? `${dias.length} turno${dias.length === 1 ? '' : 's'} de ${horaInicio} a ${horaFin} · ${dias
-        .map((d) => nombreDeDia(d))
-        .join(', ')}`
-    : '';
+  /* ---------- Resumen vivo de lo que se va a guardar ---------- */
+  const resumen =
+    dias.length > 0 && !hayErrores
+      ? `${esEdicion ? 'El turno quedará' : 'Se creará un turno'} de ${horaInicio} a ${horaFin} los días ${diasEnTexto(dias)} (${dias.length} ${dias.length === 1 ? 'día' : 'días'}).`
+      : '';
 
   return (
     <div className="entrada p-10 xl:p-12 max-w-5xl mx-auto font-sans">
@@ -172,7 +181,7 @@ export default function HorarioForm({
         title={esEdicion ? 'Editar turno' : 'Nuevo horario'}
         subtitle={
           esEdicion
-            ? `Turno de ${horario?.personal ?? ''} · ${nombreDeDia(horario?.diaSemana ?? 1)}`
+            ? `Turno de ${turno?.personal ?? ''} · ${turno?.horaInicio ?? ''}–${turno?.horaFin ?? ''} · ${diasEnTexto(turno?.dias ?? [])}`
             : 'Asigna la disponibilidad semanal del personal (lunes a viernes)'
         }
       />
@@ -184,7 +193,11 @@ export default function HorarioForm({
               label="Personal"
               className="md:col-span-2"
               error={errorVisible('personalMedicoId')}
-              hint="Personal médico y de enfermería con cuenta activa."
+              hint={
+                esEdicion
+                  ? 'El turno pertenece a esta persona: para moverlo a otro personal, elimínalo y créalo de nuevo.'
+                  : 'Personal médico y de enfermería con cuenta activa.'
+              }
             >
               {personal.length === 0 ? (
                 <p className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
@@ -199,6 +212,7 @@ export default function HorarioForm({
                     marcarTocado('personalMedicoId');
                   }}
                   onBlur={() => marcarTocado('personalMedicoId')}
+                  disabled={guardando || esEdicion}
                   aria-invalid={errorVisible('personalMedicoId') ? true : undefined}
                 >
                   <option value="">Selecciona a alguien del personal…</option>
@@ -211,25 +225,36 @@ export default function HorarioForm({
               )}
             </Field>
 
+            <Field label="Hora de inicio" error={errorVisible('horaInicio')}>
+              <Input
+                type="time"
+                value={horaInicio}
+                onChange={(e) => {
+                  setHoraInicio(e.target.value);
+                  marcarTocado('horaInicio');
+                }}
+                onBlur={() => marcarTocado('horaInicio')}
+                className="tabular-nums"
+                aria-invalid={errorVisible('horaInicio') ? true : undefined}
+              />
+            </Field>
+
+            <Field label="Hora de fin" error={errorVisible('horaFin')}>
+              <Input
+                type="time"
+                value={horaFin}
+                onChange={(e) => {
+                  setHoraFin(e.target.value);
+                  marcarTocado('horaFin');
+                }}
+                onBlur={() => marcarTocado('horaFin')}
+                className="tabular-nums"
+                aria-invalid={errorVisible('horaFin') ? true : undefined}
+              />
+            </Field>
+
             {/* Días de la semana: solo lunes a viernes */}
-            {esEdicion ? (
-              <Field label="Día de la semana" error={errorVisible('dias')}>
-                <Select
-                  value={dias[0] ?? ''}
-                  onChange={(e) => {
-                    setDias([Number(e.target.value)]);
-                    marcarTocado('dias');
-                  }}
-                >
-                  {DIAS_SEMANA.map((nombre, indice) => (
-                    <option key={nombre} value={indice + 1}>
-                      {nombre}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            ) : (
-              <div className="md:col-span-2">
+            <div className="md:col-span-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="block text-base font-semibold text-gray-700">
                     Días de la semana
@@ -285,39 +310,10 @@ export default function HorarioForm({
                     opera fines de semana.
                   </p>
                 )}
-              </div>
-            )}
-
-            <Field label="Hora de inicio" error={errorVisible('horaInicio')}>
-              <Input
-                type="time"
-                value={horaInicio}
-                onChange={(e) => {
-                  setHoraInicio(e.target.value);
-                  marcarTocado('horaInicio');
-                }}
-                onBlur={() => marcarTocado('horaInicio')}
-                className="tabular-nums"
-                aria-invalid={errorVisible('horaInicio') ? true : undefined}
-              />
-            </Field>
-
-            <Field label="Hora de fin" error={errorVisible('horaFin')}>
-              <Input
-                type="time"
-                value={horaFin}
-                onChange={(e) => {
-                  setHoraFin(e.target.value);
-                  marcarTocado('horaFin');
-                }}
-                onBlur={() => marcarTocado('horaFin')}
-                className="tabular-nums"
-                aria-invalid={errorVisible('horaFin') ? true : undefined}
-              />
-            </Field>
+            </div>
           </div>
 
-          {/* Alerta temprana de duplicados y resumen de lo que se creará */}
+          {/* Alerta temprana de duplicados y resumen de lo que se guardará */}
           {duplicadosTexto && (
             <p
               role="alert"
@@ -327,10 +323,10 @@ export default function HorarioForm({
               {duplicadosTexto}
             </p>
           )}
-          {resumenAlta && (
+          {resumen && (
             <p className="mt-4 flex items-center gap-2.5 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
               <CalendarCheck size={18} className="shrink-0" aria-hidden="true" />
-              Se crearán {resumenAlta}.
+              {resumen}
             </p>
           )}
         </Card>
@@ -370,7 +366,7 @@ export default function HorarioForm({
               Cancelar
             </Button>
             <Button type="submit" icon={Save} loading={guardando} disabled={guardando}>
-              {esEdicion ? 'Guardar cambios' : 'Crear turnos'}
+              {esEdicion ? 'Guardar cambios' : 'Crear turno'}
             </Button>
           </div>
         </div>

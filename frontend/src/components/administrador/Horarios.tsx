@@ -30,15 +30,18 @@ import { mensajeDeError } from '../../services/api';
 import {
   DIAS_SEMANA,
   nombreDeDia,
+  diasEnTexto,
   listarHorarios,
   crearHorarios,
-  actualizarHorario,
-  eliminarHorario,
+  actualizarTurno,
+  eliminarTurno,
+  agruparHorariosEnTurnos,
   listarPersonalMedico,
   type Horario,
   type PersonalMedico,
+  type TurnoHorario,
   type DatosHorarios,
-  type DatosHorario,
+  type DatosActualizarTurno,
 } from '../../services/operacion.service';
 import HorarioForm from './HorarioForm';
 
@@ -46,13 +49,14 @@ import HorarioForm from './HorarioForm';
    VISTA: HORARIOS · Calendario semanal (lunes a viernes)
    Conectada a /api/horarios (tabla `horarios`)
 
-   Cada turno es un bloque continuo por persona (sin repetir datos
-   por hora). Las personas que comparten el mismo tramo se apilan
-   en un bloque y los tramos que se solapan se abren en columnas.
-   También hay vista de lista para revisar y gestionar turnos.
+   Un turno es un bloque: una persona, un rango de horas y los días
+   en los que aplica. Debajo hay una fila por día, pero aquí se
+   agrupan para no mostrar "4 turnos" cuando es uno solo. En el
+   calendario, las personas que comparten tramo se apilan en un
+   bloque y los tramos que se solapan se abren en columnas.
    ============================================================ */
 
-type Subvista = { modo: 'lista' } | { modo: 'alta' } | { modo: 'editar'; horario: Horario };
+type Subvista = { modo: 'lista' } | { modo: 'alta' } | { modo: 'editar'; turno: TurnoHorario };
 
 /** Altura en px de cada hora del calendario */
 const ALTO_HORA = 72;
@@ -124,7 +128,7 @@ export default function Horarios() {
 
   const [subvista, setSubvista] = useState<Subvista>({ modo: 'lista' });
   /** Turno pendiente de borrado (espera confirmación en el modal) */
-  const [pendiente, setPendiente] = useState<Horario | null>(null);
+  const [pendiente, setPendiente] = useState<TurnoHorario | null>(null);
   /** Resultado visible de la última acción (modal de confirmación) */
   const [resultado, setResultado] = useState<{
     titulo: string;
@@ -158,21 +162,23 @@ export default function Horarios() {
     void cargar();
   }, [cargar]);
 
-  /* ---------- Guardado (alta múltiple / edición) ---------- */
-  const guardarHorario = async (datos: DatosHorarios | DatosHorario) => {
+  /* ---------- Guardado (alta y edición del turno completo) ---------- */
+  const guardarHorario = async (datos: DatosHorarios | DatosActualizarTurno) => {
     setGuardando(true);
     try {
       if (subvista.modo === 'editar') {
-        const turno = await actualizarHorario(
-          subvista.horario.id,
-          datos as DatosHorario,
-        );
+        const datosTurno = datos as DatosActualizarTurno;
+        const diasNuevos = await actualizarTurno(datosTurno);
+        const idsAnteriores = new Set(subvista.turno.horarios.map((h) => h.id));
         setHorarios((prev) =>
-          prev
-            .map((h) => (h.id === turno.id ? turno : h))
-            .sort((a, b) => a.diaSemana - b.diaSemana || aMinutos(a.horaInicio) - aMinutos(b.horaInicio)),
+          [...prev.filter((h) => !idsAnteriores.has(h.id)), ...diasNuevos].sort(
+            (a, b) =>
+              a.diaSemana - b.diaSemana || aMinutos(a.horaInicio) - aMinutos(b.horaInicio),
+          ),
         );
-        mostrar(`Turno de ${turno.personal} actualizado (${nombreDeDia(turno.diaSemana)}).`);
+        mostrar(
+          `Turno de ${subvista.turno.personal} actualizado (${datosTurno.nuevaHoraInicio}–${datosTurno.nuevaHoraFin} · ${diasEnTexto(datosTurno.dias)}).`,
+        );
       } else {
         const creados = await crearHorarios(datos as DatosHorarios);
         setHorarios((prev) =>
@@ -181,11 +187,9 @@ export default function Horarios() {
           ),
         );
         mostrar(
-          creados.length === 1
-            ? `Turno de ${creados[0].personal} creado para ${nombreDeDia(creados[0].diaSemana)}.`
-            : `${creados.length} turnos creados para ${creados[0].personal}: ${creados
-                .map((h) => nombreDeDia(h.diaSemana))
-                .join(', ')}.`,
+          `Turno de ${creados[0].personal} creado (${creados[0].horaInicio}–${creados[0].horaFin} · ${diasEnTexto(
+            creados.map((h) => h.diaSemana),
+          )}).`,
         );
       }
       setSubvista({ modo: 'lista' });
@@ -197,18 +201,21 @@ export default function Horarios() {
     }
   };
 
-  /* ---------- Borrado (tras confirmar en el modal) ---------- */
+  /* ---------- Borrado del turno completo (tras confirmar en el modal) ---------- */
   const ejecutarPendiente = async () => {
     if (!pendiente) return;
     setGuardando(true);
     try {
-      await eliminarHorario(pendiente.id);
-      setHorarios((prev) => prev.filter((h) => h.id !== pendiente.id));
+      await eliminarTurno({
+        personalMedicoId: pendiente.personalMedicoId,
+        horaInicio: pendiente.horaInicio,
+        horaFin: pendiente.horaFin,
+      });
+      const ids = new Set(pendiente.horarios.map((h) => h.id));
+      setHorarios((prev) => prev.filter((h) => !ids.has(h.id)));
       setResultado({
         titulo: 'Turno eliminado',
-        mensaje: `El turno de ${pendiente.personal} (${nombreDeDia(
-          pendiente.diaSemana,
-        )} de ${pendiente.horaInicio} a ${pendiente.horaFin}) ya no aparece en el calendario.`,
+        mensaje: `El turno de ${pendiente.personal} (${pendiente.horaInicio} a ${pendiente.horaFin} · ${diasEnTexto(pendiente.dias)}) ya no aparece en el calendario.`,
         tipo: 'exito',
       });
       setPendiente(null);
@@ -238,15 +245,16 @@ export default function Horarios() {
       ),
     [horarios],
   );
-  const horariosOrdenados = useMemo(
+  /** Turnos agrupados: una persona + un rango de horas con todos sus días */
+  const turnos = useMemo(() => agruparHorariosEnTurnos(horarios), [horarios]);
+  const turnosOrdenados = useMemo(
     () =>
-      [...horarios].sort(
+      [...turnos].sort(
         (a, b) =>
-          a.diaSemana - b.diaSemana ||
           aMinutos(a.horaInicio) - aMinutos(b.horaInicio) ||
           a.personal.localeCompare(b.personal, 'es'),
       ),
-    [horarios],
+    [turnos],
   );
 
   /* ---------- Subpáginas (alta / edición) ---------- */
@@ -254,9 +262,9 @@ export default function Horarios() {
   const modalBorrado = pendiente ? (
     <Modal
       titulo={`¿Eliminar el turno de ${pendiente.personal}?`}
-      descripcion={`El ${nombreDeDia(pendiente.diaSemana).toLowerCase()} de ${
-        pendiente.horaInicio
-      } a ${pendiente.horaFin} dejará de aparecer en el calendario.`}
+      descripcion={`El turno de ${pendiente.horaInicio} a ${pendiente.horaFin} (${diasEnTexto(
+        pendiente.dias,
+      )}) dejará de aparecer en el calendario: se quitan todos sus días de una sola vez.`}
       icono={CircleAlert}
       onCerrar={() => setPendiente(null)}
       acciones={
@@ -276,7 +284,7 @@ export default function Horarios() {
       }
     >
       <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
-        Si solo cambiaron las horas o el día, edita el turno en lugar de eliminarlo.
+        Si solo cambiaron las horas o los días, edita el turno en lugar de eliminarlo.
       </p>
     </Modal>
   ) : null;
@@ -296,7 +304,7 @@ export default function Horarios() {
       <>
         <HorarioForm
           modo={subvista.modo}
-          horario={subvista.modo === 'editar' ? subvista.horario : undefined}
+          turno={subvista.modo === 'editar' ? subvista.turno : undefined}
           personal={personal}
           horarios={horarios}
           guardando={guardando}
@@ -304,7 +312,7 @@ export default function Horarios() {
           onGuardar={guardarHorario}
           onEliminar={
             subvista.modo === 'editar'
-              ? () => setPendiente(subvista.horario)
+              ? () => setPendiente(subvista.turno)
               : undefined
           }
         />
@@ -393,23 +401,15 @@ export default function Horarios() {
     return bloques.map((b) => ({ ...b, lanes: Math.max(1, finPorLane.length) }));
   };
 
-  /* ---------- Vista de lista ---------- */
-  const columnas: Column<Horario>[] = [
-    {
-      key: 'dia',
-      header: 'Día',
-      className: 'w-36',
-      render: (horario) => (
-        <span className="font-semibold text-gray-900">{nombreDeDia(horario.diaSemana)}</span>
-      ),
-    },
+  /* ---------- Vista de lista (un renglón por turno, con todos sus días) ---------- */
+  const columnas: Column<TurnoHorario>[] = [
     {
       key: 'personal',
       header: 'Personal',
-      render: (horario) => (
+      render: (turno) => (
         <div>
-          <p className="font-semibold text-gray-900">{horario.personal}</p>
-          <p className="text-sm text-gray-500">{horario.especialidad}</p>
+          <p className="font-semibold text-gray-900">{turno.personal}</p>
+          <p className="text-sm text-gray-500">{turno.especialidad}</p>
         </div>
       ),
     },
@@ -417,33 +417,49 @@ export default function Horarios() {
       key: 'horario',
       header: 'Horario',
       className: 'w-44 tabular-nums',
-      render: (horario) => `${horario.horaInicio} – ${horario.horaFin}`,
+      render: (turno) => `${turno.horaInicio} – ${turno.horaFin}`,
+    },
+    {
+      key: 'dias',
+      header: 'Días',
+      render: (turno) => (
+        <div className="flex flex-wrap gap-1">
+          {turno.dias.map((dia) => (
+            <span
+              key={dia}
+              className="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-800"
+            >
+              {nombreDeDia(dia)}
+            </span>
+          ))}
+        </div>
+      ),
     },
     {
       key: 'duracion',
       header: 'Duración',
       align: 'right',
       className: 'w-32 tabular-nums',
-      render: (horario) =>
-        `${((aMinutos(horario.horaFin) - aMinutos(horario.horaInicio)) / 60).toFixed(1)} h`,
+      render: (turno) =>
+        `${((aMinutos(turno.horaFin) - aMinutos(turno.horaInicio)) / 60).toFixed(1)} h / día`,
     },
     {
       key: 'acciones',
       header: 'Acciones',
       align: 'right',
       className: 'w-32',
-      render: (horario) => (
+      render: (turno) => (
         <div className="flex items-center justify-end gap-1">
           <IconButton
             icon={Pencil}
-            label={`Editar turno de ${horario.personal} el ${nombreDeDia(horario.diaSemana)}`}
-            onClick={() => setSubvista({ modo: 'editar', horario })}
+            label={`Editar turno de ${turno.personal} (${turno.horaInicio}–${turno.horaFin})`}
+            onClick={() => setSubvista({ modo: 'editar', turno })}
           />
           <IconButton
             icon={Trash2}
-            label={`Eliminar turno de ${horario.personal} el ${nombreDeDia(horario.diaSemana)}`}
+            label={`Eliminar turno de ${turno.personal} (${turno.horaInicio}–${turno.horaFin})`}
             tone="danger"
-            onClick={() => setPendiente(horario)}
+            onClick={() => setPendiente(turno)}
           />
         </div>
       ),
@@ -485,8 +501,8 @@ export default function Horarios() {
               <StatCard
                 icon={Clock}
                 label="Turnos programados"
-                value={horarios.length}
-                detail={`${nombreDeDia(1)} a ${nombreDeDia(5)}`}
+                value={turnos.length}
+                detail={`${horarios.length} días de atención`}
               />
               <StatCard
                 icon={Users}
@@ -548,12 +564,13 @@ export default function Horarios() {
               <>
                 <DataTable
                   columns={columnas}
-                  rows={horariosOrdenados}
-                  rowKey={(horario) => horario.id}
+                  rows={turnosOrdenados}
+                  rowKey={(turno) => turno.clave}
                   emptyMessage="No hay turnos registrados."
                 />
                 <p className="text-sm text-gray-500 mt-4 px-1">
-                  {horariosOrdenados.length} turnos esta semana
+                  {turnosOrdenados.length} turnos esta semana ({horarios.length} días de
+                  atención)
                 </p>
               </>
             ) : (
@@ -566,7 +583,7 @@ export default function Horarios() {
                       Calendario semanal
                     </h3>
                     <p className="text-sm text-gray-500 mt-1 tabular-nums">
-                      {horarios.length} turnos · de {hhmm(horaInicio * 60)} a {hhmm(horaFin * 60)} ·{' '}
+                      {turnos.length} turnos · de {hhmm(horaInicio * 60)} a {hhmm(horaFin * 60)} ·{' '}
                       {fechasSemana[0].getDate()}–{fechasSemana[4].getDate()} de{' '}
                       {fechasSemana[4].toLocaleDateString('es-MX', { month: 'long' })}
                     </p>
@@ -696,15 +713,19 @@ export default function Horarios() {
                                           <button
                                             key={persona.id}
                                             type="button"
-                                            onClick={() =>
-                                              setSubvista({ modo: 'editar', horario: persona.horario })
-                                            }
+                                            onClick={() => {
+                                              // El bloque se edita completo (todos sus días)
+                                              const turno = turnos.find((t) =>
+                                                t.horarios.some((h) => h.id === persona.horario.id),
+                                              );
+                                              if (turno) setSubvista({ modo: 'editar', turno });
+                                            }}
                                             title={`${persona.nombre} · ${persona.especialidad} · ${hhmm(
                                               bloque.inicio,
-                                            )}–${hhmm(bloque.fin)} · clic para editar`}
-                                            aria-label={`Editar turno de ${persona.nombre}, ${nombreDeDia(
-                                              persona.horario.diaSemana,
-                                            )} de ${hhmm(bloque.inicio)} a ${hhmm(bloque.fin)}`}
+                                            )}–${hhmm(bloque.fin)} · clic para editar el turno`}
+                                            aria-label={`Editar el turno de ${persona.nombre} de ${hhmm(
+                                              bloque.inicio,
+                                            )} a ${hhmm(bloque.fin)} (todos sus días)`}
                                             className={[
                                               'flex items-center gap-2 px-2 py-1.5 min-w-0 text-left',
                                               'hover:bg-brand-50/60 transition-colors',
