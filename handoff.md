@@ -18,7 +18,7 @@ Principios que definen el proyecto:
 
 - **Toda la información entra por la interfaz gráfica**: la base de datos nunca
   se llena a mano (ni `INSERT`s de datos de negocio). Solo existe el bootstrap
-  `npm run crear:admin` (roles + primer administrador).
+  `npm run crear:admin` (roles, tipos de paciente y primer administrador).
 - **Datos sensibles de salud** (LFPDPPP): roles verificados en cada endpoint,
   minimización de datos y "solo lo suyo" para los pacientes.
 - **Todo en español**: código, comentarios, textos y mensajes de la API.
@@ -90,6 +90,12 @@ Arquitectura **rutas → controladores → servicios** (el SQL solo vive en
   dan de alta solas en los catálogos y se vinculan como alertas clínicas.
 - **Inventario**: los medicamentos no se eliminan (stock 0 = agotado y no
   disponible para consultas); el stock se descuenta al registrar la consulta.
+- **Alergias al dispensar**: un insumo que coincide con las alergias
+  registradas del paciente no se puede dispensar: el formulario lo bloquea y
+  sugiere alternativas del stock, y el servidor lo rechaza en la transacción
+  de la consulta (`backend/src/utils/alergias.ts` y
+  `frontend/src/services/atencion.service.ts`, mismo criterio). La comparación
+  es por nombre normalizado: no detecta sinónimos (paracetamol/acetaminofén).
 - **Excel**: import/export de usuarios y medicamentos (plantilla descargable,
   avisos previos, resultado por fila, contraseñas temporales de una sola vez;
   nunca se exportan contraseñas).

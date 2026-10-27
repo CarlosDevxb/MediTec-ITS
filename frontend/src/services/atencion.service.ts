@@ -343,6 +343,42 @@ export function hoyISO(): string {
   ).padStart(2, '0')}`;
 }
 
+/* ---------------- Alergias vs. medicamentos ----------------
+   Mismo criterio que `backend/src/utils/alergias.ts`: la comparación es
+   textual (minúsculas, sin acentos) entre el nombre del medicamento y el
+   término de la alergia. "Paracetamol 500 mg" choca con "Paracetamol". */
+
+/** Minúsculas, sin acentos y sin espacios dobles, para comparar nombres */
+export function normalizarNombre(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Devuelve la alergia registrada que impide dispensar el medicamento, o
+ * `null` si no hay choque. Los términos de menos de 4 caracteres se ignoran
+ * para evitar falsos positivos.
+ */
+export function alergiaEnConflicto(
+  nombreMedicamento: string,
+  alergias: readonly string[],
+): string | null {
+  const medicamento = normalizarNombre(nombreMedicamento);
+  if (!medicamento) return null;
+
+  for (const alergia of alergias) {
+    const termino = normalizarNombre(alergia);
+    if (termino.length < 4) continue;
+    if (medicamento.includes(termino)) return alergia;
+    if (medicamento.length >= 4 && termino.includes(medicamento)) return alergia;
+  }
+  return null;
+}
+
 /* ---------------- Planes alimenticios ---------------- */
 
 export interface PlanAlimenticio {

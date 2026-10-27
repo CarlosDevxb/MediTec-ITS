@@ -5,6 +5,7 @@ import {
   Stethoscope,
   PackagePlus,
   Save,
+  ShieldAlert,
   X,
   Trash2,
   CircleAlert,
@@ -22,6 +23,7 @@ import {
   type DatosAtencion,
   type ExpedientePaciente,
   type Cita,
+  alergiaEnConflicto,
   fechaCorta,
   hoyISO,
 } from '../../services/atencion.service';
@@ -270,24 +272,46 @@ export default function AtencionForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [motivo, sintomas, diagnostico, tratamiento, intervencionEnfermeria, ta, fc, fr, temp, peso, talla, rol, citaInicial, planInicio, planFin, planDieta, planCalorias]);
 
-  /** Avisos de los renglones de insumos (cantidad contra stock) */
+  /* ---------- Seguridad clínica: alergias del paciente ----------
+     Con las alergias registradas del expediente se bloquea el medicamento
+     que las provoca (mismo criterio que el servidor) y se sugieren
+     alternativas del inventario. */
+  const alergiasPaciente = expediente.alergias ?? [];
+
+  /** Avisos de los renglones de insumos: por medicamento y por cantidad */
   const erroresInsumos = useMemo(
     () =>
       insumos.map((renglon) => {
         const medicamento = medicamentos.find((m) => m.id === Number(renglon.medicamentoId));
-        if (!renglon.medicamentoId) return 'Selecciona un medicamento.';
-        if (!medicamento) return 'El medicamento ya no está en el inventario.';
-        if (!medicamento.disponible) return `"${medicamento.nombre}" está agotado.`;
+        if (!renglon.medicamentoId) {
+          return { medicamento: 'Selecciona un medicamento.', cantidad: '' };
+        }
+        if (!medicamento) {
+          return { medicamento: 'El medicamento ya no está en el inventario.', cantidad: '' };
+        }
+        if (!medicamento.disponible) {
+          return { medicamento: `"${medicamento.nombre}" está agotado.`, cantidad: '' };
+        }
+        const alergia = alergiaEnConflicto(medicamento.nombre, alergiasPaciente);
+        if (alergia) {
+          return {
+            medicamento: `No se puede dispensar "${medicamento.nombre}": hay alergia registrada a "${alergia}".`,
+            cantidad: '',
+          };
+        }
         const cantidad = Number(renglon.cantidad);
         if (!renglon.cantidad || Number.isNaN(cantidad) || cantidad <= 0) {
-          return 'La cantidad debe ser mayor a cero.';
+          return { medicamento: '', cantidad: 'La cantidad debe ser mayor a cero.' };
         }
         if (cantidad > medicamento.stock) {
-          return `Solo quedan ${medicamento.stock} ${medicamento.abreviatura || medicamento.unidad}.`;
+          return {
+            medicamento: '',
+            cantidad: `Solo quedan ${medicamento.stock} ${medicamento.abreviatura || medicamento.unidad}.`,
+          };
         }
-        return '';
+        return { medicamento: '', cantidad: '' };
       }),
-    [insumos, medicamentos],
+    [insumos, medicamentos, alergiasPaciente],
   );
 
   const errorVisible = (campo: string): string | undefined => {
@@ -297,7 +321,8 @@ export default function AtencionForm({
   };
 
   const hayErrores =
-    Object.values(errores).some(Boolean) || erroresInsumos.some(Boolean);
+    Object.values(errores).some(Boolean) ||
+    erroresInsumos.some((renglon) => Boolean(renglon.medicamento || renglon.cantidad));
   const marcarTocado = (campo: string) => setTocado((prev) => ({ ...prev, [campo]: true }));
 
   /* ---------- Insumos ----------
@@ -308,6 +333,11 @@ export default function AtencionForm({
   );
   const yaAgregados = insumos.map((renglon) => Number(renglon.medicamentoId));
   const opcionesInsumo = medicamentosDisponibles.filter((m) => !yaAgregados.includes(m.id));
+  /** Alternativas sin choque con las alergias del paciente (para sugerirlas) */
+  const medicamentosSugeridos =
+    alergiasPaciente.length === 0
+      ? []
+      : medicamentosDisponibles.filter((m) => !alergiaEnConflicto(m.nombre, alergiasPaciente));
 
   const agregarInsumo = () => setInsumos((prev) => [...prev, { medicamentoId: '', cantidad: '' }]);
   const cambiarInsumo = (indice: number, cambios: Partial<RenglonInsumo>) =>
@@ -759,6 +789,24 @@ export default function AtencionForm({
           </Button>
         </div>
 
+        {/* Alergias del paciente: bloqueo de lo que las provoca y alternativas */}
+        {alergiasPaciente.length > 0 && (
+          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            <p className="flex items-center gap-2 font-semibold">
+              <ShieldAlert size={16} aria-hidden="true" />
+              Alergias registradas: {alergiasPaciente.join(', ')}.
+            </p>
+            <p className="mt-1">
+              Los medicamentos que coincidan con estas alergias no se pueden dispensar.
+              {medicamentosSugeridos.length > 0
+                ? ` Alternativas disponibles: ${medicamentosSugeridos
+                    .map((m) => m.nombre)
+                    .join(' · ')}.`
+                : ' Por ahora no hay alternativas disponibles en el inventario.'}
+            </p>
+          </div>
+        )}
+
         {opcionesInsumo.length === 0 && (
           <p className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
             {medicamentos.length === 0
@@ -782,26 +830,38 @@ export default function AtencionForm({
                   key={indice}
                   className="rounded-xl border border-gray-200 p-4 grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-3 items-start"
                 >
-                  <Field label="Medicamento">
+                  <Field label="Medicamento" error={erroresInsumos[indice]?.medicamento || undefined}>
                     <Select
                       value={renglon.medicamentoId}
                       onChange={(e) => cambiarInsumo(indice, { medicamentoId: e.target.value })}
                       aria-label={`Medicamento del insumo ${indice + 1}`}
+                      aria-invalid={erroresInsumos[indice]?.medicamento ? true : undefined}
                     >
                       <option value="">Selecciona un medicamento…</option>
                       {medicamentos
                         .filter((m) => m.id === Number(renglon.medicamentoId) || !yaAgregados.includes(m.id))
-                        .map((m) => (
-                          <option key={m.id} value={m.id} disabled={!m.disponible}>
-                            {m.nombre} · {m.stock} {m.abreviatura || m.unidad}
-                            {m.disponible ? '' : ' — Agotado'}
-                          </option>
-                        ))}
+                        .map((m) => {
+                          const alergia = alergiaEnConflicto(m.nombre, alergiasPaciente);
+                          return (
+                            <option
+                              key={m.id}
+                              value={m.id}
+                              disabled={!m.disponible || Boolean(alergia)}
+                            >
+                              {m.nombre} · {m.stock} {m.abreviatura || m.unidad}
+                              {!m.disponible
+                                ? ' — Agotado'
+                                : alergia
+                                  ? ` — No disponible: alergia registrada (${alergia})`
+                                  : ''}
+                            </option>
+                          );
+                        })}
                     </Select>
                   </Field>
                   <Field
                     label="Cantidad"
-                    error={erroresInsumos[indice] || undefined}
+                    error={erroresInsumos[indice]?.cantidad || undefined}
                     hint={medicamento ? `Disponible: ${medicamento.stock}` : undefined}
                   >
                     <Input
@@ -812,7 +872,7 @@ export default function AtencionForm({
                       onChange={(e) => cambiarInsumo(indice, { cantidad: e.target.value })}
                       className="tabular-nums"
                       aria-label={`Cantidad del insumo ${indice + 1}`}
-                      aria-invalid={erroresInsumos[indice] ? true : undefined}
+                      aria-invalid={erroresInsumos[indice]?.cantidad ? true : undefined}
                     />
                   </Field>
                   <div className="md:pt-8">

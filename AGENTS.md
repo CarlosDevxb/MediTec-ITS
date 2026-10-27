@@ -21,14 +21,14 @@ docker compose up -d --build
 # Web en http://localhost:8080 · API en http://localhost:3000
 # MySQL en localhost:3307 (usuario meditec_user)
 
-cd backend && npm run crear:admin     # roles + primer administrador (idempotante)
+cd backend && npm run crear:admin     # datos iniciales: roles, tipos de paciente y admin (idempotante)
 ```
 
 Para desarrollo (sin Docker, servidores en caliente):
 
 ```bash
 docker compose up -d                  # solo MySQL
-cd backend && npm run crear:admin    # roles + primer administrador (idempotante)
+cd backend && npm run crear:admin    # datos iniciales: roles, tipos de paciente y admin (idempotante)
 cd backend && npm run dev             # API en http://localhost:3000
 cd frontend && npm run dev            # Web en http://localhost:4321 (o astro dev --background)
 ```
@@ -95,7 +95,12 @@ los turnos duplicados exactos se rechazan, los medicamentos no se eliminan (el
 stock en 0 los deja no disponibles para consultas) y **toda consulta deriva de
 una cita**: al atender sin cita previa (doctor y enfermería) el alta crea antes
 la auto-cita `Atención directa` y enseguida la consulta, en una transacción con
-descuento de insumos.
+descuento de insumos. **Dispensación segura**: un medicamento que coincide con
+las alergias registradas del paciente no se puede dispensar; el formulario lo
+bloquea y sugiere alternativas del inventario, y el servidor lo rechaza en la
+misma transacción (`utils/alergias.ts`, mismo criterio en
+`frontend/src/services/atencion.service.ts`; la comparación es por nombre
+normalizado, así que no detecta sinónimos como paracetamol/acetaminofén).
 
 **Paneles por rol:** `/doctor` (Personal médico) y `/enfermeria` (Enfermería;
 Recepción entra aquí de forma provisional). Los componentes clínicos

@@ -1,4 +1,5 @@
 import pool from '../db/pool';
+import type { PoolConnection } from 'mysql2/promise';
 import {
   errorConflicto,
   errorNoEncontrado,
@@ -6,6 +7,7 @@ import {
   errorValidacion,
 } from '../utils/erroresHttp';
 import { fechaHoraTexto, fechaISO, horaCorta, hoyISO } from '../utils/fechas';
+import { alergiaEnConflicto } from '../utils/alergias';
 import { buscarPersonalPorUsuario } from './personal.service';
 import { buscarUsuario } from './usuarios.service';
 import { asegurarPacienteExiste } from './pacientes.service';
@@ -170,6 +172,50 @@ const CATEGORIAS_PERMITIDAS: Record<string, string[]> = {
   Nutrición: [],
   Odontología: ['Medicamento común', 'Medicamento especial', 'Insumo dental'],
 };
+
+/** Alergias registradas del paciente (para no dispensar lo que las provoca) */
+async function alergiasDePaciente(
+  conexion: PoolConnection,
+  pacienteId: number,
+): Promise<string[]> {
+  const [filas] = await conexion.query(
+    `SELECT a.nombre AS nombre
+       FROM paciente_alergias pa
+       JOIN cat_alergias a ON a.id_alergia = pa.cat_alergias_id_alergia
+      WHERE pa.pacientes_id_paciente = ?`,
+    [pacienteId],
+  );
+  return (filas as Array<{ nombre: string }>).map((fila) => String(fila['nombre']));
+}
+
+/**
+ * Alternativas del inventario para un paciente: categorías que permite su
+ * tipo de consulta, con stock y sin choque con sus alergias. Se sugieren
+ * hasta 3, primero los de la misma categoría del medicamento rechazado.
+ */
+async function sugerenciasParaPaciente(
+  conexion: PoolConnection,
+  alergias: readonly string[],
+  permitidas: readonly string[],
+  categoriaPreferida: string,
+): Promise<string[]> {
+  if (permitidas.length === 0) return [];
+  const [filas] = await conexion.query(
+    `SELECT nombre, categoria
+       FROM medicamentos
+      WHERE stock > 0 AND categoria IN (?)
+      ORDER BY nombre`,
+    [permitidas],
+  );
+  return (filas as Array<{ nombre: string; categoria: string }>)
+    .filter((fila) => !alergiaEnConflicto(String(fila['nombre']), alergias))
+    .sort(
+      (a, b) =>
+        Number(b['categoria'] === categoriaPreferida) - Number(a['categoria'] === categoriaPreferida),
+    )
+    .slice(0, 3)
+    .map((fila) => String(fila['nombre']));
+}
 
 /**
  * Registra una atención completa: primero la cita (auto-cita 'Atención
@@ -351,6 +397,10 @@ export async function crearConsulta(
     }
 
     /* ---- 4) Insumos: stock verificado y descontado en la misma transacción ---- */
+    // Seguridad clínica: con las alergias registradas del paciente se evita
+    // dispensar lo que las provoca y se sugieren alternativas del inventario
+    const alergiasPaciente = await alergiasDePaciente(conexion, datos.pacienteId);
+
     for (const insumo of datos.insumos ?? []) {
       const [filas] = await conexion.query(
         'SELECT nombre, stock, categoria FROM medicamentos WHERE id_medicamento = ? FOR UPDATE',
@@ -368,6 +418,22 @@ export async function crearConsulta(
 
       // Cada tipo de consulta solo usa sus categorías de inventario
       const permitidas = CATEGORIAS_PERMITIDAS[tipoConsulta] ?? [];
+
+      const alergia = alergiaEnConflicto(nombre, alergiasPaciente);
+      if (alergia) {
+        const alternativas = await sugerenciasParaPaciente(
+          conexion,
+          alergiasPaciente,
+          permitidas,
+          categoria,
+        );
+        throw errorConflicto(
+          `No se puede dispensar "${nombre}": el paciente tiene registrada alergia a "${alergia}".` +
+            (alternativas.length > 0
+              ? ` Alternativas disponibles: ${alternativas.join(', ')}.`
+              : ' No hay alternativas disponibles en el inventario.'),
+        );
+      }
       if (!permitidas.includes(categoria)) {
         throw errorConflicto(
           `"${nombre}" (${categoria.toLowerCase()}) no se puede usar en consultas de ${tipoConsulta.toLowerCase()}.`,
