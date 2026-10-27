@@ -169,9 +169,10 @@ por lo que puede recrearse sin más que dejar correr el script.
   el admin (por diseño actual).
 
 **Estado actual:** la fase de **correcciones de errores** por prueba manual ya
-está cerrada y commiteada (reagendar citas, reportes del admin, portabilidad de
-la BD). Las pruebas manuales continúan: cada detalle nuevo reportado se
-corrige, se verifica (typecheck + build) y se commitea.
+está cerrada (reagendar citas, reportes del admin, portabilidad de la BD). Las
+pruebas manuales continúan: cada detalle nuevo reportado se corrige, se
+verifica (typecheck + build) y se entrega por **rama + pull request** (nunca
+push directo a `main`; ver AGENTS.md).
 
 ---
 
