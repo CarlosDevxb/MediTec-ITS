@@ -43,6 +43,14 @@ export interface CuestionarioSalud {
   estatus: string;
 }
 
+/** Última medición de peso y talla registrada del paciente */
+export interface UltimaMedicion {
+  peso: number | null;
+  talla: number | null;
+  /** AAAA-MM-DD HH:mm */
+  fecha: string;
+}
+
 export interface ExpedientePaciente extends PacienteResumen {
   antecedentes: string;
   /** AAAA-MM-DD HH:mm */
@@ -50,6 +58,8 @@ export interface ExpedientePaciente extends PacienteResumen {
   alergias: string[];
   enfermedades: string[];
   cuestionario: CuestionarioSalud | null;
+  /** Último peso y talla (signos de consultas o cuestionario); se precargan al atender */
+  ultimaMedicion: UltimaMedicion | null;
 }
 
 export function listarPacientes(): Promise<PacienteResumen[]> {
@@ -341,6 +351,70 @@ export function hoyISO(): string {
   return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(
     hoy.getDate(),
   ).padStart(2, '0')}`;
+}
+
+/* ---------------- Alergias vs. medicamentos ----------------
+   Mismo criterio que `backend/src/utils/alergias.ts`: la comparación es
+   textual (minúsculas, sin acentos) entre el nombre del medicamento y el
+   término de la alergia. "Paracetamol 500 mg" choca con "Paracetamol". */
+
+/** Minúsculas, sin acentos y sin espacios dobles, para comparar nombres */
+export function normalizarNombre(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Devuelve la alergia registrada que impide dispensar el medicamento, o
+ * `null` si no hay choque. Los términos de menos de 4 caracteres se ignoran
+ * para evitar falsos positivos.
+ */
+export function alergiaEnConflicto(
+  nombreMedicamento: string,
+  alergias: readonly string[],
+): string | null {
+  const medicamento = normalizarNombre(nombreMedicamento);
+  if (!medicamento) return null;
+
+  for (const alergia of alergias) {
+    const termino = normalizarNombre(alergia);
+    if (termino.length < 4) continue;
+    if (medicamento.includes(termino)) return alergia;
+    if (medicamento.length >= 4 && termino.includes(medicamento)) return alergia;
+  }
+  return null;
+}
+
+/* ---------------- Nombres clínicos ----------------
+   Mismo criterio que `backend/src/validaciones/comunes.ts`: lo que se
+   escribe como alergia o enfermedad se limita a texto razonable y se
+   normaliza, para que no entre basura ni conceptos duplicados. */
+
+/** Nombre clínico normalizado: espacios colapsados y mayúscula inicial */
+export function normalizarNombreClinico(texto: string): string {
+  const limpio = texto.replace(/\s+/g, ' ').trim();
+  return limpio ? limpio.charAt(0).toUpperCase() + limpio.slice(1) : limpio;
+}
+
+/** Devuelve el problema del nombre, o cadena vacía si es válido */
+export function errorNombreClinico(texto: string): string {
+  const nombre = texto.trim();
+  if (nombre.length < 3) return 'El nombre debe tener al menos 3 caracteres.';
+  if (nombre.length > 100) return 'El nombre no puede exceder 100 caracteres.';
+  if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 .,()&+-]*$/.test(nombre)) {
+    return 'Usa solo letras, números y signos de puntuación (sin emojis ni símbolos).';
+  }
+  if ((nombre.match(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g) ?? []).length < 2) {
+    return 'El nombre debe contener al menos dos letras.';
+  }
+  if (/(.)\1{2,}/.test(nombre)) {
+    return 'El nombre no debe repetir la misma letra tres veces seguidas.';
+  }
+  return '';
 }
 
 /* ---------------- Planes alimenticios ---------------- */

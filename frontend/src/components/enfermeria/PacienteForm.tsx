@@ -5,6 +5,7 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { Field, Input, Select, Textarea } from '../ui/Input';
 import { detallesDe, mensajeDeError } from '../../services/api';
+import { useOpcionUnica } from '../../hooks/useOpcionUnica';
 import type { ValorCatalogo } from '../../services/administracion.service';
 import {
   TIPOS_SANGRE,
@@ -22,6 +23,9 @@ import {
    ============================================================ */
 
 const GENEROS = ['Masculino', 'Femenino', 'Otro'];
+
+/** Tipos de paciente que exigen carrera (mismo criterio que el backend) */
+const TIPOS_CON_CARRERA = ['Alumno'];
 
 export interface PacienteFormProps {
   modo: 'alta' | 'editar';
@@ -68,11 +72,24 @@ export default function PacienteForm({
     nombre,
     numeroControl,
     correo,
+    telefono,
     fechaNacimiento,
     genero,
     tipoPacienteId,
+    carreraId,
     contrasena,
   };
+
+  /* ---------- Selectores: opción única y carrera según el tipo ---------- */
+  const tipoElegido = tiposPaciente.find((t) => String(t.id) === String(tipoPacienteId));
+  const exigeCarrera = TIPOS_CON_CARRERA.includes(tipoElegido?.nombre ?? '');
+
+  // Con una sola opción disponible el selector la elige solo (ver hooks/):
+  // evita el campo que "se ve seleccionado" pero no lo está.
+  useOpcionUnica(tiposPaciente, tipoPacienteId, (id) => setTipoPacienteId(String(id)));
+  // La carrera solo aplica (y solo se auto-elegiría) para los tipos que la
+  // exigen: nunca se asigna una carrera a quien no es alumno.
+  useOpcionUnica(exigeCarrera ? carreras : [], carreraId, (id) => setCarreraId(String(id)));
 
   /* ---------- Duplicados en tiempo real ---------- */
   // El número de control se detecta mientras se escribe; el correo duplicado
@@ -101,20 +118,50 @@ export default function PacienteForm({
       : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(texto('correo'))
         ? 'Escribe un correo electrónico válido.'
         : '';
+    calculados.telefono =
+      texto('telefono') && !/^\d{7,10}$/.test(texto('telefono'))
+        ? 'Escribe un teléfono válido: solo números, entre 7 y 10 dígitos.'
+        : '';
     calculados.fechaNacimiento = !/^\d{4}-\d{2}-\d{2}$/.test(texto('fechaNacimiento'))
       ? 'La fecha debe tener el formato AAAA-MM-DD.'
       : texto('fechaNacimiento') > new Date().toISOString().slice(0, 10)
         ? 'La fecha no puede ser futura.'
         : '';
     calculados.genero = !esAlta || genero ? '' : 'Selecciona un género.';
-    calculados.tipoPacienteId = !esAlta || tipoPacienteId ? '' : 'Selecciona el tipo de paciente.';
+    calculados.tipoPacienteId =
+      !esAlta || tipoPacienteId
+        ? ''
+        : tiposPaciente.length === 0
+          ? 'No hay tipos de paciente registrados. Regístralos en la sección Catálogos.'
+          : 'Selecciona el tipo de paciente.';
+    calculados.carreraId =
+      !esAlta || !exigeCarrera || carreraId
+        ? ''
+        : carreras.length === 0
+          ? 'No hay carreras registradas. Regístralas en la sección Catálogos.'
+          : 'Los pacientes de tipo Alumno deben tener carrera asignada.';
     calculados.contrasena =
       !esAlta || !contrasena || contrasena.length >= 8
         ? ''
         : 'La contraseña debe tener al menos 8 caracteres.';
     return calculados;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nombre, numeroControl, correo, fechaNacimiento, genero, tipoPacienteId, contrasena, numeroRepetido, esAlta]);
+  }, [
+    nombre,
+    numeroControl,
+    correo,
+    telefono,
+    fechaNacimiento,
+    genero,
+    tipoPacienteId,
+    carreraId,
+    contrasena,
+    numeroRepetido,
+    esAlta,
+    exigeCarrera,
+    tiposPaciente,
+    carreras,
+  ]);
 
   const errorVisible = (campo: string): string | undefined => {
     const propio = errores[campo];
@@ -131,9 +178,11 @@ export default function PacienteForm({
       nombre: true,
       numeroControl: true,
       correo: true,
+      telefono: true,
       fechaNacimiento: true,
       genero: true,
       tipoPacienteId: true,
+      carreraId: true,
       contrasena: true,
     });
     setErroresServidor({});
@@ -184,7 +233,18 @@ export default function PacienteForm({
         }
       />
 
-      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-6" noValidate>
+      <form
+        onSubmit={(e) => void handleSubmit(e)}
+        // Al editar se descartan los avisos del servidor ya mostrados: los
+        // errores vivos del formulario siguen actualizándose solos y el
+        // servidor vuelve a validar al guardar. Así un campo corregido deja
+        // de quedar "marcado" como pendiente.
+        onChange={() =>
+          setErroresServidor((prev) => (Object.keys(prev).length ? {} : prev))
+        }
+        className="space-y-6"
+        noValidate
+      >
         {esAlta && (
           <Card title="Datos de la cuenta" icon={UserPlus}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -229,11 +289,18 @@ export default function PacienteForm({
                   aria-invalid={errorVisible('correo') ? true : undefined}
                 />
               </Field>
-              <Field label="Teléfono" hint="Opcional.">
+              <Field label="Teléfono" hint="Opcional." error={errorVisible('telefono')}>
                 <Input
                   value={telefono}
-                  onChange={(e) => setTelefono(e.target.value)}
+                  onChange={(e) => {
+                    setTelefono(e.target.value.replace(/\D/g, ''));
+                    marcarTocado('telefono');
+                  }}
+                  onBlur={() => marcarTocado('telefono')}
                   placeholder="Ej. 5512345678"
+                  inputMode="numeric"
+                  maxLength={10}
+                  aria-invalid={errorVisible('telefono') ? true : undefined}
                 />
               </Field>
               <Field label="Fecha de nacimiento" error={errorVisible('fechaNacimiento')}>
@@ -291,33 +358,78 @@ export default function PacienteForm({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {esAlta && (
               <>
-                <Field label="Tipo de paciente" error={errorVisible('tipoPacienteId')}>
-                  <Select
-                    value={tipoPacienteId}
-                    onChange={(e) => {
-                      setTipoPacienteId(e.target.value);
-                      marcarTocado('tipoPacienteId');
-                    }}
-                    onBlur={() => marcarTocado('tipoPacienteId')}
-                    aria-invalid={errorVisible('tipoPacienteId') ? true : undefined}
-                  >
-                    <option value="">Selecciona…</option>
-                    {tiposPaciente.map((tipo) => (
-                      <option key={tipo.id} value={tipo.id}>
-                        {tipo.nombre}
-                      </option>
-                    ))}
-                  </Select>
+                <Field
+                  label="Tipo de paciente"
+                  error={errorVisible('tipoPacienteId')}
+                  hint={
+                    tiposPaciente.length === 1 && tipoPacienteId
+                      ? 'Solo hay un tipo registrado: quedó seleccionado automáticamente.'
+                      : undefined
+                  }
+                >
+                  {tiposPaciente.length === 0 ? (
+                    <p className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                      Todavía no hay tipos de paciente. Regístralos en la sección
+                      Catálogos → Tipos de paciente y vuelve a intentarlo.
+                    </p>
+                  ) : (
+                    <Select
+                      value={tipoPacienteId}
+                      onChange={(e) => {
+                        setTipoPacienteId(e.target.value);
+                        marcarTocado('tipoPacienteId');
+                      }}
+                      onBlur={() => marcarTocado('tipoPacienteId')}
+                      aria-invalid={errorVisible('tipoPacienteId') ? true : undefined}
+                    >
+                      <option value="">Selecciona…</option>
+                      {tiposPaciente.map((tipo) => {
+                        const sinCarreras =
+                          TIPOS_CON_CARRERA.includes(tipo.nombre) && carreras.length === 0;
+                        return (
+                          <option key={tipo.id} value={tipo.id} disabled={sinCarreras}>
+                            {tipo.nombre}
+                            {sinCarreras ? ' — sin carreras registradas' : ''}
+                          </option>
+                        );
+                      })}
+                    </Select>
+                  )}
                 </Field>
-                <Field label="Carrera" hint="Opcional (solo alumnos).">
-                  <Select value={carreraId} onChange={(e) => setCarreraId(e.target.value)}>
-                    <option value="">Sin carrera</option>
-                    {carreras.map((carrera) => (
-                      <option key={carrera.id} value={carrera.id}>
-                        {carrera.nombre}
-                      </option>
-                    ))}
-                  </Select>
+                <Field
+                  label="Carrera"
+                  hint={
+                    exigeCarrera
+                      ? carreras.length === 1 && carreraId
+                        ? 'Solo hay una carrera registrada: quedó seleccionada automáticamente.'
+                        : 'Los pacientes de tipo Alumno deben tener carrera asignada.'
+                      : 'Opcional (solo alumnos).'
+                  }
+                  error={errorVisible('carreraId')}
+                >
+                  {exigeCarrera && carreras.length === 0 ? (
+                    <p className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                      Todavía no hay carreras. Regístralas en la sección
+                      Catálogos → Carreras y vuelve a intentarlo.
+                    </p>
+                  ) : (
+                    <Select
+                      value={carreraId}
+                      onChange={(e) => {
+                        setCarreraId(e.target.value);
+                        marcarTocado('carreraId');
+                      }}
+                      onBlur={() => marcarTocado('carreraId')}
+                      aria-invalid={errorVisible('carreraId') ? true : undefined}
+                    >
+                      <option value="">{exigeCarrera ? 'Selecciona…' : 'Sin carrera'}</option>
+                      {carreras.map((carrera) => (
+                        <option key={carrera.id} value={carrera.id}>
+                          {carrera.nombre}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
                 </Field>
               </>
             )}

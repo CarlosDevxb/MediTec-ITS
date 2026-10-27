@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { nombreClinico, compararNombre } from './comunes';
 import { TIPOS_SANGRE } from './pacientes.validacion';
 
 /**
@@ -19,12 +20,8 @@ export const ACTIVIDADES_FISICAS = ['Ninguna', 'Leve', 'Moderada', 'Intensa'] as
 export const CONSUMO_TABACO = ['Nunca', 'Ex-fumador', 'Fumador'] as const;
 export const CONSUMO_ALCOHOL = ['Nunca', 'Ocasional', 'Frecuente'] as const;
 
-/** Nombre de alergia o enfermedad (catálogo o alta nueva) */
-const nombreConcepto = z
-  .string({ error: 'El nombre no puede estar vacío.' })
-  .trim()
-  .min(1, 'El nombre no puede estar vacío.')
-  .max(100, 'El nombre no puede exceder 100 caracteres.');
+/** Nombre de alergia o enfermedad (catálogo o alta nueva): formato clínico */
+const nombreConcepto = nombreClinico;
 
 const textoOpcional = (maximo: number, etiqueta: string) =>
   z
@@ -38,7 +35,7 @@ const listaConceptos = z
   .array(nombreConcepto, { error: 'La lista debe ser un arreglo de nombres.' })
   .max(50, 'Máximo 50 elementos por lista.')
   .refine(
-    (nombres) => new Set(nombres.map((n) => n.toLowerCase())).size === nombres.length,
+    (nombres) => new Set(nombres.map((n) => compararNombre(n))).size === nombres.length,
     'Un nombre no puede repetirse en la lista.',
   );
 

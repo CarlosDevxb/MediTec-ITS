@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { User, ShieldCheck, Save, X, Info, GraduationCap } from 'lucide-react';
 import PageHeader from '../ui/PageHeader';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { Field, Input, PasswordInput, Select } from '../ui/Input';
 import { detallesDe, mensajeDeError } from '../../services/api';
+import { useOpcionUnica } from '../../hooks/useOpcionUnica';
 import {
   listarTiposPaciente,
   listarCarreras,
@@ -23,6 +24,9 @@ import {
      · Paciente                    → tipo de paciente, y carrera
                                       si el tipo la requiere (Alumno)
 
+   El rol Paciente no se puede elegir si el catálogo de tipos de
+   paciente está vacío: sin tipos no se abre expediente.
+
    El servidor vuelve a validar todo: aquí es comodidad de captura.
    ============================================================ */
 
@@ -32,15 +36,31 @@ const ROLES_CON_CEDULA = ['Personal médico', 'Enfermería'];
 /** Rol que además abre un expediente en la tabla `pacientes` */
 const ROL_PACIENTE = 'Paciente';
 
+/** Rol del personal de enfermería */
+const ROL_ENFERMERIA = 'Enfermería';
+
+/**
+ * Especialidades del personal médico. 'Enfermería' no aparece aquí: la
+ * enfermería es un rol (así lo decide también el servidor), para no duplicar
+ * identidades ni permisos.
+ */
+const ESPECIALIDADES_MEDICO = ['Odontología', 'Medicina general', 'Nutrición'];
+
+/** Especialidad fija del personal de enfermería (mismo criterio que el backend) */
+const ESPECIALIDAD_ENFERMERIA = 'Enfermería';
+
 /** Tipos de paciente que exigen carrera (mismo criterio que el backend) */
 const TIPOS_CON_CARRERA = ['Alumno'];
 
-const ESPECIALIDADES = ['Odontología', 'Medicina general', 'Nutrición', 'Enfermería'];
+/** Formato aceptado para el teléfono (mismo criterio que el servidor) */
+const FORMATO_TELEFONO = /^\d{7,10}$/;
 
 export interface UsuarioFormProps {
   modo: 'alta' | 'editar';
   usuario?: Usuario;
   roles: Rol[];
+  /** Usuarios ya cargados: para avisar de duplicados mientras se escribe */
+  existentes?: Usuario[];
   cargandoRoles: boolean;
   guardando: boolean;
   onCancelar: () => void;
@@ -51,6 +71,7 @@ export default function UsuarioForm({
   modo,
   usuario,
   roles,
+  existentes = [],
   cargandoRoles,
   guardando,
   onCancelar,
@@ -61,10 +82,10 @@ export default function UsuarioForm({
   const [correo, setCorreo] = useState(usuario?.correo ?? '');
   const [telefono, setTelefono] = useState(usuario?.telefono ?? '');
   const [fechaNacimiento, setFechaNacimiento] = useState(usuario?.fechaNacimiento ?? '');
-  const [genero, setGenero] = useState<Usuario['genero']>(usuario?.genero ?? 'Femenino');
-  const [rolId, setRolId] = useState(usuario?.rolId ?? roles[0]?.id ?? 0);
+  const [genero, setGenero] = useState<string>(usuario?.genero ?? '');
+  const [rolId, setRolId] = useState(usuario?.rolId ?? 0);
   const [cedula, setCedula] = useState(usuario?.cedula ?? '');
-  const [especialidad, setEspecialidad] = useState(usuario?.especialidad ?? ESPECIALIDADES[0]);
+  const [especialidad, setEspecialidad] = useState(usuario?.especialidad ?? '');
   const [tipoPacienteId, setTipoPacienteId] = useState(usuario?.tipoPacienteId ?? 0);
   const [carreraId, setCarreraId] = useState(usuario?.carreraId ?? 0);
   const [contrasena, setContrasena] = useState('');
@@ -72,7 +93,9 @@ export default function UsuarioForm({
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [errorGeneral, setErrorGeneral] = useState('');
 
-  /* Catálogos que necesita el expediente del paciente */
+  /* Catálogos que necesita el expediente del paciente. Se cargan siempre:
+     sin tipos de paciente el rol Paciente no se puede elegir, y eso solo se
+     sabe habiendo consultado el catálogo. */
   const [tiposPaciente, setTiposPaciente] = useState<ValorCatalogo[]>([]);
   const [carreras, setCarreras] = useState<ValorCatalogo[]>([]);
   const [cargandoCatalogos, setCargandoCatalogos] = useState(false);
@@ -81,13 +104,27 @@ export default function UsuarioForm({
   const rolSeleccionado = roles.find((r) => r.id === rolId);
   const esPersonal = ROLES_CON_CEDULA.includes(rolSeleccionado?.nombre ?? '');
   const esPaciente = (rolSeleccionado?.nombre ?? '') === ROL_PACIENTE;
+  const esRolEnfermeria = (rolSeleccionado?.nombre ?? '') === ROL_ENFERMERIA;
+  const esPersonalMedico = (rolSeleccionado?.nombre ?? '') === 'Personal médico';
+
+  // La enfermería es un rol: su especialidad es fija y no se elige. Al pasar
+  // a personal médico se limpia si traía la especialidad de enfermería.
+  useEffect(() => {
+    if (esRolEnfermeria) {
+      setEspecialidad(ESPECIALIDAD_ENFERMERIA);
+    } else if (esPersonalMedico && !ESPECIALIDADES_MEDICO.includes(especialidad)) {
+      setEspecialidad('');
+    }
+    // Solo al cambiar de rol: el resto lo decide quien captura
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esRolEnfermeria, esPersonalMedico]);
 
   const tipoSeleccionado = tiposPaciente.find((t) => t.id === tipoPacienteId);
   const requiereCarrera = TIPOS_CON_CARRERA.includes(tipoSeleccionado?.nombre ?? '');
+  const hayTipos = tiposPaciente.length > 0;
+  const hayCarreras = carreras.length > 0;
 
-  // Los catálogos solo se piden cuando el rol es Paciente
   useEffect(() => {
-    if (!esPaciente) return;
     let vigente = true;
     setCargandoCatalogos(true);
     setErrorCatalogos('');
@@ -108,12 +145,67 @@ export default function UsuarioForm({
     return () => {
       vigente = false;
     };
-  }, [esPaciente]);
+  }, []);
 
   // Al cambiar de tipo, si el nuevo no requiere carrera se limpia la selección
   useEffect(() => {
     if (tipoPacienteId && !requiereCarrera) setCarreraId(0);
   }, [tipoPacienteId, requiereCarrera]);
+
+  /* ---------- Duplicados en tiempo real ----------
+     El número de control y el correo deben ser únicos: se comparan mientras
+     se escribe contra los usuarios ya cargados (el servidor vuelve a
+     comprobarlo y responde 409 si algo se cruza de todos modos). */
+  const numeroRepetido = useMemo(
+    () =>
+      numeroControl.trim().length > 0 &&
+      existentes.some(
+        (u) =>
+          u.id !== usuario?.id &&
+          u.numeroControl.trim().toLowerCase() === numeroControl.trim().toLowerCase(),
+      ),
+    [existentes, numeroControl, usuario?.id],
+  );
+  const correoRepetido = useMemo(
+    () =>
+      correo.trim().length > 0 &&
+      existentes.some(
+        (u) => u.id !== usuario?.id && u.correo.trim().toLowerCase() === correo.trim().toLowerCase(),
+      ),
+    [correo, existentes, usuario?.id],
+  );
+
+  /* ---------- Avisos vivos de la contraseña ----------
+     La confirmación se compara mientras se escribe, no al guardar. */
+  const contrasenaCortaViva =
+    modo === 'alta' && contrasena.length > 0 && contrasena.length < 8
+      ? 'La contraseña debe tener al menos 8 caracteres.'
+      : '';
+  const confirmacionViva =
+    modo === 'alta' && confirmarContrasena && confirmarContrasena !== contrasena
+      ? 'Las contraseñas no coinciden.'
+      : '';
+
+  /* ---------- Selectores: opción única y rol Paciente ---------- */
+  /** El rol Paciente se bloquea si no hay tipos de paciente registrados
+   *  (sin tipo no se abre expediente). Una cuenta que ya es Paciente
+   *  conserva su rol para no bloquear la edición. */
+  const rolPacienteBloqueado = (rol: Rol): boolean =>
+    rol.nombre === ROL_PACIENTE && !hayTipos && usuario?.rolId !== rol.id;
+
+  const rolesDisponibles = useMemo(
+    () => roles.filter((rol) => !rolPacienteBloqueado(rol)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [roles, hayTipos, usuario?.rolId],
+  );
+
+  // Con una sola opción el selector la elige solo: evita el campo que "se ve
+  // seleccionado" pero no lo está (o queda en blanco) al cargar el catálogo.
+  // La carrera solo se auto-elegiría cuando el tipo la exige: nunca se asigna
+  // una carrera a quien no es alumno.
+  useOpcionUnica(rolesDisponibles, rolId, (id) => setRolId(Number(id)));
+  useOpcionUnica(tiposPaciente, tipoPacienteId, (id) => setTipoPacienteId(Number(id)));
+  useOpcionUnica(requiereCarrera ? carreras : [], carreraId, (id) => setCarreraId(Number(id)));
 
   /** Validación rápida en cliente; el servidor siempre vuelve a validar */
   const validar = (): boolean => {
@@ -126,24 +218,57 @@ export default function UsuarioForm({
       nuevos.numeroControl = 'Mínimo 3 caracteres.';
     } else if (!/^[A-Za-z0-9-]+$/.test(numeroControl.trim())) {
       nuevos.numeroControl = 'Solo letras, números y guiones.';
+    } else if (numeroRepetido) {
+      nuevos.numeroControl = 'Ese número de control ya está registrado.';
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo.trim())) {
       nuevos.correo = 'Escribe un correo electrónico válido.';
+    } else if (correoRepetido) {
+      nuevos.correo = 'Ese correo ya está registrado.';
+    }
+    if (telefono.trim() && !FORMATO_TELEFONO.test(telefono.trim())) {
+      nuevos.telefono = 'Escribe un teléfono válido: solo números, entre 7 y 10 dígitos.';
     }
     if (!fechaNacimiento) {
       nuevos.fechaNacimiento = 'Indica la fecha de nacimiento.';
+    } else if (fechaNacimiento > new Date().toISOString().slice(0, 10)) {
+      nuevos.fechaNacimiento = 'La fecha de nacimiento no puede ser futura.';
+    }
+    if (!genero) {
+      nuevos.genero = 'Selecciona un género.';
     }
     if (!rolId) {
       nuevos.rolId = 'Selecciona un rol.';
+    } else if (roles.length > 0 && !roles.some((rol) => rol.id === rolId)) {
+      nuevos.rolId = 'Selecciona un rol válido.';
+    } else {
+      const elegido = roles.find((rol) => rol.id === rolId);
+      if (elegido && rolPacienteBloqueado(elegido)) {
+        nuevos.rolId = 'Para usar el rol Paciente primero registra tipos de paciente en Catálogos.';
+      }
     }
-    if (esPersonal && !cedula.trim()) {
-      nuevos.cedula = 'La cédula es obligatoria para este personal.';
+    if (esPersonal) {
+      if (!cedula.trim()) {
+        nuevos.cedula = 'La cédula es obligatoria para este personal.';
+      }
+      // La especialidad solo se elige en el personal médico: la de enfermería es fija
+      if (esPersonalMedico && !especialidad) {
+        nuevos.especialidad = 'Selecciona la especialidad.';
+      }
     }
     if (esPaciente) {
       if (!tipoPacienteId) {
-        nuevos.tipoPacienteId = 'Selecciona el tipo de paciente.';
+        nuevos.tipoPacienteId = hayTipos
+          ? 'Selecciona el tipo de paciente.'
+          : 'No hay tipos de paciente registrados. Regístralos en la sección Catálogos.';
+      } else if (tiposPaciente.length > 0 && !tiposPaciente.some((t) => t.id === tipoPacienteId)) {
+        nuevos.tipoPacienteId = 'Selecciona un tipo de paciente válido.';
       } else if (requiereCarrera && !carreraId) {
-        nuevos.carreraId = 'Este tipo de paciente requiere una carrera.';
+        nuevos.carreraId = hayCarreras
+          ? 'Este tipo de paciente requiere una carrera.'
+          : 'No hay carreras registradas. Regístralas en la sección Catálogos.';
+      } else if (requiereCarrera && carreras.length > 0 && !carreras.some((c) => c.id === carreraId)) {
+        nuevos.carreraId = 'Selecciona una carrera válida.';
       }
     }
     if (modo === 'alta') {
@@ -201,7 +326,15 @@ export default function UsuarioForm({
         }
       />
 
-      <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+      <form
+        onSubmit={handleSubmit}
+        // Al editar se descartan los avisos ya mostrados (incluidos los del
+        // servidor): el formulario se revalida completo al guardar. Así un
+        // campo corregido deja de quedar "marcado" como pendiente.
+        onChange={() => setErrores((prev) => (Object.keys(prev).length ? {} : prev))}
+        className="space-y-6"
+        noValidate
+      >
         {/* Datos personales */}
         <Card title="Datos personales" icon={User}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -236,13 +369,19 @@ export default function UsuarioForm({
                 aria-invalid={errores.correo ? true : undefined}
               />
             </Field>
-            <Field label="Teléfono" hint="Opcional. Para contacto en urgencias.">
+            <Field
+              label="Teléfono"
+              hint="Opcional. Para contacto en urgencias."
+              error={errores.telefono}
+            >
               <Input
                 value={telefono}
-                onChange={(e) => setTelefono(e.target.value)}
+                onChange={(e) => setTelefono(e.target.value.replace(/\D/g, ''))}
                 placeholder="Ej. 4811234567"
-                maxLength={20}
+                inputMode="numeric"
+                maxLength={10}
                 disabled={guardando}
+                aria-invalid={errores.telefono ? true : undefined}
               />
             </Field>
             <Field label="Fecha de nacimiento" error={errores.fechaNacimiento}>
@@ -255,12 +394,14 @@ export default function UsuarioForm({
                 aria-invalid={errores.fechaNacimiento ? true : undefined}
               />
             </Field>
-            <Field label="Género">
+            <Field label="Género" error={errores.genero}>
               <Select
                 value={genero}
-                onChange={(e) => setGenero(e.target.value as Usuario['genero'])}
+                onChange={(e) => setGenero(e.target.value)}
                 disabled={guardando}
+                aria-invalid={errores.genero ? true : undefined}
               >
+                <option value="">Selecciona…</option>
                 <option value="Femenino">Femenino</option>
                 <option value="Masculino">Masculino</option>
                 <option value="Otro">Otro</option>
@@ -275,7 +416,13 @@ export default function UsuarioForm({
             <Field
               label="Rol"
               error={errores.rolId}
-              hint={cargandoRoles ? 'Cargando roles…' : 'Define lo que la cuenta puede hacer.'}
+              hint={
+                cargandoRoles || cargandoCatalogos
+                  ? 'Cargando roles…'
+                  : !hayTipos
+                    ? 'El rol Paciente necesita tipos de paciente: regístralos en Catálogos.'
+                    : 'Define lo que la cuenta puede hacer.'
+              }
             >
               <Select
                 value={rolId || ''}
@@ -283,32 +430,53 @@ export default function UsuarioForm({
                 disabled={guardando || cargandoRoles || roles.length === 0}
                 aria-invalid={errores.rolId ? true : undefined}
               >
-                {roles.length === 0 && <option value="">Sin roles disponibles</option>}
-                {roles.map((rol) => (
-                  <option key={rol.id} value={rol.id}>
-                    {rol.nombre}
-                    {rol.usuarios > 0 ? ` (${rol.usuarios})` : ''}
-                  </option>
-                ))}
+                {roles.length === 0 ? (
+                  <option value="">Sin roles disponibles</option>
+                ) : (
+                  <option value="">Selecciona un rol…</option>
+                )}
+                {roles.map((rol) => {
+                  const bloqueado = rolPacienteBloqueado(rol);
+                  return (
+                    <option key={rol.id} value={rol.id} disabled={bloqueado}>
+                      {rol.nombre}
+                      {rol.usuarios > 0 ? ` (${rol.usuarios})` : ''}
+                      {bloqueado ? ' — requiere tipos de paciente' : ''}
+                    </option>
+                  );
+                })}
               </Select>
             </Field>
 
             {/* Datos del personal médico (tabla `personal_medico`) */}
             {esPersonal && (
               <>
-                <Field label="Especialidad">
-                  <Select
-                    value={especialidad}
-                    onChange={(e) => setEspecialidad(e.target.value)}
-                    disabled={guardando}
+                {esRolEnfermeria ? (
+                  <Field
+                    label="Especialidad"
+                    hint="La enfermería es un rol: su especialidad es fija y no se elige."
                   >
-                    {ESPECIALIDADES.map((opcion) => (
-                      <option key={opcion} value={opcion}>
-                        {opcion}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
+                    <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3.5 text-base text-gray-800">
+                      {ESPECIALIDAD_ENFERMERIA}
+                    </p>
+                  </Field>
+                ) : (
+                  <Field label="Especialidad" error={errores.especialidad}>
+                    <Select
+                      value={especialidad}
+                      onChange={(e) => setEspecialidad(e.target.value)}
+                      disabled={guardando}
+                      aria-invalid={errores.especialidad ? true : undefined}
+                    >
+                      <option value="">Selecciona…</option>
+                      {ESPECIALIDADES_MEDICO.map((opcion) => (
+                        <option key={opcion} value={opcion}>
+                          {opcion}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                )}
                 <Field
                   label="Cédula profesional"
                   className="md:col-span-2"
@@ -341,43 +509,75 @@ export default function UsuarioForm({
                     hint={
                       cargandoCatalogos
                         ? 'Cargando tipos…'
-                        : 'Clasificación institucional con la que se abre el expediente.'
+                        : tiposPaciente.length === 1 && tipoPacienteId
+                          ? 'Solo hay un tipo registrado: quedó seleccionado automáticamente.'
+                          : 'Clasificación institucional con la que se abre el expediente.'
                     }
                   >
-                    <Select
-                      value={tipoPacienteId || ''}
-                      onChange={(e) => setTipoPacienteId(Number(e.target.value))}
-                      disabled={guardando || cargandoCatalogos || tiposPaciente.length === 0}
-                      aria-invalid={errores.tipoPacienteId ? true : undefined}
-                    >
-                      {tiposPaciente.length === 0 && <option value="">Sin tipos disponibles</option>}
-                      {tiposPaciente.map((tipo) => (
-                        <option key={tipo.id} value={tipo.id}>
-                          {tipo.nombre}
-                        </option>
-                      ))}
-                    </Select>
+                    {!cargandoCatalogos && !hayTipos ? (
+                      <p className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                        Todavía no hay tipos de paciente. Regístralos en la sección
+                        Catálogos → Tipos de paciente y vuelve a intentarlo.
+                      </p>
+                    ) : (
+                      <Select
+                        value={tipoPacienteId || ''}
+                        onChange={(e) => setTipoPacienteId(Number(e.target.value))}
+                        disabled={guardando || cargandoCatalogos || tiposPaciente.length === 0}
+                        aria-invalid={errores.tipoPacienteId ? true : undefined}
+                      >
+                        {tiposPaciente.length === 0 ? (
+                          <option value="">Cargando tipos…</option>
+                        ) : (
+                          <option value="">Selecciona el tipo…</option>
+                        )}
+                        {tiposPaciente.map((tipo) => {
+                          const sinCarreras = TIPOS_CON_CARRERA.includes(tipo.nombre) && !hayCarreras;
+                          return (
+                            <option key={tipo.id} value={tipo.id} disabled={sinCarreras}>
+                              {tipo.nombre}
+                              {sinCarreras ? ' — sin carreras registradas' : ''}
+                            </option>
+                          );
+                        })}
+                      </Select>
+                    )}
                   </Field>
 
                   {requiereCarrera && (
                     <Field
                       label="Carrera"
                       error={errores.carreraId}
-                      hint="Los alumnos deben tener carrera asignada."
+                      hint={
+                        carreras.length === 1 && carreraId
+                          ? 'Solo hay una carrera registrada: quedó seleccionada automáticamente.'
+                          : 'Los alumnos deben tener carrera asignada.'
+                      }
                     >
-                      <Select
-                        value={carreraId || ''}
-                        onChange={(e) => setCarreraId(Number(e.target.value))}
-                        disabled={guardando || cargandoCatalogos || carreras.length === 0}
-                        aria-invalid={errores.carreraId ? true : undefined}
-                      >
-                        {carreras.length === 0 && <option value="">Sin carreras disponibles</option>}
-                        {carreras.map((carrera) => (
-                          <option key={carrera.id} value={carrera.id}>
-                            {carrera.nombre}
-                          </option>
-                        ))}
-                      </Select>
+                      {!cargandoCatalogos && !hayCarreras ? (
+                        <p className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                          Todavía no hay carreras. Regístralas en la sección
+                          Catálogos → Carreras: los pacientes de tipo Alumno la necesitan.
+                        </p>
+                      ) : (
+                        <Select
+                          value={carreraId || ''}
+                          onChange={(e) => setCarreraId(Number(e.target.value))}
+                          disabled={guardando || cargandoCatalogos || carreras.length === 0}
+                          aria-invalid={errores.carreraId ? true : undefined}
+                        >
+                          {carreras.length === 0 ? (
+                            <option value="">Cargando carreras…</option>
+                          ) : (
+                            <option value="">Selecciona la carrera…</option>
+                          )}
+                          {carreras.map((carrera) => (
+                            <option key={carrera.id} value={carrera.id}>
+                              {carrera.nombre}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
                     </Field>
                   )}
                 </div>
@@ -395,7 +595,7 @@ export default function UsuarioForm({
               <>
                 <Field
                   label="Contraseña inicial"
-                  error={errores.contrasena}
+                  error={contrasenaCortaViva || errores.contrasena}
                   hint="Mínimo 8 caracteres. El usuario deberá cambiarla."
                 >
                   <PasswordInput
@@ -405,9 +605,14 @@ export default function UsuarioForm({
                     autoComplete="new-password"
                     maxLength={72}
                     disabled={guardando}
+                    aria-invalid={contrasenaCortaViva || errores.contrasena ? true : undefined}
                   />
                 </Field>
-                <Field label="Confirmar contraseña" error={errores.confirmarContrasena}>
+                <Field
+                  label="Confirmar contraseña"
+                  error={confirmacionViva || errores.confirmarContrasena}
+                  hint="Debe coincidir con la contraseña anterior."
+                >
                   <PasswordInput
                     value={confirmarContrasena}
                     onChange={(e) => setConfirmarContrasena(e.target.value)}
@@ -415,6 +620,7 @@ export default function UsuarioForm({
                     autoComplete="new-password"
                     maxLength={72}
                     disabled={guardando}
+                    aria-invalid={confirmacionViva || errores.confirmarContrasena ? true : undefined}
                   />
                 </Field>
               </>

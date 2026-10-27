@@ -1,6 +1,12 @@
 import pool from '../db/pool';
 import { generarContrasenaTemporal, hashearContrasena } from '../utils/contrasenas';
-import { requiereCedula, esRolPaciente, requiereCarrera } from '../config/roles';
+import {
+  requiereCedula,
+  esRolPaciente,
+  esRolEnfermeria,
+  requiereCarrera,
+  ESPECIALIDAD_ENFERMERIA,
+} from '../config/roles';
 import { errorConflicto, errorNoEncontrado, errorValidacion } from '../utils/erroresHttp';
 
 /**
@@ -204,7 +210,7 @@ async function asegurarDatosLibres(
   }
 }
 
-/** Valida la cédula cuando el rol la exige */
+/** Valida la cédula y la especialidad cuando el rol las exige */
 function validarCedula(nombreRol: string, datos: DatosUsuario): void {
   if (!requiereCedula(nombreRol)) return;
 
@@ -214,17 +220,44 @@ function validarCedula(nombreRol: string, datos: DatosUsuario): void {
       [{ campo: 'cedula', mensaje: 'Captura la cédula profesional.' }],
     );
   }
-  if (!datos.especialidad?.trim()) {
+
+  // La enfermería es un rol, no una especialidad del personal médico: su
+  // especialidad es fija y no se elige
+  if (esRolEnfermeria(nombreRol)) return;
+
+  const especialidad = datos.especialidad?.trim() ?? '';
+  if (!especialidad) {
     throw errorValidacion('Indica la especialidad del personal.', [
       { campo: 'especialidad', mensaje: 'Selecciona la especialidad.' },
     ]);
   }
+  const normalizada = especialidad
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  if (normalizada === 'enfermeria') {
+    throw errorValidacion(
+      'La enfermería es un rol, no una especialidad del personal médico: registra esa cuenta con el rol Enfermería.',
+      [
+        {
+          campo: 'especialidad',
+          mensaje: 'Elige otra especialidad o cambia el rol a Enfermería.',
+        },
+      ],
+    );
+  }
+}
+
+/** Especialidad que queda en la ficha de personal: la del rol Enfermería es fija */
+function especialidadDeFicha(nombreRol: string, datos: DatosUsuario): string {
+  return esRolEnfermeria(nombreRol) ? ESPECIALIDAD_ENFERMERIA : datos.especialidad?.trim() ?? '';
 }
 
 /**
  * Valida los datos del expediente cuando el rol es Paciente:
  * el tipo de paciente es obligatorio, y la carrera también lo es para los
- * tipos que la requieren (ver `config/roles.ts`).
+ * tipos que la requieren (ver `config/roles.ts`). Si el catálogo de tipos
+ * está vacío se avisa explícitamente: sin tipos no se puede abrir expediente.
  */
 async function validarPaciente(nombreRol: string, datos: DatosUsuario): Promise<{
   tipoId: number;
@@ -235,9 +268,21 @@ async function validarPaciente(nombreRol: string, datos: DatosUsuario): Promise<
 
   const tipoId = Number(datos.tipoPacienteId ?? 0);
   if (!tipoId) {
-    throw errorValidacion('Indica el tipo de paciente del expediente.', [
-      { campo: 'tipoPacienteId', mensaje: 'Selecciona el tipo de paciente.' },
-    ]);
+    const [totales] = await pool.query('SELECT COUNT(*) AS total FROM cat_tipo_paciente');
+    const sinTipos = Number((totales as Array<{ total: number }>)[0]?.total ?? 0) === 0;
+    throw errorValidacion(
+      sinTipos
+        ? 'No hay tipos de paciente registrados: regístralos en la sección Catálogos antes de dar de alta pacientes.'
+        : 'Indica el tipo de paciente del expediente.',
+      [
+        {
+          campo: 'tipoPacienteId',
+          mensaje: sinTipos
+            ? 'Registra tipos de paciente en Catálogos.'
+            : 'Selecciona el tipo de paciente.',
+        },
+      ],
+    );
   }
 
   const nombreTipo = await nombreDeTipoPaciente(tipoId);
@@ -251,9 +296,18 @@ async function validarPaciente(nombreRol: string, datos: DatosUsuario): Promise<
 
   if (requiereCarrera(nombreTipo)) {
     if (!carreraId) {
+      const [totalesCarrera] = await pool.query('SELECT COUNT(*) AS total FROM cat_carreras');
+      const sinCarreras = Number((totalesCarrera as Array<{ total: number }>)[0]?.total ?? 0) === 0;
       throw errorValidacion(
-        `Los pacientes de tipo "${nombreTipo}" deben tener una carrera asignada.`,
-        [{ campo: 'carreraId', mensaje: 'Selecciona la carrera.' }],
+        sinCarreras
+          ? `Los pacientes de tipo "${nombreTipo}" deben tener una carrera y aún no hay carreras registradas: regístralas en la sección Catálogos.`
+          : `Los pacientes de tipo "${nombreTipo}" deben tener una carrera asignada.`,
+        [
+          {
+            campo: 'carreraId',
+            mensaje: sinCarreras ? 'Registra carreras en Catálogos.' : 'Selecciona la carrera.',
+          },
+        ],
       );
     }
     if (!(await existeCarrera(carreraId))) {
@@ -309,7 +363,7 @@ export async function crearUsuario(
       await conexion.query(
         `INSERT INTO personal_medico (usuarios_id_usuarios, cedula, especialidad)
          VALUES (?, ?, ?)`,
-        [id, datos.cedula?.trim() ?? '', datos.especialidad?.trim() ?? ''],
+        [id, datos.cedula?.trim() ?? '', especialidadDeFicha(nombreRol, datos)],
       );
     }
 
@@ -405,7 +459,7 @@ export async function actualizarUsuario(
         `INSERT INTO personal_medico (usuarios_id_usuarios, cedula, especialidad)
          VALUES (?, ?, ?)
          ON DUPLICATE KEY UPDATE cedula = VALUES(cedula), especialidad = VALUES(especialidad)`,
-        [id, datos.cedula?.trim() ?? '', datos.especialidad?.trim() ?? ''],
+        [id, datos.cedula?.trim() ?? '', especialidadDeFicha(nombreRol, datos)],
       );
     } else {
       await conexion.query('DELETE FROM personal_medico WHERE usuarios_id_usuarios = ?', [id]);

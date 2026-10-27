@@ -21,14 +21,14 @@ docker compose up -d --build
 # Web en http://localhost:8080 · API en http://localhost:3000
 # MySQL en localhost:3307 (usuario meditec_user)
 
-cd backend && npm run crear:admin     # roles + primer administrador (idempotante)
+cd backend && npm run crear:admin     # datos iniciales: roles, tipos de paciente y admin (idempotante)
 ```
 
 Para desarrollo (sin Docker, servidores en caliente):
 
 ```bash
 docker compose up -d                  # solo MySQL
-cd backend && npm run crear:admin    # roles + primer administrador (idempotante)
+cd backend && npm run crear:admin    # datos iniciales: roles, tipos de paciente y admin (idempotante)
 cd backend && npm run dev             # API en http://localhost:3000
 cd frontend && npm run dev            # Web en http://localhost:4321 (o astro dev --background)
 ```
@@ -91,11 +91,20 @@ vía `/importar` desde Excel). Los paneles `/admin`, `/doctor` y `/enfermeria`
 leen y escriben en MySQL; no usan datos de demostración.
 
 Reglas de negocio ya implementadas: la clínica solo opera de lunes a viernes,
-los turnos duplicados exactos se rechazan, los medicamentos no se eliminan (el
+los turnos duplicados exactos se rechazan y los horarios se organizan en
+**turnos** (una persona + un rango de horas con sus días: se dan de alta, se
+editan y se eliminan como un solo bloque), los medicamentos no se eliminan (el
 stock en 0 los deja no disponibles para consultas) y **toda consulta deriva de
 una cita**: al atender sin cita previa (doctor y enfermería) el alta crea antes
 la auto-cita `Atención directa` y enseguida la consulta, en una transacción con
-descuento de insumos.
+descuento de insumos. **Dispensación segura**: un medicamento que coincide con
+las alergias registradas del paciente no se puede dispensar; el formulario lo
+bloquea y sugiere alternativas del inventario, y el servidor lo rechaza en la
+misma transacción (`utils/alergias.ts`, mismo criterio en
+`frontend/src/services/atencion.service.ts`; la comparación es por nombre
+normalizado, así que no detecta sinónimos como paracetamol/acetaminofén). La
+**enfermería es un rol**, no una especialidad del personal médico: su
+especialidad es fija y no se ofrece al dar de alta personal.
 
 **Paneles por rol:** `/doctor` (Personal médico) y `/enfermeria` (Enfermería;
 Recepción entra aquí de forma provisional). Los componentes clínicos
@@ -196,14 +205,20 @@ primera consulta cuando llega de manera directa (el flujo de atención lo exige
 antes de abrir el formulario de consulta). Las alergias y enfermedades que no
 existan en los catálogos se dan de alta al guardarlo y se vinculan al paciente
 como alertas (`components/atencion/CuestionarioSalud.tsx`, reutilizable por el
-futuro portal del paciente, que solo podrá llenar el suyo).
+futuro portal del paciente, que solo podrá llenar el suyo). Los nombres pasan
+por el **formato de nombre clínico** y se normalizan: no entra basura ni
+símbolos y el mismo concepto escrito distinto no se duplica
+(`validaciones/comunes.ts`, mismo criterio en el cliente). En Catálogos, los
+valores duplicados o capturados por error se pueden **consolidar** en el valor
+correcto sin perder expedientes.
 
 Expediente en PDF (`frontend/src/services/expedientePdf.ts`): documento tipo
 expediente con encabezado MediTeC-ITS, identificación, alertas clínicas,
 antecedentes, cuestionario e historial de consultas completo; el pie lleva los
 logotipos de la empresa (`logo-cuchipu.png`) y del software
-(`logo-meditec.png`, ambos en `frontend/public/`). Se descarga desde
-Pacientes → Expediente.
+(`logo-meditec.png`, ambos en `frontend/public/`). Su folio se forma con el
+número de control y la fecha (`EXP-<control>-<AAAAMMDD>`, ver
+`documentosPdf.folioDe`). Se descarga desde Pacientes → Expediente.
 
 Importación / exportación en Excel (`frontend/src/services/excel.service.ts` +
 `ImportadorExcel.tsx`): plantilla descargable, avisos previos de captura,

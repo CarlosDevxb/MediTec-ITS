@@ -10,6 +10,7 @@ import EstadoVista from '../ui/EstadoVista';
 import Modal from '../ui/Modal';
 import { Field, Input, Select } from '../ui/Input';
 import { detallesDe, mensajeDeError } from '../../services/api';
+import { useOpcionUnica } from '../../hooks/useOpcionUnica';
 import {
   listarCitas,
   crearCita,
@@ -115,6 +116,10 @@ export default function MisCitas({ expediente }: MisCitasProps) {
   }, [cargar]);
 
   /* ---------- Disponibilidad del especialista elegido ---------- */
+  // Con un solo especialista el selector lo elige solo (ver hooks/):
+  // evita el campo que "se ve seleccionado" pero no lo está.
+  useOpcionUnica(especialistas, especialistaId, (id) => setEspecialistaId(String(id)));
+
   useEffect(() => {
     if (!especialistaId) {
       setHorarios([]);

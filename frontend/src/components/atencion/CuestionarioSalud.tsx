@@ -8,6 +8,9 @@ import { detallesDe, mensajeDeError } from '../../services/api';
 import { listarValoresCatalogo } from '../../services/administracion.service';
 import {
   guardarCuestionario,
+  errorNombreClinico,
+  normalizarNombre,
+  normalizarNombreClinico,
   TIPOS_SANGRE,
   type DatosCuestionario,
   type ExpedientePaciente,
@@ -50,6 +53,7 @@ function CampoConceptos({
   valores,
   onChange,
   clave,
+  error,
 }: {
   etiqueta: string;
   hint: string;
@@ -57,14 +61,26 @@ function CampoConceptos({
   valores: string[];
   onChange: (nuevos: string[]) => void;
   clave: string;
+  /** Error de la lista completa (valores inválidos o rechazados por el servidor) */
+  error?: string;
 }) {
   const [texto, setTexto] = useState('');
 
+  // Validación en vivo: el mismo criterio que el servidor (nombre clínico)
+  const problema = texto.trim() ? errorNombreClinico(texto) : '';
+
   const agregar = () => {
-    const nombre = texto.trim();
-    if (!nombre) return;
-    if (!valores.some((valor) => valor.toLowerCase() === nombre.toLowerCase())) {
-      onChange([...valores, nombre]);
+    const nombre = normalizarNombreClinico(texto);
+    // La validación ocurre al darle a Agregar: si el nombre no es válido no
+    // entra a la lista y el aviso ya está visible junto al campo
+    if (!nombre || errorNombreClinico(nombre)) return;
+    // Si el concepto ya existe en el catálogo escrito distinto, se usa su nombre
+    const existente = opciones.find(
+      (opcion) => normalizarNombre(opcion) === normalizarNombre(nombre),
+    );
+    const definitivo = existente ?? nombre;
+    if (!valores.some((valor) => normalizarNombre(valor) === normalizarNombre(definitivo))) {
+      onChange([...valores, definitivo]);
     }
     setTexto('');
   };
@@ -86,25 +102,43 @@ function CampoConceptos({
             }}
             placeholder="Escribe o selecciona y presiona Agregar…"
             aria-label={etiqueta}
+            aria-invalid={problema ? true : undefined}
             maxLength={100}
           />
           <datalist id={`opciones-${clave}`}>
             {opciones
-              .filter((opcion) => !valores.some((v) => v.toLowerCase() === opcion.toLowerCase()))
+              .filter(
+                (opcion) =>
+                  !valores.some((v) => normalizarNombre(v) === normalizarNombre(opcion)),
+              )
               .map((opcion) => (
                 <option key={opcion} value={opcion} />
               ))}
           </datalist>
         </div>
-        <Button variant="secondary" icon={Plus} onClick={agregar} type="button">
+        <Button
+          variant="secondary"
+          icon={Plus}
+          onClick={agregar}
+          type="button"
+          disabled={!texto.trim()}
+        >
           Agregar
         </Button>
       </div>
 
+      {problema && (
+        <p className="text-xs text-red-600 mt-1 font-medium" role="alert">
+          {problema}
+        </p>
+      )}
+
       {valores.length > 0 ? (
         <ul className="flex flex-wrap gap-2 mt-3">
           {valores.map((valor) => {
-            const esNuevo = !opciones.some((opcion) => opcion.toLowerCase() === valor.toLowerCase());
+            const esNuevo = !opciones.some(
+              (opcion) => normalizarNombre(opcion) === normalizarNombre(valor),
+            );
             return (
               <li
                 key={valor}
@@ -114,7 +148,9 @@ function CampoConceptos({
                 {esNuevo && <span className="text-xs text-brand-600">(nuevo)</span>}
                 <button
                   type="button"
-                  onClick={() => onChange(valores.filter((v) => v !== valor))}
+                  onClick={() =>
+                    onChange(valores.filter((v) => normalizarNombre(v) !== normalizarNombre(valor)))
+                  }
                   aria-label={`Quitar ${valor}`}
                   className="text-brand-500 hover:text-brand-800 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/40"
                 >
@@ -126,6 +162,12 @@ function CampoConceptos({
         </ul>
       ) : (
         <p className="text-xs text-gray-400 mt-2">Ninguno registrado.</p>
+      )}
+
+      {error && (
+        <p className="text-xs text-red-600 mt-2 font-medium" role="alert">
+          {error}
+        </p>
       )}
       <p className="text-xs text-gray-400 mt-2">{hint}</p>
     </div>
@@ -231,6 +273,19 @@ export default function CuestionarioSalud({
       alergiaOtra.length > 100 ? 'La otra alergia no puede exceder 100 caracteres.' : '';
     calculados.enfermedadOtra =
       enfermedadOtra.length > 100 ? 'La otra enfermedad no puede exceder 100 caracteres.' : '';
+    // Las listas también se validan: un valor ya vinculado con formato inválido
+    // (por ejemplo, capturado antes de existir la regla) no debe bloquear el
+    // guardado en silencio
+    const nombreInvalido = (nombres: string[]) =>
+      nombres.find((nombre) => errorNombreClinico(nombre)) ?? '';
+    const alergiaInvalida = nombreInvalido(alergias);
+    calculados.alergias = alergiaInvalida
+      ? `«${alergiaInvalida}» no tiene un formato válido: quítalo de la lista o corrígelo en Catálogos.`
+      : '';
+    const enfermedadInvalida = nombreInvalido(enfermedades);
+    calculados.enfermedades = enfermedadInvalida
+      ? `«${enfermedadInvalida}» no tiene un formato válido: quítalo de la lista o corrígelo en Catálogos.`
+      : '';
     return calculados;
   }, [
     peso,
@@ -245,6 +300,8 @@ export default function CuestionarioSalud({
     comentarios,
     alergiaOtra,
     enfermedadOtra,
+    alergias,
+    enfermedades,
   ]);
 
   const errorVisible = (campo: string): string | undefined => {
@@ -265,6 +322,8 @@ export default function CuestionarioSalud({
       tabaco: true,
       alcohol: true,
       horasSueno: true,
+      alergias: true,
+      enfermedades: true,
     });
     setErroresServidor({});
     setErrorGeneral('');
@@ -410,6 +469,7 @@ export default function CuestionarioSalud({
             opciones={opcionesAlergias}
             valores={alergias}
             onChange={setAlergias}
+            error={errores.alergias || erroresServidor['alergias']}
           />
           <Field
             label="Otra alergia (detalle)"
@@ -431,6 +491,7 @@ export default function CuestionarioSalud({
             opciones={opcionesEnfermedades}
             valores={enfermedades}
             onChange={setEnfermedades}
+            error={errores.enfermedades || erroresServidor['enfermedades']}
           />
           <Field
             label="Otra enfermedad (detalle)"

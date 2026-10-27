@@ -359,6 +359,7 @@ export default function Usuarios() {
         modo={subvista.modo}
         usuario={subvista.modo === 'editar' ? subvista.usuario : undefined}
         roles={roles}
+        existentes={usuarios}
         cargandoRoles={cargando}
         guardando={guardando}
         onCancelar={() => setSubvista({ modo: 'lista' })}

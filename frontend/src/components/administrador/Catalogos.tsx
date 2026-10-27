@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, CircleAlert } from 'lucide-react';import PageHeader from '../ui/PageHeader';
+import { Plus, Pencil, Trash2, CircleAlert, Merge } from 'lucide-react';import PageHeader from '../ui/PageHeader';
 import Button from '../ui/Button';
 import Aviso from '../ui/Aviso';
 import IconButton from '../ui/IconButton';
@@ -7,6 +7,7 @@ import EstadoVista from '../ui/EstadoVista';
 import DataTable from '../ui/DataTable';
 import Modal from '../ui/Modal';
 import ModalResultado from '../ui/ModalResultado';
+import { Field, Select } from '../ui/Input';
 import type { Column } from '../ui/DataTable';
 import { useAviso } from '../ui/useAviso';
 import { mensajeDeError } from '../../services/api';
@@ -16,6 +17,7 @@ import {
   crearValorCatalogo,
   actualizarValorCatalogo,
   eliminarValorCatalogo,
+  consolidarValorCatalogo,
   type Catalogo,
   type ValorCatalogo,
 } from '../../services/administracion.service';
@@ -47,6 +49,11 @@ export default function Catalogos() {
 
   const [subvista, setSubvista] = useState<Subvista>({ modo: 'lista' });
   const [aEliminar, setAEliminar] = useState<ValorCatalogo | null>(null);
+  /** Valor a unir en otro (consolidación de duplicados o capturas erróneas) */
+  const [aConsolidar, setAConsolidar] = useState<{
+    valor: ValorCatalogo;
+    destinoId: string;
+  } | null>(null);
   /** Resultado visible de la última acción (modal de confirmación) */
   const [resultado, setResultado] = useState<{
     titulo: string;
@@ -172,6 +179,39 @@ export default function Catalogos() {
     }
   };
 
+  /** Consolida el valor marcado en el elegido y refresca el catálogo */
+  const confirmarConsolidar = async () => {
+    if (!catalogo || !aConsolidar || !aConsolidar.destinoId) return;
+    setGuardando(true);
+    try {
+      const datos = await consolidarValorCatalogo(catalogo.id, {
+        origenId: aConsolidar.valor.id,
+        destinoId: Number(aConsolidar.destinoId),
+      });
+      setValores((prev) => prev.filter((v) => v.id !== aConsolidar.valor.id));
+      setCatalogos((prev) =>
+        prev.map((c) => (c.id === catalogo.id ? { ...c, total: Math.max(0, c.total - 1) } : c)),
+      );
+      setResultado({
+        titulo: 'Valor consolidado',
+        mensaje:
+          datos.movidos > 0
+            ? `"${datos.nombre}" se consolidó en "${datos.destino}": ${datos.movidos} ${
+                datos.movidos === 1 ? 'registro pasó' : 'registros pasaron'
+              } al valor destino y el valor origen ya no existe en el catálogo.`
+            : `"${datos.nombre}" se consolidó en "${datos.destino}": sus registros ya apuntaban al valor destino y el valor origen ya no existe en el catálogo.`,
+        tipo: 'exito',
+      });
+      setAConsolidar(null);
+    } catch (e) {
+      // Se mantiene el modal abierto para que el error sea visible y se pueda reintentar
+      mostrar(mensajeDeError(e), 'error');
+      setAConsolidar(null);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   /* ---------- Estado inicial: cargando o con error ---------- */
   if (!catalogo) {
     return (
@@ -234,13 +274,18 @@ export default function Catalogos() {
       key: 'acciones',
       header: 'Acciones',
       align: 'right',
-      className: 'w-24',
+      className: 'w-36',
       render: (valor) => (
         <div className="flex items-center justify-end gap-1">
           <IconButton
             icon={Pencil}
             label={`Editar ${valor.nombre}`}
             onClick={() => setSubvista({ modo: 'editar', valor })}
+          />
+          <IconButton
+            icon={Merge}
+            label={`Consolidar ${valor.nombre} en otro valor`}
+            onClick={() => setAConsolidar({ valor, destinoId: '' })}
           />
           <IconButton
             icon={Trash2}
@@ -364,7 +409,60 @@ export default function Catalogos() {
         >
           <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
             Si este valor ya está asignado a pacientes, expedientes o medicamentos, no se
-            podrá eliminar hasta que deje de usarse.
+            podrá eliminar hasta que deje de usarse. Si es un duplicado o un error de
+            captura, usa la acción Consolidar para unirlo en el valor correcto.
+          </p>
+        </Modal>
+      )}
+
+      {/* Consolidación: unir un valor duplicado o capturado por error en el correcto */}
+      {aConsolidar && (
+        <Modal
+          titulo={`¿Consolidar "${aConsolidar.valor.nombre}" en otro valor?`}
+          descripcion="Los registros que usen este valor pasarán al valor que elijas y este se eliminará del catálogo. Esta acción no se puede deshacer."
+          icono={CircleAlert}
+          onCerrar={() => setAConsolidar(null)}
+          acciones={
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => setAConsolidar(null)}
+                disabled={guardando}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="danger"
+                icon={Merge}
+                loading={guardando}
+                disabled={!aConsolidar.destinoId}
+                onClick={() => void confirmarConsolidar()}
+              >
+                Consolidar
+              </Button>
+            </>
+          }
+        >
+          <Field label="Consolidar en">
+            <Select
+              value={aConsolidar.destinoId}
+              onChange={(e) => setAConsolidar({ ...aConsolidar, destinoId: e.target.value })}
+              disabled={guardando}
+              aria-label="Valor que se conserva"
+            >
+              <option value="">Selecciona el valor que se conserva…</option>
+              {valores
+                .filter((valor) => valor.id !== aConsolidar.valor.id)
+                .map((valor) => (
+                  <option key={valor.id} value={valor.id}>
+                    {valor.nombre}
+                  </option>
+                ))}
+            </Select>
+          </Field>
+          <p className="mt-3 rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            Sirve para unir duplicados o limpiar valores capturados por error (por ejemplo,
+            "Penisilina" en "Penicilina") sin perder expedientes ni historiales.
           </p>
         </Modal>
       )}

@@ -1,6 +1,12 @@
 import pool from '../db/pool';
 import { errorConflicto, errorNoEncontrado } from '../utils/erroresHttp';
-import { NOMBRES_DIA, type DatosHorarios, type DatosHorario } from '../validaciones/horarios.validacion';
+import {
+  NOMBRES_DIA,
+  type DatosHorarios,
+  type DatosHorario,
+  type DatosActualizarTurno,
+  type DatosEliminarTurno,
+} from '../validaciones/horarios.validacion';
 import { asegurarPersonalActivo } from './personal.service';
 
 /**
@@ -15,6 +21,9 @@ import { asegurarPersonalActivo } from './personal.service';
  *   bloquea.
  * - El alta es múltiple: se recibe la lista de días y se crea un turno por día
  *   dentro de una transacción, de modo que o se crean todos o no se crean.
+ * - Un **turno completo** (misma persona y rango de horas, varios días) se
+ *   edita y se elimina de una sola vez y en una sola transacción: la interfaz
+ *   lo presenta como un bloque, no como un turno por día.
  *
  * SQL parametrizado: ningún valor de la petición se interpoliza en la consulta.
  */
@@ -145,7 +154,7 @@ export async function actualizarHorario(id: number, datos: DatosHorario): Promis
     datos.diaSemana,
     datos.horaInicio,
     datos.horaFin,
-    id,
+    [id],
   );
 
   await pool.query(
@@ -169,28 +178,29 @@ export async function eliminarHorario(id: number): Promise<Horario> {
 
 /**
  * Rechaza los duplicados exactos: mismo personal, mismo día y mismo rango de
- * horas. `excluirId` evita que un turno se confirme consigo mismo al editar.
+ * horas. `excluirIds` evita que un turno se confirme consigo mismo al editarlo.
  */
 async function asegurarTurnoLibre(
   personalMedicoId: number,
   diaSemana: number,
   horaInicio: string,
   horaFin: string,
-  excluirId?: number,
+  excluirIds: readonly number[] = [],
 ): Promise<void> {
+  const excluidos = [...excluirIds];
   const [filas] = await pool.query(
-    excluirId
+    excluidos.length > 0
       ? `SELECT id_horario FROM horarios
           WHERE personal_medico_id_personal_medico = ? AND dia_semana = ?
             AND hora_inicio = ? AND hora_fin = ?
-            AND id_horario <> ?
+            AND id_horario NOT IN (?)
           LIMIT 1`
       : `SELECT id_horario FROM horarios
           WHERE personal_medico_id_personal_medico = ? AND dia_semana = ?
             AND hora_inicio = ? AND hora_fin = ?
           LIMIT 1`,
-    excluirId
-      ? [personalMedicoId, diaSemana, horaInicio, horaFin, excluirId]
+    excluidos.length > 0
+      ? [personalMedicoId, diaSemana, horaInicio, horaFin, excluidos]
       : [personalMedicoId, diaSemana, horaInicio, horaFin],
   );
 
@@ -200,4 +210,84 @@ async function asegurarTurnoLibre(
       `Ese turno ya existe el ${diaTexto.toLowerCase()} de ${horaInicio} a ${horaFin}. Quita ese día o cambia el horario.`,
     );
   }
+}
+
+/** Filas de un turno completo (misma persona y rango de horas), por día */
+async function buscarTurno(
+  personalMedicoId: number,
+  horaInicio: string,
+  horaFin: string,
+): Promise<Horario[]> {
+  const [filas] = await pool.query(
+    `${COLUMNAS}
+      WHERE h.personal_medico_id_personal_medico = ?
+        AND h.hora_inicio = ? AND h.hora_fin = ?
+      ORDER BY h.dia_semana ASC`,
+    [personalMedicoId, horaInicio, horaFin],
+  );
+  return (filas as Array<Record<string, unknown>>).map(aHorario);
+}
+
+/**
+ * Reemplaza un turno completo en una sola transacción: se eliminan todos sus
+ * días (misma persona y rango de horas) y se crean los nuevos, con horas
+ * nuevas si el turno se movió. Así la edición de un bloque es atómica: o se
+ * aplica entera o no se aplica nada.
+ */
+export async function actualizarTurno(datos: DatosActualizarTurno): Promise<Horario[]> {
+  await asegurarPersonalActivo(datos.personalMedicoId);
+
+  const actuales = await buscarTurno(datos.personalMedicoId, datos.horaInicio, datos.horaFin);
+  if (actuales.length === 0) throw errorNoEncontrado('El turno no existe.');
+
+  // Los días del propio turno se excluyen de la validación de duplicados
+  const idsExcluidos = actuales.map((turno) => turno.id);
+  for (const dia of datos.dias) {
+    await asegurarTurnoLibre(
+      datos.personalMedicoId,
+      dia,
+      datos.nuevaHoraInicio,
+      datos.nuevaHoraFin,
+      idsExcluidos,
+    );
+  }
+
+  const conexion = await pool.getConnection();
+  try {
+    await conexion.beginTransaction();
+    await conexion.query(
+      `DELETE FROM horarios
+        WHERE personal_medico_id_personal_medico = ?
+          AND hora_inicio = ? AND hora_fin = ?`,
+      [datos.personalMedicoId, datos.horaInicio, datos.horaFin],
+    );
+    for (const dia of datos.dias) {
+      await conexion.query(
+        'INSERT INTO horarios (personal_medico_id_personal_medico, dia_semana, hora_inicio, hora_fin) VALUES (?, ?, ?, ?)',
+        [datos.personalMedicoId, dia, datos.nuevaHoraInicio, datos.nuevaHoraFin],
+      );
+    }
+    await conexion.commit();
+  } catch (error) {
+    await conexion.rollback();
+    throw error;
+  } finally {
+    conexion.release();
+  }
+
+  return buscarTurno(datos.personalMedicoId, datos.nuevaHoraInicio, datos.nuevaHoraFin);
+}
+
+/** Elimina un turno completo (todos sus días) de una sola vez */
+export async function eliminarTurno(datos: DatosEliminarTurno): Promise<Horario[]> {
+  const actuales = await buscarTurno(datos.personalMedicoId, datos.horaInicio, datos.horaFin);
+  if (actuales.length === 0) throw errorNoEncontrado('El turno no existe.');
+
+  await pool.query(
+    `DELETE FROM horarios
+      WHERE personal_medico_id_personal_medico = ?
+        AND hora_inicio = ? AND hora_fin = ?`,
+    [datos.personalMedicoId, datos.horaInicio, datos.horaFin],
+  );
+  return actuales;
 }

@@ -5,6 +5,7 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { Field, Input, Select, Textarea } from '../ui/Input';
 import { detallesDe, mensajeDeError } from '../../services/api';
+import { useOpcionUnica } from '../../hooks/useOpcionUnica';
 import type { ValorCatalogo } from '../../services/administracion.service';
 import {
   type Medicamento,
@@ -88,6 +89,10 @@ export default function MedicamentoForm({
   const [errorGeneral, setErrorGeneral] = useState('');
 
   const valores = { nombre, unidadId, stock, descripcion };
+
+  // Con una sola unidad de medida el selector la elige solo (ver hooks/):
+  // evita el campo que "se ve seleccionado" pero no lo está.
+  useOpcionUnica(unidades, unidadId, (id) => setUnidadId(String(id)));
 
   /* ---------- Duplicados en tiempo real ---------- */
   const nombreDuplicado = useMemo(

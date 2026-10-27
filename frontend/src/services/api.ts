@@ -82,7 +82,11 @@ export function detallesDe(error: unknown): Record<string, string> {
   if (!detalles) return {};
 
   return detalles.reduce<Record<string, string>>((acumulado, detalle) => {
-    if (detalle.campo) acumulado[detalle.campo] = detalle.mensaje;
+    if (!detalle.campo) return acumulado;
+    // Los errores de elementos de una lista ('alergias.0') se asignan al campo
+    // de la lista ('alergias'): quien dibuja la lista es quien puede mostrarlos
+    const campo = detalle.campo.replace(/\.\d+$/, '');
+    acumulado[campo] = detalle.mensaje;
     return acumulado;
   }, {});
 }

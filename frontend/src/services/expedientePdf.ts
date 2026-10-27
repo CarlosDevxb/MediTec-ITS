@@ -1,5 +1,6 @@
 import {
   crearDocumentoPDF,
+  folioDe,
   M,
   NAVY,
   BRAND,
@@ -33,9 +34,10 @@ export interface DatosExpedientePDF {
 export async function generarExpedientePDF(datos: DatosExpedientePDF): Promise<void> {
   const { expediente, consultas } = datos;
 
+  const folio = folioDe('EXP', expediente.numeroControl);
   const documento = await crearDocumentoPDF({
     titulo: 'EXPEDIENTE CLÍNICO',
-    folio: expediente.numeroControl,
+    folio,
     nombre: expediente.nombre,
   });
   const { doc, anchoUtil, saltar, seccion, campo, parrafo, portada, posicion, colocar, finalizar } =
@@ -218,30 +220,21 @@ export async function generarExpedientePDF(datos: DatosExpedientePDF): Promise<v
     colocar(posicion() + 3);
   });
 
-  /* ================= CIERRE Y FIRMAS ================= */
-  saltar(34);
-  let yCierre = posicion();
+  /* ================= CIERRE ================= */
+  saltar(16);
+  const yCierre = posicion();
   doc.setDrawColor(...LINE);
   doc.line(M, yCierre, anchoUtil + M, yCierre);
-  yCierre += 12;
-  const anchoFirma = anchoUtil / 2 - 10;
-  doc.setDrawColor(...GRAY);
-  doc.line(M, yCierre, M + anchoFirma, yCierre);
-  doc.line(anchoUtil + M - anchoFirma, yCierre, anchoUtil + M, yCierre);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(8);
   doc.setTextColor(...GRAY);
-  doc.text('Responsable del expediente', M, yCierre + 5);
-  doc.text('Paciente o tutor', anchoUtil + M - anchoFirma, yCierre + 5);
-  yCierre += 12;
-  doc.setFontSize(7.5);
   doc.text(
-    'Documento generado por MediTeC-ITS. Contiene datos personales sensibles protegidos por la LFPDPPP.',
+    `Fin del expediente · documento generado por MediTeC-ITS (folio ${folio}). Contiene datos personales sensibles protegidos por la LFPDPPP.`,
     M,
-    yCierre,
+    yCierre + 5,
   );
 
   /* ---------- Pies de página en todas las hojas ---------- */
   finalizar();
-  doc.save(`expediente-${expediente.numeroControl}.pdf`);
+  doc.save(`expediente-${expediente.numeroControl}-${folio.split('-').pop()}.pdf`);
 }

@@ -75,7 +75,10 @@ export default function ConfiguracionPerfil() {
       contrasenaNueva && confirmar !== contrasenaNueva
         ? 'Las contraseñas no coinciden.'
         : '';
-    calculados.telefono = telefono.length > 20 ? 'El teléfono no puede exceder 20 caracteres.' : '';
+    calculados.telefono =
+      telefono && !/^\d{7,10}$/.test(telefono)
+        ? 'Escribe un teléfono válido: solo números, entre 7 y 10 dígitos.'
+        : '';
     return calculados;
   }, [telefono, contrasenaActual, contrasenaNueva, confirmar]);
 
@@ -179,11 +182,13 @@ export default function ConfiguracionPerfil() {
               <Input
                 value={telefono}
                 onChange={(e) => {
-                  setTelefono(e.target.value);
+                  setTelefono(e.target.value.replace(/\D/g, ''));
                   marcarTocado('telefono');
                 }}
                 onBlur={() => marcarTocado('telefono')}
                 placeholder="Ej. 5512345678"
+                inputMode="numeric"
+                maxLength={10}
                 aria-invalid={errorVisible('telefono') ? true : undefined}
               />
             </Field>

@@ -94,6 +94,96 @@ export function eliminarHorario(id: number): Promise<void> {
   return apiFetch<unknown>(`/horarios/${id}`, { method: 'DELETE' }).then(() => undefined);
 }
 
+/* ---------------- Turnos completos (varios días, un solo bloque) ---------------- */
+
+/**
+ * Turno tal como se presenta al usuario: una persona, un rango de horas y
+ * todos los días en los que aplica. Debajo sigue habiendo una fila por día
+ * en la tabla `horarios`; aquí se agrupan para no mostrar "4 turnos" cuando
+ * en realidad es uno solo.
+ */
+export interface TurnoHorario {
+  /** Identificación estable del bloque (personal + rango de horas) */
+  clave: string;
+  personalMedicoId: number;
+  personal: string;
+  especialidad: string;
+  /** Formato HH:mm */
+  horaInicio: string;
+  /** Formato HH:mm */
+  horaFin: string;
+  /** Días del turno, ordenados (1=Lunes … 5=Viernes) */
+  dias: number[];
+  /** Filas originales, una por día */
+  horarios: Horario[];
+}
+
+/** Agrupa las filas de horarios en turnos (personal + rango de horas) */
+export function agruparHorariosEnTurnos(horarios: Horario[]): TurnoHorario[] {
+  const porClave = new Map<string, TurnoHorario>();
+
+  for (const horario of horarios) {
+    const clave = `${horario.personalMedicoId}|${horario.horaInicio}|${horario.horaFin}`;
+    const turno = porClave.get(clave);
+    if (turno) {
+      turno.dias.push(horario.diaSemana);
+      turno.horarios.push(horario);
+    } else {
+      porClave.set(clave, {
+        clave,
+        personalMedicoId: horario.personalMedicoId,
+        personal: horario.personal,
+        especialidad: horario.especialidad,
+        horaInicio: horario.horaInicio,
+        horaFin: horario.horaFin,
+        dias: [horario.diaSemana],
+        horarios: [horario],
+      });
+    }
+  }
+
+  for (const turno of porClave.values()) turno.dias.sort((a, b) => a - b);
+  return [...porClave.values()];
+}
+
+/** Identificación de un turno completo (personal + rango de horas) */
+export interface IdentidadTurno {
+  personalMedicoId: number;
+  horaInicio: string;
+  horaFin: string;
+}
+
+/** Reemplazo de un turno completo: sus nuevos días y, si se mueven, sus horas */
+export interface DatosActualizarTurno extends IdentidadTurno {
+  nuevaHoraInicio: string;
+  nuevaHoraFin: string;
+  dias: number[];
+}
+
+/** Edita un turno completo (todos sus días) en una sola transacción */
+export function actualizarTurno(datos: DatosActualizarTurno): Promise<Horario[]> {
+  return apiFetch<{ datos: Horario[] }>('/horarios/turno', {
+    method: 'PUT',
+    body: JSON.stringify(datos),
+  }).then((r) => r.datos);
+}
+
+/** Elimina un turno completo (todos sus días) en una sola transacción */
+export function eliminarTurno(datos: IdentidadTurno): Promise<void> {
+  return apiFetch<unknown>('/horarios/turno', {
+    method: 'DELETE',
+    body: JSON.stringify(datos),
+  }).then(() => undefined);
+}
+
+/** Días en lenguaje natural: "lunes, martes y miércoles" */
+export function diasEnTexto(dias: number[]): string {
+  const nombres = [...dias].sort((a, b) => a - b).map((dia) => nombreDeDia(dia).toLowerCase());
+  if (nombres.length === 0) return '';
+  if (nombres.length === 1) return nombres[0];
+  return `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`;
+}
+
 /* ---------------- Medicamentos ---------------- */
 
 /**

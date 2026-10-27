@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { telefonoOpcional } from './comunes';
 
 /**
  * Validaciones de usuarios.
@@ -53,12 +54,7 @@ const camposComunes = {
     .max(20, 'El número de control no puede exceder 20 caracteres.')
     .regex(/^[A-Za-z0-9-]+$/, 'El número de control solo admite letras, números y guiones.'),
   correo: correoValido,
-  telefono: z
-    .string()
-    .trim()
-    .max(20, 'El teléfono no puede exceder 20 caracteres.')
-    .optional()
-    .or(z.literal('')),
+  telefono: telefonoOpcional,
   fechaNacimiento: fechaValida,
   genero: z.enum(GENEROS, { error: 'Selecciona un género.' }),
 };

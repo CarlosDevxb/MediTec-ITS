@@ -30,7 +30,13 @@ export interface DefinicionCatalogo {
   columnaId: string;
   campos: CampoCandidato[];
   /** Tablas que referencian este catálogo */
-  uso: Array<{ tabla: string; columna: string; descripcion: string }>;
+  uso: Array<{
+    tabla: string;
+    columna: string;
+    descripcion: string;
+    /** En tablas puente con clave compuesta, la otra columna de la clave */
+    columnaRelacion?: string;
+  }>;
 }
 
 export const CATALOGOS: Record<string, DefinicionCatalogo> = {
@@ -52,7 +58,14 @@ export const CATALOGOS: Record<string, DefinicionCatalogo> = {
         hint: 'Sustancia o grupo de sustancias, no el caso particular de un paciente.',
       },
     ],
-    uso: [{ tabla: 'paciente_alergias', columna: 'cat_alergias_id_alergia', descripcion: 'expedientes de pacientes' }],
+    uso: [
+      {
+        tabla: 'paciente_alergias',
+        columna: 'cat_alergias_id_alergia',
+        descripcion: 'expedientes de pacientes',
+        columnaRelacion: 'pacientes_id_paciente',
+      },
+    ],
   },
   enfermedades: {
     id: 'enfermedades',
@@ -72,7 +85,14 @@ export const CATALOGOS: Record<string, DefinicionCatalogo> = {
         hint: 'Usa el nombre del padecimiento, no el medicamento ni el síntoma.',
       },
     ],
-    uso: [{ tabla: 'paciente_enfermedades', columna: 'cat_enfermedades_id_enfermedad', descripcion: 'expedientes de pacientes' }],
+    uso: [
+      {
+        tabla: 'paciente_enfermedades',
+        columna: 'cat_enfermedades_id_enfermedad',
+        descripcion: 'expedientes de pacientes',
+        columnaRelacion: 'pacientes_id_paciente',
+      },
+    ],
   },
   unidades_medida: {
     id: 'unidades_medida',

@@ -71,5 +71,40 @@ export const esquemaActualizarHorario = z
   })
   .superRefine(validarRango);
 
+/** Identificación de un turno completo: personal + rango de horas original */
+const identidadTurno = {
+  personalMedicoId: personalValido,
+  horaInicio: horaValida,
+  horaFin: horaValida,
+};
+
+/** Días finales del turno (1-5, sin repetir) */
+const diasTurno = z
+  .array(diaValido, { error: 'Selecciona al menos un día de la semana.' })
+  .min(1, 'Selecciona al menos un día de la semana.')
+  .max(5, 'La semana laboral solo tiene cinco días.')
+  .refine((dias) => new Set(dias).size === dias.length, 'Un día no puede repetirse.');
+
+/**
+ * Reemplazo de un turno completo (todos sus días de una vez): el rango
+ * original identifica el turno y los datos nuevos definen sus días y, si se
+ * mueven, sus nuevas horas.
+ */
+export const esquemaActualizarTurno = z
+  .object({
+    ...identidadTurno,
+    nuevaHoraInicio: horaValida,
+    nuevaHoraFin: horaValida,
+    dias: diasTurno,
+  })
+  .superRefine((datos, contexto) =>
+    validarRango({ horaInicio: datos.nuevaHoraInicio, horaFin: datos.nuevaHoraFin }, contexto),
+  );
+
+/** Baja del turno completo: elimina todos sus días de una sola vez */
+export const esquemaEliminarTurno = z.object(identidadTurno).superRefine(validarRango);
+
 export type DatosHorarios = z.infer<typeof esquemaCrearHorarios>;
 export type DatosHorario = z.infer<typeof esquemaActualizarHorario>;
+export type DatosActualizarTurno = z.infer<typeof esquemaActualizarTurno>;
+export type DatosEliminarTurno = z.infer<typeof esquemaEliminarTurno>;

@@ -52,6 +52,13 @@ export interface CuestionarioSalud {
   estatus: string;
 }
 
+export interface UltimaMedicion {
+  peso: number | null;
+  talla: number | null;
+  /** Fecha de la medición, AAAA-MM-DD HH:mm */
+  fecha: string;
+}
+
 export interface ExpedientePaciente extends PacienteResumen {
   antecedentes: string;
   /** Fecha de apertura del expediente, AAAA-MM-DD HH:mm */
@@ -59,6 +66,8 @@ export interface ExpedientePaciente extends PacienteResumen {
   alergias: string[];
   enfermedades: string[];
   cuestionario: CuestionarioSalud | null;
+  /** Último peso y talla registrados (signos de consultas o cuestionario) */
+  ultimaMedicion: UltimaMedicion | null;
 }
 
 /** Proyección común: paciente con su usuario y sus catálogos */
@@ -169,10 +178,11 @@ export async function buscarPaciente(id: number): Promise<ExpedientePaciente | n
   const fila = (filas as Array<Record<string, unknown>>)[0];
   if (!fila) return null;
 
-  const [alergias, enfermedades, cuestionario] = await Promise.all([
+  const [alergias, enfermedades, cuestionario, ultimaMedicion] = await Promise.all([
     alergiasDe(id),
     enfermedadesDe(id),
     cuestionarioDe(id),
+    ultimaMedicionDe(id),
   ]);
 
   return {
@@ -182,7 +192,62 @@ export async function buscarPaciente(id: number): Promise<ExpedientePaciente | n
     alergias,
     enfermedades,
     cuestionario,
+    ultimaMedicion,
   };
+}
+
+/**
+ * Última medición de peso y talla del paciente: manda la más reciente entre
+ * los signos vitales de sus consultas y su cuestionario de salud (si la fuente
+ * más reciente no trae un dato, se completa con la otra). Es lo que se
+ * precarga al registrar una consulta; el personal puede ajustarlo si cambió.
+ */
+async function ultimaMedicionDe(pacienteId: number): Promise<UltimaMedicion | null> {
+  const [signos] = await pool.query(
+    `SELECT sv.peso AS peso, sv.talla AS talla, co.fecha_hora AS fecha
+       FROM signos_vitales sv
+       JOIN consulta co ON co.id_consulta = sv.consulta_id_consulta
+       JOIN cita ci ON ci.id_cita = co.cita_id_cita
+      WHERE ci.pacientes_id_paciente = ? AND (sv.peso IS NOT NULL OR sv.talla IS NOT NULL)
+      ORDER BY co.fecha_hora DESC
+      LIMIT 1`,
+    [pacienteId],
+  );
+  const [cuestionarios] = await pool.query(
+    `SELECT peso AS peso, talla AS talla, fecha_llenado AS fecha
+       FROM cuestionario_salud
+      WHERE pacientes_id_paciente = ? AND (peso IS NOT NULL OR talla IS NOT NULL)
+      ORDER BY fecha_llenado DESC
+      LIMIT 1`,
+    [pacienteId],
+  );
+
+  const aMedicion = (
+    fila: Record<string, unknown> | undefined,
+  ): { peso: number | null; talla: number | null; fecha: Date | null } | null =>
+    fila
+      ? {
+          peso: fila['peso'] == null ? null : Number(fila['peso']),
+          talla: fila['talla'] == null ? null : Number(fila['talla']),
+          fecha: fila['fecha'] ? new Date(String(fila['fecha'])) : null,
+        }
+      : null;
+
+  const deSignos = aMedicion((signos as Array<Record<string, unknown>>)[0]);
+  const deCuestionario = aMedicion((cuestionarios as Array<Record<string, unknown>>)[0]);
+
+  const reciente =
+    (deSignos?.fecha?.getTime() ?? 0) >= (deCuestionario?.fecha?.getTime() ?? 0)
+      ? deSignos
+      : deCuestionario;
+  const otra = reciente === deSignos ? deCuestionario : deSignos;
+
+  const peso = reciente?.peso ?? otra?.peso ?? null;
+  const talla = reciente?.talla ?? otra?.talla ?? null;
+  const fecha = reciente?.fecha ?? otra?.fecha ?? null;
+  if (peso == null && talla == null) return null;
+
+  return { peso, talla, fecha: fecha ? fechaHoraTexto(fecha) : '' };
 }
 
 /** Comprueba que el expediente exista (para altas de citas y consultas) */

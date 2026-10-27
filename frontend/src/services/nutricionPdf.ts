@@ -1,5 +1,6 @@
 import {
   crearDocumentoPDF,
+  folioDe,
   M,
   NAVY,
   BRAND,
@@ -53,9 +54,10 @@ export async function generarAvancePesoPDF(datos: DatosAvancePDF): Promise<void>
   const hoy = hoyISO();
   const inicio = plan?.fechaInicio ?? mediciones[0]?.fecha.slice(0, 10) ?? hoy;
 
+  const folio = folioDe('AVN', paciente.numeroControl);
   const documento = await crearDocumentoPDF({
     titulo: 'AVANCE DE PESO Y TALLA',
-    folio: paciente.numeroControl,
+    folio,
     nombre: paciente.nombre,
   });
   const { doc, anchoUtil, saltar, seccion, campo, parrafo, portada, posicion, colocar, finalizar } =
@@ -156,8 +158,22 @@ export async function generarAvancePesoPDF(datos: DatosAvancePDF): Promise<void>
     });
   }
 
+  /* ---- Cierre ---- */
+  saltar(12);
+  const yCierreAvance = posicion();
+  doc.setDrawColor(...LINE);
+  doc.line(M, yCierreAvance, anchoUtil + M, yCierreAvance);
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(8);
+  doc.setTextColor(...GRAY);
+  doc.text(
+    `Fin del documento · folio ${folio}. Contiene datos personales sensibles protegidos por la LFPDPPP.`,
+    M,
+    yCierreAvance + 5,
+  );
+
   finalizar();
-  doc.save(`avance-peso-talla-${paciente.numeroControl}.pdf`);
+  doc.save(`avance-peso-talla-${paciente.numeroControl}-${folio.split('-').pop()}.pdf`);
 }
 
 export interface DatosExpedienteNutricionPDF {
@@ -181,9 +197,10 @@ export async function generarExpedienteNutricionPDF(
 ): Promise<void> {
   const { paciente, plan, planes, mediciones, sesiones } = datos;
 
+  const folio = folioDe('NUT', paciente.numeroControl);
   const documento = await crearDocumentoPDF({
     titulo: 'EXPEDIENTE DE NUTRICIÓN',
-    folio: paciente.numeroControl,
+    folio,
     nombre: paciente.nombre,
   });
   const { doc, anchoUtil, saltar, seccion, campo, parrafo, portada, posicion, colocar, finalizar } =
@@ -259,29 +276,20 @@ export async function generarExpedienteNutricionPDF(
     );
   });
 
-  /* ---- Cierre y firmas ---- */
-  saltar(34);
-  let yCierre = posicion();
+  /* ---- Cierre ---- */
+  saltar(12);
+  const yCierre = posicion();
   doc.setDrawColor(...LINE);
   doc.line(M, yCierre, anchoUtil + M, yCierre);
-  yCierre += 12;
-  const anchoFirma = anchoUtil / 2 - 10;
-  doc.setDrawColor(...GRAY);
-  doc.line(M, yCierre, M + anchoFirma, yCierre);
-  doc.line(anchoUtil + M - anchoFirma, yCierre, anchoUtil + M, yCierre);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(8);
   doc.setTextColor(...GRAY);
-  doc.text('Nutrióloga responsable', M, yCierre + 5);
-  doc.text('Paciente o tutor', anchoUtil + M - anchoFirma, yCierre + 5);
-  yCierre += 12;
-  doc.setFontSize(7.5);
   doc.text(
-    'Documento generado por MediTeC-ITS. Contiene datos personales sensibles protegidos por la LFPDPPP.',
+    `Fin del expediente · documento generado por MediTeC-ITS (folio ${folio}). Contiene datos personales sensibles protegidos por la LFPDPPP.`,
     M,
-    yCierre,
+    yCierre + 5,
   );
 
   finalizar();
-  doc.save(`expediente-nutricion-${paciente.numeroControl}.pdf`);
+  doc.save(`expediente-nutricion-${paciente.numeroControl}-${folio.split('-').pop()}.pdf`);
 }

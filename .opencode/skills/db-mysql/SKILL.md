@@ -55,15 +55,19 @@ y por clave foránea.
 ## Datos semilla
 
 `init.sql` **no tiene ningún `INSERT`**: una BD recién creada tiene `roles` vacío
-y nadie puede iniciar sesión. Para crear roles y el primer administrador:
+y nadie puede iniciar sesión. El bootstrap de datos iniciales crea los roles
+base, los tipos de paciente mínimos y el primer administrador:
 
 ```bash
 cd backend && npm run crear:admin
 ```
 
-Es idempotente: crea los 5 roles y el usuario `AD-0001` / `admin@meditec.mx`
-(la contraseña se imprime una sola vez). Si agregas un rol nuevo al sistema,
-actualiza también `backend/src/utils/crearAdmin.ts`.
+Es idempotente: crea los roles de `backend/src/config/roles.ts`, los tipos de
+paciente (Alumno, Docente, Administrativo) y el usuario `AD-0001` /
+`admin@meditec.mx`. La contraseña se imprime una sola vez al crearlo; si el
+administrador ya existe **se conserva la suya** (usa `--contrasena` para
+cambiarla). Si agregas un rol o un tipo de paciente base, actualiza también
+`backend/src/utils/crearAdmin.ts`.
 
 ## Checklist
 

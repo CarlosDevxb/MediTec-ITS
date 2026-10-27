@@ -1,9 +1,10 @@
 # Handoff · MediTec-ITS
 
 Documento de contexto del proyecto para quien continúe el desarrollo (persona o
-asistente). Fecha de corte: **octubre 2026**. Complementa a `AGENTS.md`
-(reglas de trabajo), `ESPECIFICACIONES.md` (reglas de interacción) y las
-skills de `.opencode/skills/`.
+asistente). Fecha de corte: **octubre 2026** (fase de correcciones cerrada y
+commiteada; la aplicación corre en servidor con despliegues automáticos).
+Complementa a `AGENTS.md` (reglas de trabajo), `ESPECIFICACIONES.md` (reglas de
+interacción) y las skills de `.opencode/skills/`.
 
 ---
 
@@ -17,7 +18,7 @@ Principios que definen el proyecto:
 
 - **Toda la información entra por la interfaz gráfica**: la base de datos nunca
   se llena a mano (ni `INSERT`s de datos de negocio). Solo existe el bootstrap
-  `npm run crear:admin` (roles + primer administrador).
+  `npm run crear:admin` (roles, tipos de paciente y primer administrador).
 - **Datos sensibles de salud** (LFPDPPP): roles verificados en cada endpoint,
   minimización de datos y "solo lo suyo" para los pacientes.
 - **Todo en español**: código, comentarios, textos y mensajes de la API.
@@ -44,7 +45,7 @@ Arquitectura **rutas → controladores → servicios** (el SQL solo vive en
 |---|---|---|
 | auth | `POST /login`, `GET/PATCH /auth/perfil` | Login con mensajes genéricos; perfil propio (teléfono/contraseña; el correo no se cambia) |
 | roles · usuarios · catálogos | CRUD | Incluye `POST /usuarios/importar` (Excel) y `PATCH /usuarios/:id/contrasena` (restablecer) |
-| horarios | CRUD + `GET` | L-V, sin duplicados exactos; lectura abierta al personal y al paciente (disponibilidad) |
+| horarios | CRUD + `GET` | L-V, sin duplicados exactos; alta múltiple y **turno completo** (`PUT/DELETE /horarios/turno`: todos sus días en una transacción); lectura abierta al personal y al paciente (disponibilidad) |
 | medicamentos | `GET/POST/PUT` + `POST /importar` | Sin DELETE: stock 0 = agotado (no disponible para consultas) |
 | personal-medico | `GET` | Al paciente solo se le expone nombre y especialidad |
 | pacientes | `GET`, `POST`, `PATCH /:id/expediente`, `POST /:id/cuestionario`, `GET /:id/seguimiento` | "Solo lo suyo" para el rol Paciente |
@@ -83,20 +84,35 @@ Arquitectura **rutas → controladores → servicios** (el SQL solo vive en
   plan alimenticio en la misma transacción), Odontología (campos bucales +
   insumos comunes/especiales/dentales). Los paneles muestran **solo las
   consultas propias** (el expediente del paciente conserva su historial
-  completo).
+  completo). Al registrar una consulta, **peso y talla se precargan** con la
+  última medición del paciente (signos de su consulta previa o cuestionario,
+  `pacientes.ultimaMedicion`) y el personal los ajusta si cambiaron.
 - **Cuestionario de salud**: único por paciente; se llena al primer login del
   paciente o antes de su primera consulta; las alergias/enfermedades nuevas se
-  dan de alta solas en los catálogos y se vinculan como alertas clínicas.
+  dan de alta solas en los catálogos y se vinculan como alertas clínicas. Los
+  nombres pasan por el **formato de nombre clínico** (letras, números y
+  puntuación; sin basura ni emojis) y se normalizan para no duplicar el mismo
+  concepto (`validaciones/comunes.ts`, mismo criterio en el cliente); en
+  Catálogos se pueden **consolidar** valores para unir duplicados sin perder
+  expedientes.
 - **Inventario**: los medicamentos no se eliminan (stock 0 = agotado y no
   disponible para consultas); el stock se descuenta al registrar la consulta.
+- **Alergias al dispensar**: un insumo que coincide con las alergias
+  registradas del paciente no se puede dispensar: el formulario lo bloquea y
+  sugiere alternativas del stock, y el servidor lo rechaza en la transacción
+  de la consulta (`backend/src/utils/alergias.ts` y
+  `frontend/src/services/atencion.service.ts`, mismo criterio). La comparación
+  es por nombre normalizado: no detecta sinónimos (paracetamol/acetaminofén).
 - **Excel**: import/export de usuarios y medicamentos (plantilla descargable,
   avisos previos, resultado por fila, contraseñas temporales de una sola vez;
   nunca se exportan contraseñas).
 
 ### Documentos PDF (identidad compartida en `documentosPdf.ts`)
 Expediente clínico, expediente de nutrición y avance de peso/talla (encabezado
-MediTec-ITS, pie con logotipos de **Cuchipu Cloud** y **MediTec-ITS**, firmas y
-nota LFPDPPP) + reportes PDF del administrador con periodo.
+MediTec-ITS, pie con logotipos de **Cuchipu Cloud** y **MediTec-ITS** y nota
+LFPDPPP; **sin sección de firmas**, con secciones numeradas y folio por
+documento `TIPO-<número de control>-<fecha>` (EXP clínico, NUT nutrición, AVN
+avance)) + reportes PDF del administrador con periodo.
 
 ### Calidad UX (`ESPECIFICACIONES.md`)
 Toda acción confirma su resultado (`ModalResultado` para destructivas, `Aviso`
@@ -105,10 +121,26 @@ transiciones suaves (`entrada`/`entrada-modal`, sin cambios bruscos), modales a
 pantalla completa (portal al body) y accesibilidad (estados con texto, labels,
 foco).
 
-### Infraestructura
+### Infraestructura y despliegue
 `docker compose up -d --build` → `db` (MySQL + healthcheck), `backend`
 (node:22-slim + tsx, puerto 3000), `frontend` (Astro estático + nginx con proxy
 `/api`, puertos **4321** y 8080). Volumen `mysql_data` persistente.
+
+La aplicación está **desplegada en un servidor con despliegues automáticos**
+desde el repositorio: los cambios llegan al servidor al hacer commit + push. En
+el servidor la BD se crea con `database/init.sql` (script portable: identificadores
+ASCII como `contrasena`, sin directivas `VISIBLE` y con `SET NAMES utf8mb4`),
+por lo que puede recrearse sin más que dejar correr el script.
+
+### Correcciones de la fase de prueba manual (cerrada)
+- **Reportes del admin**: el acceso a `GET /api/consultas` (base del reporte de
+  Actividad de la enfermería) acepta también al rol Administrador.
+- **Reagendar citas** en las 3 agendas (enfermería, nutrición, odontología) y
+  del paciente: `PUT /api/citas/:id` + `GET /api/citas/disponibilidad` (horas
+  ocupadas del personal en una fecha, sin datos de pacientes) — corrige el bug
+  latente de mostrar horas ocupadas por citas de otros pacientes.
+- **Portabilidad de la BD**: columna `contrasena` (ASCII), sin `VISIBLE` y con
+  charset explícito (ver decisión "BD portable").
 
 ---
 
@@ -127,17 +159,19 @@ foco).
 - **Pruebas automatizadas** (hoy la verificación es manual + typecheck + build).
 - **Migraciones de esquema**: los cambios se aplican con `ALTER` documentados y
   `init.sql` actualizado; para producción conviene un sistema de migraciones.
-- **Despliegue real**: HTTPS, secretos de producción, backups de `mysql_data`,
-  aviso de privacidad y captura de consentimientos (checklist LFPDPPP en la
-  skill `seguridad-clinica`).
+- **Endurecimiento del despliegue**: el servidor ya corre la app (despliegues
+  automáticos), pero faltan HTTPS, secretos de producción, backups de
+  `mysql_data`, aviso de privacidad y captura de consentimientos (checklist
+  LFPDPPP en la skill `seguridad-clinica`).
 - **Notificaciones** (recordatorios de cita por correo/SMS) y **recuperación de
   contraseña** por el propio usuario.
 - El JWT caduca a las 8h y no hay refresh; las contraseñas se restablecen desde
   el admin (por diseño actual).
 
-**En curso:** fase de **correcciones de errores** por prueba manual del
-usuario (se van reportando y resolviendo; los fixes de esta fase aún no están
-commiteados).
+**Estado actual:** la fase de **correcciones de errores** por prueba manual ya
+está cerrada y commiteada (reagendar citas, reportes del admin, portabilidad de
+la BD). Las pruebas manuales continúan: cada detalle nuevo reportado se
+corrige, se verifica (typecheck + build) y se commitea.
 
 ---
 
@@ -147,7 +181,8 @@ commiteados).
 |---|---|
 | Datos | Ningún dato de negocio entra por SQL directo: todo pasa por la interfaz |
 | API | Rutas → controladores → servicios; SQL solo en servicios; Zod en toda entrada; JSON camelCase / BD snake_case |
-| Roles | 5 roles fijos (Administrador, Personal médico, Enfermería, Recepción, Paciente) + **la especialidad del personal médico decide su portal** (viaja en el JWT del login) |
+| Roles | 5 roles fijos (Administrador, Personal médico, Enfermería, Recepción, Paciente) + **la especialidad del personal médico decide su portal** (viaja en el JWT del login). La **enfermería es un rol**, no una especialidad del personal médico: su especialidad es fija ('Enfermería') y no se ofrece como opción al dar de alta personal |
+| Horarios | Un turno = personal + rango de horas + sus días (una fila por día en la BD, **un bloque en la interfaz**); se crea, edita y elimina como bloque completo |
 | Consulta→cita | Toda consulta deriva de una cita (`cita_id_cita` UNIQUE); auto-cita `Atención directa` para llegadas; nutrición/odontología exigen cita |
 | Tipos de consulta | ENUM `tipo_consulta` derivado del rol+especialidad; cada tipo captura campos distintos |
 | Agenda | Sesión de 30 min + 30 de respiro (citas cada 60 min); días con horario; sin pasado; cancelación automática al cambiar de día; atender solo hoy |
