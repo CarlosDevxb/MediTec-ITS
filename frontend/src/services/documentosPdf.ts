@@ -26,6 +26,16 @@ export const M = 16; // margen lateral (mm)
 const ALTO_ENCABEZADO = 26;
 const ALTO_PIE = 22;
 
+/**
+ * Folio del documento: tipo de documento + número de control + fecha.
+ * Ej.: `EXP-AL-TEST-20261027` (expediente clínico), `NUT-…` (expediente de
+ * nutrición) y `AVN-…` (avance de peso y talla). Así dos documentos del mismo
+ * paciente el mismo día nunca comparten folio.
+ */
+export function folioDe(tipo: string, numeroControl: string): string {
+  return `${tipo}-${numeroControl}-${hoyISO().replace(/-/g, '')}`;
+}
+
 export interface LogoPDF {
   dataUrl: string;
   /** ancho / alto de la imagen */
@@ -104,9 +114,13 @@ export async function crearDocumentoPDF(opciones: OpcionesDocumento): Promise<Do
     cargarLogo('/logo-cuchipu.png'),
   ]);
 
-  /* ---------- Encabezado (todas las páginas) ---------- */
+  /* ---------- Encabezado (todas las páginas): papel membretado ---------- */
   const dibujarEncabezado = () => {
-    const altoLogo = 11;
+    // Barra de identidad en el borde superior
+    doc.setFillColor(...NAVY);
+    doc.rect(0, 0, ancho, 3, 'F');
+
+    const altoLogo = 12;
     if (logoSoftware) {
       doc.addImage(logoSoftware.dataUrl, 'PNG', M, 8, altoLogo * logoSoftware.relacion, altoLogo);
     } else {
@@ -116,18 +130,29 @@ export async function crearDocumentoPDF(opciones: OpcionesDocumento): Promise<Do
       doc.text('MediTec-ITS', M, 15);
     }
 
+    // Bloque derecho: documento, folio y paciente
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
+    doc.setFontSize(10.5);
     doc.setTextColor(...NAVY);
     doc.text(opciones.titulo, ancho - M, 12, { align: 'right' });
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
+    doc.setFontSize(7.5);
     doc.setTextColor(...GRAY);
-    doc.text(`Folio ${opciones.folio}`, ancho - M, 17, { align: 'right' });
-    doc.text(opciones.nombre, ancho - M, 21, { align: 'right' });
+    doc.setCharSpace(0.5);
+    doc.text(`FOLIO ${opciones.folio}`, ancho - M, 17, { align: 'right' });
+    doc.setCharSpace(0);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.text(opciones.nombre, ancho - M, 21.5, { align: 'right' });
 
+    // Doble regla: una gruesa de marca y una fina de cierre
+    doc.setDrawColor(...NAVY);
+    doc.setLineWidth(0.6);
+    doc.line(M, ALTO_ENCABEZADO - 3.4, ancho - M, ALTO_ENCABEZADO - 3.4);
     doc.setDrawColor(...LINE);
-    doc.line(M, ALTO_ENCABEZADO - 3, ancho - M, ALTO_ENCABEZADO - 3);
+    doc.setLineWidth(0.2);
+    doc.line(M, ALTO_ENCABEZADO - 2.2, ancho - M, ALTO_ENCABEZADO - 2.2);
   };
 
   /* ---------- Pie (todas las páginas): empresa + software ---------- */
@@ -176,6 +201,8 @@ export async function crearDocumentoPDF(opciones: OpcionesDocumento): Promise<Do
 
   dibujarEncabezado();
   let y = ALTO_ENCABEZADO + 6;
+  /** Conteo para las secciones numeradas del documento */
+  let numeroSeccion = 0;
 
   /** Asegura espacio; si no cabe, abre página nueva con su encabezado */
   const saltar = (espacio: number) => {
@@ -208,30 +235,42 @@ export async function crearDocumentoPDF(opciones: OpcionesDocumento): Promise<Do
 
     portada(titulo: string, detalle?: string) {
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(18);
+      doc.setFontSize(19);
       doc.setTextColor(...NAVY);
       doc.text(titulo, M, y);
-      y += 7;
+      y += 2.5;
+      // Acento corto bajo el título
+      doc.setFillColor(...BRAND);
+      doc.rect(M, y, 26, 1.1, 'F');
+      y += 6;
       if (detalle) {
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
+        doc.setFontSize(9.5);
         doc.setTextColor(...GRAY);
         doc.text(detalle, M, y);
-        y += 7;
+        y += 6.5;
       }
-      y += 3;
+      y += 2;
     },
 
     seccion(titulo: string) {
       saltar(16);
+      numeroSeccion += 1;
+      // Número de la sección en un cuadro de marca + título con regla fina
+      doc.setFillColor(...BRAND);
+      doc.roundedRect(M, y - 4.6, 6.5, 5.8, 1.2, 1.2, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(255, 255, 255);
+      doc.text(String(numeroSeccion), M + 3.25, y - 0.3, { align: 'center' });
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
       doc.setTextColor(...NAVY);
-      doc.text(titulo, M, y);
+      doc.text(titulo, M + 9.5, y);
       y += 2;
-      doc.setDrawColor(...NAVY);
-      doc.setLineWidth(0.5);
-      doc.line(M, y, ancho - M, y);
+      doc.setDrawColor(...LINE);
+      doc.setLineWidth(0.3);
+      doc.line(M + 9.5, y, ancho - M, y);
       doc.setLineWidth(0.2);
       y += 7;
     },
@@ -239,9 +278,11 @@ export async function crearDocumentoPDF(opciones: OpcionesDocumento): Promise<Do
     campo(etiqueta: string, valor: string, columna: 0 | 1) {
       const x = M + columna * (anchoUtil / 2);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
+      doc.setFontSize(7.5);
       doc.setTextColor(...GRAY);
-      doc.text(etiqueta, x, y);
+      doc.setCharSpace(0.6);
+      doc.text(etiqueta.toUpperCase(), x, y);
+      doc.setCharSpace(0);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.setTextColor(...DARK);

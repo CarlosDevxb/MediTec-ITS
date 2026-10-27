@@ -109,8 +109,10 @@ Arquitectura **rutas → controladores → servicios** (el SQL solo vive en
 
 ### Documentos PDF (identidad compartida en `documentosPdf.ts`)
 Expediente clínico, expediente de nutrición y avance de peso/talla (encabezado
-MediTec-ITS, pie con logotipos de **Cuchipu Cloud** y **MediTec-ITS**, firmas y
-nota LFPDPPP) + reportes PDF del administrador con periodo.
+MediTec-ITS, pie con logotipos de **Cuchipu Cloud** y **MediTec-ITS** y nota
+LFPDPPP; **sin sección de firmas**, con secciones numeradas y folio por
+documento `TIPO-<número de control>-<fecha>` (EXP clínico, NUT nutrición, AVN
+avance)) + reportes PDF del administrador con periodo.
 
 ### Calidad UX (`ESPECIFICACIONES.md`)
 Toda acción confirma su resultado (`ModalResultado` para destructivas, `Aviso`

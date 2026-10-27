@@ -216,8 +216,9 @@ Expediente en PDF (`frontend/src/services/expedientePdf.ts`): documento tipo
 expediente con encabezado MediTeC-ITS, identificación, alertas clínicas,
 antecedentes, cuestionario e historial de consultas completo; el pie lleva los
 logotipos de la empresa (`logo-cuchipu.png`) y del software
-(`logo-meditec.png`, ambos en `frontend/public/`). Se descarga desde
-Pacientes → Expediente.
+(`logo-meditec.png`, ambos en `frontend/public/`). Su folio se forma con el
+número de control y la fecha (`EXP-<control>-<AAAAMMDD>`, ver
+`documentosPdf.folioDe`). Se descarga desde Pacientes → Expediente.
 
 Importación / exportación en Excel (`frontend/src/services/excel.service.ts` +
 `ImportadorExcel.tsx`): plantilla descargable, avisos previos de captura,
