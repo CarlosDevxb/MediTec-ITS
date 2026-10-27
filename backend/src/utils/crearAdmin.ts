@@ -4,9 +4,16 @@ import { ROLES_BASE } from '../config/roles';
 
 /* ============================================================
    UTILIDAD · crearAdmin.ts
-   Da de alta (o actualiza) al usuario administrador y asegura
-   los roles base del sistema. Idempotente: puede ejecutarse
-   tantas veces como sea necesario.
+   Bootstrap de datos iniciales: da de alta (o actualiza) al
+   usuario administrador, asegura los roles base del sistema y
+   siembra los tipos de paciente mínimos para poder abrir
+   expedientes. Idempotente: puede ejecutarse tantas veces como
+   sea necesario.
+
+   Única excepción a la regla "ningún dato de negocio entra por
+   SQL directo": estos valores son la semilla inicial del sistema
+   (roles, tipos de paciente y primer administrador). Todo lo
+   demás se capta desde la interfaz.
 
    Uso:
      npm run crear:admin
@@ -15,10 +22,18 @@ import { ROLES_BASE } from '../config/roles';
                           --numero-control=AD-0002 --genero=Femenino
 
    Sin --contrasena (ni ADMIN_CONTRASENA) se genera una segura y
-   se muestra una sola vez en consola.
+   se muestra una sola vez en consola. Si el administrador ya
+   existe, su contraseña se conserva salvo que se pida otra.
    ============================================================ */
 
 /** Roles que todo el sistema necesita para funcionar (ver config/roles.ts) */
+
+/**
+ * Tipos de paciente iniciales del catálogo `cat_tipo_paciente`.
+ * 'Alumno' es el que exige carrera (ver `config/roles.ts`); los demás
+ * valores se ajustan desde la sección Catálogos del panel de administración.
+ */
+const TIPOS_PACIENTE_INICIALES = ['Alumno', 'Docente', 'Administrativo'] as const;
 
 const GENEROS = ['Masculino', 'Femenino', 'Otro'] as const;
 
@@ -60,6 +75,20 @@ async function asegurarRoles(): Promise<Map<string, number>> {
   return ids;
 }
 
+/** Siembra los tipos de paciente mínimos del catálogo (idempotente) */
+async function asegurarTiposPaciente(): Promise<void> {
+  for (const nombre of TIPOS_PACIENTE_INICIALES) {
+    const [filas] = await pool.query(
+      'SELECT id_tipo FROM cat_tipo_paciente WHERE nombre = ? LIMIT 1',
+      [nombre],
+    );
+    if ((filas as Array<{ id_tipo: number }>)[0]) continue;
+
+    await pool.query('INSERT INTO cat_tipo_paciente (nombre) VALUES (?)', [nombre]);
+    console.log(`[crearAdmin] Tipo de paciente creado: ${nombre}`);
+  }
+}
+
 async function main() {
   const opciones = leerArgumentos();
 
@@ -86,15 +115,14 @@ async function main() {
 
   const contrasenaGenerada = !contrasenaPropia;
   const contrasena = contrasenaPropia ?? generarContrasena();
-
   try {
-    // ---- 1) Roles base ----
+    // ---- 1) Roles base y tipos de paciente ----
     const roles = await asegurarRoles();
+    await asegurarTiposPaciente();
     const idRolAdmin = roles.get('Administrador');
     if (!idRolAdmin) throw new Error('No se pudo determinar el rol Administrador.');
 
     // ---- 2) Alta o actualización del usuario administrador ----
-    const hash = await hashearContrasena(contrasena);
     const [filas] = await pool.query(
       'SELECT id_usuarios FROM usuarios WHERE numero_control = ? LIMIT 1',
       [numeroControl]
@@ -102,15 +130,32 @@ async function main() {
     const existente = (filas as Array<{ id_usuarios: number }>)[0];
 
     if (existente) {
-      await pool.query(
-        `UPDATE usuarios
-            SET roles_id_rol = ?, nombre = ?, correo = ?, contrasena = ?,
-                fecha_nacimiento = ?, genero = ?, estatus = 1
-          WHERE id_usuarios = ?`,
-        [idRolAdmin, nombre, correo, hash, fechaNacimiento, genero, existente.id_usuarios]
-      );
-      console.log(`[crearAdmin] Usuario actualizado: ${nombre} (${numeroControl})`);
+      // Sin --contrasena se conserva la que ya tiene: el bootstrap debe poder
+      // re-ejecutarse sin romper el acceso de quien ya usa el sistema.
+      if (contrasenaGenerada) {
+        await pool.query(
+          `UPDATE usuarios
+              SET roles_id_rol = ?, nombre = ?, correo = ?,
+                  fecha_nacimiento = ?, genero = ?, estatus = 1
+            WHERE id_usuarios = ?`,
+          [idRolAdmin, nombre, correo, fechaNacimiento, genero, existente.id_usuarios]
+        );
+        console.log(`[crearAdmin] Usuario actualizado: ${nombre} (${numeroControl})`);
+        console.log('[crearAdmin] Contraseña: se conserva la actual (usa --contrasena para cambiarla).');
+      } else {
+        const hash = await hashearContrasena(contrasena);
+        await pool.query(
+          `UPDATE usuarios
+              SET roles_id_rol = ?, nombre = ?, correo = ?, contrasena = ?,
+                  fecha_nacimiento = ?, genero = ?, estatus = 1
+            WHERE id_usuarios = ?`,
+          [idRolAdmin, nombre, correo, hash, fechaNacimiento, genero, existente.id_usuarios]
+        );
+        console.log(`[crearAdmin] Usuario actualizado: ${nombre} (${numeroControl})`);
+        console.log('[crearAdmin] Contraseña: la que proporcionaste.');
+      }
     } else {
+      const hash = await hashearContrasena(contrasena);
       await pool.query(
         `INSERT INTO usuarios
            (roles_id_rol, numero_control, nombre, correo, contrasena, fecha_nacimiento, genero, estatus)
@@ -118,15 +163,14 @@ async function main() {
         [idRolAdmin, numeroControl, nombre, correo, hash, fechaNacimiento, genero]
       );
       console.log(`[crearAdmin] Usuario creado: ${nombre} (${numeroControl})`);
-    }
-
-    console.log(`[crearAdmin] Rol: Administrador · Correo: ${correo}`);
-    if (contrasenaGenerada) {
-      console.log('');
-      console.log('[crearAdmin] Contraseña generada (guárdala ahora, no se volverá a mostrar):');
-      console.log(`             ${contrasena}`);
-    } else {
-      console.log('[crearAdmin] Contraseña: la que proporcionaste.');
+      console.log(`[crearAdmin] Rol: Administrador · Correo: ${correo}`);
+      if (contrasenaGenerada) {
+        console.log('');
+        console.log('[crearAdmin] Contraseña generada (guárdala ahora, no se volverá a mostrar):');
+        console.log(`             ${contrasena}`);
+      } else {
+        console.log('[crearAdmin] Contraseña: la que proporcionaste.');
+      }
     }
   } catch (error) {
     console.error('[crearAdmin] Error:', error);

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { telefonoOpcional } from './comunes';
 
 /** Esquema del cuerpo de la petición de inicio de sesión */
 export const esquemaLogin = z.object({
@@ -22,12 +23,7 @@ export type DatosLogin = z.infer<typeof esquemaLogin>;
  */
 export const esquemaActualizarPerfil = z
   .object({
-    telefono: z
-      .string()
-      .trim()
-      .max(20, 'El teléfono no puede exceder 20 caracteres.')
-      .optional()
-      .or(z.literal('')),
+    telefono: telefonoOpcional,
     contrasenaActual: z
       .string()
       .max(72, 'La contraseña no puede exceder 72 caracteres.')

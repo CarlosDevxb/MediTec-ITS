@@ -5,6 +5,7 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { Field, Input, Select } from '../ui/Input';
 import { detallesDe, mensajeDeError } from '../../services/api';
+import { useOpcionUnica } from '../../hooks/useOpcionUnica';
 import {
   DIAS_SEMANA,
   nombreDeDia,
@@ -64,6 +65,9 @@ export default function HorarioForm({
 
   const esEdicion = modo === 'editar';
   const personalElegido = personal.find((p) => p.id === Number(personalId));
+
+  // Con una sola persona en el catálogo el selector la elige solo (ver hooks/)
+  useOpcionUnica(personal, personalId, (id) => setPersonalId(String(id)));
 
   const alternarDia = (dia: number) => {
     setDias((prev) =>

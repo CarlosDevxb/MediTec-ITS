@@ -224,7 +224,8 @@ function validarCedula(nombreRol: string, datos: DatosUsuario): void {
 /**
  * Valida los datos del expediente cuando el rol es Paciente:
  * el tipo de paciente es obligatorio, y la carrera también lo es para los
- * tipos que la requieren (ver `config/roles.ts`).
+ * tipos que la requieren (ver `config/roles.ts`). Si el catálogo de tipos
+ * está vacío se avisa explícitamente: sin tipos no se puede abrir expediente.
  */
 async function validarPaciente(nombreRol: string, datos: DatosUsuario): Promise<{
   tipoId: number;
@@ -235,9 +236,21 @@ async function validarPaciente(nombreRol: string, datos: DatosUsuario): Promise<
 
   const tipoId = Number(datos.tipoPacienteId ?? 0);
   if (!tipoId) {
-    throw errorValidacion('Indica el tipo de paciente del expediente.', [
-      { campo: 'tipoPacienteId', mensaje: 'Selecciona el tipo de paciente.' },
-    ]);
+    const [totales] = await pool.query('SELECT COUNT(*) AS total FROM cat_tipo_paciente');
+    const sinTipos = Number((totales as Array<{ total: number }>)[0]?.total ?? 0) === 0;
+    throw errorValidacion(
+      sinTipos
+        ? 'No hay tipos de paciente registrados: regístralos en la sección Catálogos antes de dar de alta pacientes.'
+        : 'Indica el tipo de paciente del expediente.',
+      [
+        {
+          campo: 'tipoPacienteId',
+          mensaje: sinTipos
+            ? 'Registra tipos de paciente en Catálogos.'
+            : 'Selecciona el tipo de paciente.',
+        },
+      ],
+    );
   }
 
   const nombreTipo = await nombreDeTipoPaciente(tipoId);
@@ -251,9 +264,18 @@ async function validarPaciente(nombreRol: string, datos: DatosUsuario): Promise<
 
   if (requiereCarrera(nombreTipo)) {
     if (!carreraId) {
+      const [totalesCarrera] = await pool.query('SELECT COUNT(*) AS total FROM cat_carreras');
+      const sinCarreras = Number((totalesCarrera as Array<{ total: number }>)[0]?.total ?? 0) === 0;
       throw errorValidacion(
-        `Los pacientes de tipo "${nombreTipo}" deben tener una carrera asignada.`,
-        [{ campo: 'carreraId', mensaje: 'Selecciona la carrera.' }],
+        sinCarreras
+          ? `Los pacientes de tipo "${nombreTipo}" deben tener una carrera y aún no hay carreras registradas: regístralas en la sección Catálogos.`
+          : `Los pacientes de tipo "${nombreTipo}" deben tener una carrera asignada.`,
+        [
+          {
+            campo: 'carreraId',
+            mensaje: sinCarreras ? 'Registra carreras en Catálogos.' : 'Selecciona la carrera.',
+          },
+        ],
       );
     }
     if (!(await existeCarrera(carreraId))) {

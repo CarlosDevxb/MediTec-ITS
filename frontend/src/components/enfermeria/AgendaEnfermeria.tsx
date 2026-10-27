@@ -21,6 +21,7 @@ import EstadoVista from '../ui/EstadoVista';
 import Modal from '../ui/Modal';
 import { Field, Input, Select } from '../ui/Input';
 import { detallesDe, mensajeDeError } from '../../services/api';
+import { useOpcionUnica } from '../../hooks/useOpcionUnica';
 import {
   listarCitas,
   crearCita,
@@ -95,6 +96,10 @@ export default function AgendaEnfermeria() {
     () => personal.filter((persona) => especialidadEsDeCita(persona.especialidad)),
     [personal],
   );
+
+  // Con un solo especialista el selector lo elige solo (ver hooks/):
+  // evita el campo que "se ve seleccionado" pero no lo está.
+  useOpcionUnica(personalCitas, personalId, (id) => setPersonalId(String(id)));
 
   const cargar = useCallback(async () => {
     setCargando(true);
