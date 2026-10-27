@@ -45,7 +45,7 @@ Arquitectura **rutas → controladores → servicios** (el SQL solo vive en
 |---|---|---|
 | auth | `POST /login`, `GET/PATCH /auth/perfil` | Login con mensajes genéricos; perfil propio (teléfono/contraseña; el correo no se cambia) |
 | roles · usuarios · catálogos | CRUD | Incluye `POST /usuarios/importar` (Excel) y `PATCH /usuarios/:id/contrasena` (restablecer) |
-| horarios | CRUD + `GET` | L-V, sin duplicados exactos; lectura abierta al personal y al paciente (disponibilidad) |
+| horarios | CRUD + `GET` | L-V, sin duplicados exactos; alta múltiple y **turno completo** (`PUT/DELETE /horarios/turno`: todos sus días en una transacción); lectura abierta al personal y al paciente (disponibilidad) |
 | medicamentos | `GET/POST/PUT` + `POST /importar` | Sin DELETE: stock 0 = agotado (no disponible para consultas) |
 | personal-medico | `GET` | Al paciente solo se le expone nombre y especialidad |
 | pacientes | `GET`, `POST`, `PATCH /:id/expediente`, `POST /:id/cuestionario`, `GET /:id/seguimiento` | "Solo lo suyo" para el rol Paciente |
@@ -172,7 +172,8 @@ corrige, se verifica (typecheck + build) y se commitea.
 |---|---|
 | Datos | Ningún dato de negocio entra por SQL directo: todo pasa por la interfaz |
 | API | Rutas → controladores → servicios; SQL solo en servicios; Zod en toda entrada; JSON camelCase / BD snake_case |
-| Roles | 5 roles fijos (Administrador, Personal médico, Enfermería, Recepción, Paciente) + **la especialidad del personal médico decide su portal** (viaja en el JWT del login) |
+| Roles | 5 roles fijos (Administrador, Personal médico, Enfermería, Recepción, Paciente) + **la especialidad del personal médico decide su portal** (viaja en el JWT del login). La **enfermería es un rol**, no una especialidad del personal médico: su especialidad es fija ('Enfermería') y no se ofrece como opción al dar de alta personal |
+| Horarios | Un turno = personal + rango de horas + sus días (una fila por día en la BD, **un bloque en la interfaz**); se crea, edita y elimina como bloque completo |
 | Consulta→cita | Toda consulta deriva de una cita (`cita_id_cita` UNIQUE); auto-cita `Atención directa` para llegadas; nutrición/odontología exigen cita |
 | Tipos de consulta | ENUM `tipo_consulta` derivado del rol+especialidad; cada tipo captura campos distintos |
 | Agenda | Sesión de 30 min + 30 de respiro (citas cada 60 min); días con horario; sin pasado; cancelación automática al cambiar de día; atender solo hoy |

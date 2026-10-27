@@ -91,7 +91,9 @@ vía `/importar` desde Excel). Los paneles `/admin`, `/doctor` y `/enfermeria`
 leen y escriben en MySQL; no usan datos de demostración.
 
 Reglas de negocio ya implementadas: la clínica solo opera de lunes a viernes,
-los turnos duplicados exactos se rechazan, los medicamentos no se eliminan (el
+los turnos duplicados exactos se rechazan y los horarios se organizan en
+**turnos** (una persona + un rango de horas con sus días: se dan de alta, se
+editan y se eliminan como un solo bloque), los medicamentos no se eliminan (el
 stock en 0 los deja no disponibles para consultas) y **toda consulta deriva de
 una cita**: al atender sin cita previa (doctor y enfermería) el alta crea antes
 la auto-cita `Atención directa` y enseguida la consulta, en una transacción con
@@ -100,7 +102,9 @@ las alergias registradas del paciente no se puede dispensar; el formulario lo
 bloquea y sugiere alternativas del inventario, y el servidor lo rechaza en la
 misma transacción (`utils/alergias.ts`, mismo criterio en
 `frontend/src/services/atencion.service.ts`; la comparación es por nombre
-normalizado, así que no detecta sinónimos como paracetamol/acetaminofén).
+normalizado, así que no detecta sinónimos como paracetamol/acetaminofén). La
+**enfermería es un rol**, no una especialidad del personal médico: su
+especialidad es fija y no se ofrece al dar de alta personal.
 
 **Paneles por rol:** `/doctor` (Personal médico) y `/enfermeria` (Enfermería;
 Recepción entra aquí de forma provisional). Los componentes clínicos

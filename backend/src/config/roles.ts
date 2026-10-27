@@ -22,6 +22,24 @@ export const ROLES_CON_CEDULA: readonly string[] = ['Personal médico', 'Enferme
 /** Rol cuya cuenta debe tener además un expediente en la tabla `pacientes` */
 export const ROL_PACIENTE = 'Paciente';
 
+/** Rol del personal de enfermería */
+export const ROL_ENFERMERIA = 'Enfermería';
+
+/**
+ * Especialidad fija del personal de enfermería.
+ *
+ * La enfermería es un **rol**, no una especialidad del personal médico: su
+ * trabajo (intervención de enfermería) lo define el rol. Esta especialidad se
+ * asigna sola al dar de alta a alguien con el rol Enfermería y no se ofrece
+ * como opción al personal médico, para no duplicar identidades ni permisos.
+ */
+export const ESPECIALIDAD_ENFERMERIA = 'Enfermería';
+
+/** ¿El rol dado es el de enfermería? */
+export function esRolEnfermeria(nombreRol: string): boolean {
+  return nombreRol === ROL_ENFERMERIA;
+}
+
 /**
  * Tipos de paciente que requieren carrera.
  *

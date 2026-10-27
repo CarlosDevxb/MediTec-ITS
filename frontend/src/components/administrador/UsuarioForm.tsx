@@ -36,10 +36,21 @@ const ROLES_CON_CEDULA = ['Personal médico', 'Enfermería'];
 /** Rol que además abre un expediente en la tabla `pacientes` */
 const ROL_PACIENTE = 'Paciente';
 
+/** Rol del personal de enfermería */
+const ROL_ENFERMERIA = 'Enfermería';
+
+/**
+ * Especialidades del personal médico. 'Enfermería' no aparece aquí: la
+ * enfermería es un rol (así lo decide también el servidor), para no duplicar
+ * identidades ni permisos.
+ */
+const ESPECIALIDADES_MEDICO = ['Odontología', 'Medicina general', 'Nutrición'];
+
+/** Especialidad fija del personal de enfermería (mismo criterio que el backend) */
+const ESPECIALIDAD_ENFERMERIA = 'Enfermería';
+
 /** Tipos de paciente que exigen carrera (mismo criterio que el backend) */
 const TIPOS_CON_CARRERA = ['Alumno'];
-
-const ESPECIALIDADES = ['Odontología', 'Medicina general', 'Nutrición', 'Enfermería'];
 
 /** Formato aceptado para el teléfono (mismo criterio que el servidor) */
 const FORMATO_TELEFONO = /^[0-9+\-() ]{7,20}$/;
@@ -93,6 +104,20 @@ export default function UsuarioForm({
   const rolSeleccionado = roles.find((r) => r.id === rolId);
   const esPersonal = ROLES_CON_CEDULA.includes(rolSeleccionado?.nombre ?? '');
   const esPaciente = (rolSeleccionado?.nombre ?? '') === ROL_PACIENTE;
+  const esRolEnfermeria = (rolSeleccionado?.nombre ?? '') === ROL_ENFERMERIA;
+  const esPersonalMedico = (rolSeleccionado?.nombre ?? '') === 'Personal médico';
+
+  // La enfermería es un rol: su especialidad es fija y no se elige. Al pasar
+  // a personal médico se limpia si traía la especialidad de enfermería.
+  useEffect(() => {
+    if (esRolEnfermeria) {
+      setEspecialidad(ESPECIALIDAD_ENFERMERIA);
+    } else if (esPersonalMedico && !ESPECIALIDADES_MEDICO.includes(especialidad)) {
+      setEspecialidad('');
+    }
+    // Solo al cambiar de rol: el resto lo decide quien captura
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esRolEnfermeria, esPersonalMedico]);
 
   const tipoSeleccionado = tiposPaciente.find((t) => t.id === tipoPacienteId);
   const requiereCarrera = TIPOS_CON_CARRERA.includes(tipoSeleccionado?.nombre ?? '');
@@ -215,7 +240,8 @@ export default function UsuarioForm({
       if (!cedula.trim()) {
         nuevos.cedula = 'La cédula es obligatoria para este personal.';
       }
-      if (!especialidad) {
+      // La especialidad solo se elige en el personal médico: la de enfermería es fija
+      if (esPersonalMedico && !especialidad) {
         nuevos.especialidad = 'Selecciona la especialidad.';
       }
     }
@@ -413,21 +439,32 @@ export default function UsuarioForm({
             {/* Datos del personal médico (tabla `personal_medico`) */}
             {esPersonal && (
               <>
-                <Field label="Especialidad" error={errores.especialidad}>
-                  <Select
-                    value={especialidad}
-                    onChange={(e) => setEspecialidad(e.target.value)}
-                    disabled={guardando}
-                    aria-invalid={errores.especialidad ? true : undefined}
+                {esRolEnfermeria ? (
+                  <Field
+                    label="Especialidad"
+                    hint="La enfermería es un rol: su especialidad es fija y no se elige."
                   >
-                    <option value="">Selecciona…</option>
-                    {ESPECIALIDADES.map((opcion) => (
-                      <option key={opcion} value={opcion}>
-                        {opcion}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
+                    <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3.5 text-base text-gray-800">
+                      {ESPECIALIDAD_ENFERMERIA}
+                    </p>
+                  </Field>
+                ) : (
+                  <Field label="Especialidad" error={errores.especialidad}>
+                    <Select
+                      value={especialidad}
+                      onChange={(e) => setEspecialidad(e.target.value)}
+                      disabled={guardando}
+                      aria-invalid={errores.especialidad ? true : undefined}
+                    >
+                      <option value="">Selecciona…</option>
+                      {ESPECIALIDADES_MEDICO.map((opcion) => (
+                        <option key={opcion} value={opcion}>
+                          {opcion}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                )}
                 <Field
                   label="Cédula profesional"
                   className="md:col-span-2"

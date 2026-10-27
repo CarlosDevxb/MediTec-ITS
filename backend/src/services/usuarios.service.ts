@@ -1,6 +1,12 @@
 import pool from '../db/pool';
 import { generarContrasenaTemporal, hashearContrasena } from '../utils/contrasenas';
-import { requiereCedula, esRolPaciente, requiereCarrera } from '../config/roles';
+import {
+  requiereCedula,
+  esRolPaciente,
+  esRolEnfermeria,
+  requiereCarrera,
+  ESPECIALIDAD_ENFERMERIA,
+} from '../config/roles';
 import { errorConflicto, errorNoEncontrado, errorValidacion } from '../utils/erroresHttp';
 
 /**
@@ -204,7 +210,7 @@ async function asegurarDatosLibres(
   }
 }
 
-/** Valida la cédula cuando el rol la exige */
+/** Valida la cédula y la especialidad cuando el rol las exige */
 function validarCedula(nombreRol: string, datos: DatosUsuario): void {
   if (!requiereCedula(nombreRol)) return;
 
@@ -214,11 +220,37 @@ function validarCedula(nombreRol: string, datos: DatosUsuario): void {
       [{ campo: 'cedula', mensaje: 'Captura la cédula profesional.' }],
     );
   }
-  if (!datos.especialidad?.trim()) {
+
+  // La enfermería es un rol, no una especialidad del personal médico: su
+  // especialidad es fija y no se elige
+  if (esRolEnfermeria(nombreRol)) return;
+
+  const especialidad = datos.especialidad?.trim() ?? '';
+  if (!especialidad) {
     throw errorValidacion('Indica la especialidad del personal.', [
       { campo: 'especialidad', mensaje: 'Selecciona la especialidad.' },
     ]);
   }
+  const normalizada = especialidad
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  if (normalizada === 'enfermeria') {
+    throw errorValidacion(
+      'La enfermería es un rol, no una especialidad del personal médico: registra esa cuenta con el rol Enfermería.',
+      [
+        {
+          campo: 'especialidad',
+          mensaje: 'Elige otra especialidad o cambia el rol a Enfermería.',
+        },
+      ],
+    );
+  }
+}
+
+/** Especialidad que queda en la ficha de personal: la del rol Enfermería es fija */
+function especialidadDeFicha(nombreRol: string, datos: DatosUsuario): string {
+  return esRolEnfermeria(nombreRol) ? ESPECIALIDAD_ENFERMERIA : datos.especialidad?.trim() ?? '';
 }
 
 /**
@@ -331,7 +363,7 @@ export async function crearUsuario(
       await conexion.query(
         `INSERT INTO personal_medico (usuarios_id_usuarios, cedula, especialidad)
          VALUES (?, ?, ?)`,
-        [id, datos.cedula?.trim() ?? '', datos.especialidad?.trim() ?? ''],
+        [id, datos.cedula?.trim() ?? '', especialidadDeFicha(nombreRol, datos)],
       );
     }
 
@@ -427,7 +459,7 @@ export async function actualizarUsuario(
         `INSERT INTO personal_medico (usuarios_id_usuarios, cedula, especialidad)
          VALUES (?, ?, ?)
          ON DUPLICATE KEY UPDATE cedula = VALUES(cedula), especialidad = VALUES(especialidad)`,
-        [id, datos.cedula?.trim() ?? '', datos.especialidad?.trim() ?? ''],
+        [id, datos.cedula?.trim() ?? '', especialidadDeFicha(nombreRol, datos)],
       );
     } else {
       await conexion.query('DELETE FROM personal_medico WHERE usuarios_id_usuarios = ?', [id]);
