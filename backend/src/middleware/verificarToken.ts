@@ -8,6 +8,10 @@ export interface UsuarioToken {
   numeroControl: string;
   nombre: string;
   rol: string;
+  /** Perfil base heredado del rol (define panel y permisos) */
+  perfil: string;
+  /** Acciones que el rol NO hereda de su perfil (restricciones) */
+  restricciones: string[];
   /** Especialidad del personal médico (para enrutar su portal) */
   especialidad?: string;
 }

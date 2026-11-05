@@ -36,6 +36,9 @@ export async function login(req: Request, res: Response, next: NextFunction) {
       numeroControl: usuario.numeroControl,
       nombre: usuario.nombre,
       rol: usuario.rol,
+      // El perfil hereda panel y permisos; las restricciones quitan acciones
+      perfil: usuario.perfil,
+      restricciones: usuario.restricciones,
       // La especialidad decide a qué portal entra el personal médico
       especialidad: usuario.especialidad ?? undefined,
     };

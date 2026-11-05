@@ -104,7 +104,11 @@ misma transacción (`utils/alergias.ts`, mismo criterio en
 `frontend/src/services/atencion.service.ts`; la comparación es por nombre
 normalizado, así que no detecta sinónimos como paracetamol/acetaminofén). La
 **enfermería es un rol**, no una especialidad del personal médico: su
-especialidad es fija y no se ofrece al dar de alta personal.
+especialidad es fija y no se ofrece al dar de alta personal. Los roles heredan
+un **perfil base** (Administrador, Personal médico, Enfermería o Paciente):
+reciben su panel y sus permisos y pueden llevar **restricciones** de acciones
+(catálogo en `backend/src/config/permisos.ts`, tabla `rol_restricciones`); los
+roles base del sistema solo admiten editar su descripción.
 
 **Paneles por rol:** `/doctor` (Personal médico) y `/enfermeria` (Enfermería;
 Recepción entra aquí de forma provisional). Los componentes clínicos

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { verificarToken } from '../middleware/verificarToken';
 import { requerirRol } from '../middleware/requerirRol';
+import { requerirAccion } from '../middleware/requerirAccion';
 import { validar } from '../middleware/validar';
 import { esquemaCrearConsulta } from '../validaciones/consultas.validacion';
 import * as controlador from '../controllers/consultas.controller';
@@ -25,7 +26,7 @@ rutas.use(verificarToken);
 const LECTURA_CONSULTAS = ['Administrador', 'Personal médico', 'Enfermería', 'Paciente'] as const;
 
 rutas.get('/', requerirRol(...LECTURA_CONSULTAS), controlador.listarConsultas);
-rutas.post('/', requerirRol('Personal médico', 'Enfermería'), validar(esquemaCrearConsulta), controlador.crearConsulta);
+rutas.post('/', requerirRol('Personal médico', 'Enfermería'), requerirAccion('consultas'), validar(esquemaCrearConsulta), controlador.crearConsulta);
 rutas.get('/:id', requerirRol(...LECTURA_CONSULTAS), controlador.obtenerConsulta);
 
 export default rutas;

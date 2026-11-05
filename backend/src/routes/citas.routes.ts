@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { verificarToken } from '../middleware/verificarToken';
 import { requerirRol } from '../middleware/requerirRol';
+import { requerirAccion } from '../middleware/requerirAccion';
 import { validar } from '../middleware/validar';
 import {
   esquemaCrearCita,
@@ -30,8 +31,8 @@ rutas.use(verificarToken, requerirRol('Administrador', 'Personal médico', 'Enfe
 
 rutas.get('/', controlador.listarCitas);
 rutas.get('/disponibilidad', controlador.disponibilidad);
-rutas.post('/', validar(esquemaCrearCita), controlador.crearCita);
-rutas.put('/:id', validar(esquemaReagendarCita), controlador.reagendar);
-rutas.patch('/:id/estatus', validar(esquemaEstatusCita), controlador.cambiarEstatus);
+rutas.post('/', requerirAccion('citas'), validar(esquemaCrearCita), controlador.crearCita);
+rutas.put('/:id', requerirAccion('citas'), validar(esquemaReagendarCita), controlador.reagendar);
+rutas.patch('/:id/estatus', requerirAccion('citas'), validar(esquemaEstatusCita), controlador.cambiarEstatus);
 
 export default rutas;

@@ -13,25 +13,50 @@ export interface Rol {
   id: number;
   nombre: string;
   descripcion: string;
+  /** Perfil base heredado (define el panel y los permisos del rol) */
+  perfil: string;
+  /** Acciones que NO hereda del perfil */
+  restricciones: string[];
+  /** true para los roles base del sistema (solo se edita su descripción) */
+  esBase: boolean;
   /** Cuántas cuentas de usuario tienen este rol */
   usuarios: number;
+}
+
+/** Acción que se puede restringir en un rol (catálogo del servidor) */
+export interface AccionPermiso {
+  id: string;
+  etiqueta: string;
+  descripcion: string;
+  /** Perfiles que heredan esta acción */
+  perfiles: string[];
+}
+
+/** Datos de un rol al crearlo o editarlo */
+export interface DatosRol {
+  nombre: string;
+  descripcion: string;
+  perfil: string;
+  restricciones: string[];
 }
 
 export function listarRoles(): Promise<Rol[]> {
   return apiFetch<{ datos: Rol[] }>('/roles').then((r) => r.datos);
 }
 
-export function crearRol(datos: { nombre: string; descripcion: string }): Promise<Rol> {
+/** Catálogo de acciones restringibles (para el formulario del rol) */
+export function listarAccionesPermisos(): Promise<AccionPermiso[]> {
+  return apiFetch<{ datos: AccionPermiso[] }>('/roles/acciones').then((r) => r.datos);
+}
+
+export function crearRol(datos: DatosRol): Promise<Rol> {
   return apiFetch<{ datos: Rol }>('/roles', {
     method: 'POST',
     body: JSON.stringify(datos),
   }).then((r) => r.datos);
 }
 
-export function actualizarRol(
-  id: number,
-  datos: { nombre: string; descripcion: string },
-): Promise<Rol> {
+export function actualizarRol(id: number, datos: DatosRol): Promise<Rol> {
   return apiFetch<{ datos: Rol }>(`/roles/${id}`, {
     method: 'PUT',
     body: JSON.stringify(datos),

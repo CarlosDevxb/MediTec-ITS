@@ -14,6 +14,10 @@ export interface UsuarioSesion {
   numeroControl: string;
   nombre: string;
   rol: string;
+  /** Perfil base heredado del rol (define su panel y sus permisos) */
+  perfil?: string;
+  /** Acciones que el rol NO hereda de su perfil (restricciones) */
+  restricciones?: string[];
   /** Especialidad del personal médico (decide su portal) */
   especialidad?: string;
 }
@@ -53,9 +57,9 @@ export function cerrarSesion(): void {
   window.location.href = '/login';
 }
 
-/** Panel al que entra cada rol (y especialidad) tras iniciar sesión */
-export function rutaSegunRol(rol: string, especialidad?: string): string {
-  switch (rol) {
+/** Panel al que entra cada perfil (y especialidad) tras iniciar sesión */
+export function rutaSegunRol(perfil: string, especialidad?: string): string {
+  switch (perfil) {
     case 'Administrador':
       return '/admin';
     case 'Paciente':
@@ -77,6 +81,16 @@ export function rutaSegunRol(rol: string, especialidad?: string): string {
     default:
       return '/enfermeria';
   }
+}
+
+/**
+ * ¿El rol de la sesión tiene restringida esta acción?
+ * (catálogo de acciones en `backend/src/config/permisos.ts`). Los paneles
+ * ocultan con esto las secciones que el rol no hereda de su perfil.
+ */
+export function sinAccion(accion: string): boolean {
+  const sesion = obtenerSesion();
+  return (sesion?.usuario.restricciones ?? []).includes(accion);
 }
 
 /** Iniciales para el avatar del perfil */

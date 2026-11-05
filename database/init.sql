@@ -20,7 +20,18 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`roles` (
   `id_rol` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `nombre` VARCHAR(50) NOT NULL,
   `descripcion` VARCHAR(255) NULL DEFAULT NULL COMMENT 'Breve descripción de los permisos o función del rol',
+  `perfil` ENUM('Administrador', 'Personal médico', 'Enfermería', 'Paciente') NOT NULL COMMENT 'Perfil base heredado: define el panel y los permisos del rol',
   PRIMARY KEY (`id_rol`))
+ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
+
+-- Acciones que un rol NO hereda de su perfil (restricciones puntuales)
+CREATE TABLE IF NOT EXISTS `meditec_its`.`rol_restricciones` (
+  `roles_id_rol` INT UNSIGNED NOT NULL,
+  `accion` VARCHAR(50) NOT NULL COMMENT 'Clave de la acción restringida (ver backend/src/config/permisos.ts)',
+  PRIMARY KEY (`roles_id_rol`, `accion`),
+  CONSTRAINT `fk_rol_restricciones_rol`
+    FOREIGN KEY (`roles_id_rol`) REFERENCES `meditec_its`.`roles` (`id_rol`)
+    ON DELETE CASCADE ON UPDATE CASCADE)
 ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS `meditec_its`.`cat_alergias` (

@@ -13,7 +13,10 @@ export default function Login() {
   // Si ya hay sesión iniciada, entra directo a su panel
   useEffect(() => {
     const sesion = obtenerSesion();
-    if (sesion) window.location.replace(rutaSegunRol(sesion.usuario.rol));
+    if (sesion)
+      window.location.replace(
+        rutaSegunRol(sesion.usuario.perfil || sesion.usuario.rol, sesion.usuario.especialidad),
+      );
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -29,7 +32,10 @@ export default function Login() {
     try {
       const datos = await iniciarSesion(numeroControl.trim(), contrasena);
       // Entra al panel que corresponde a su rol
-      window.location.href = rutaSegunRol(datos.usuario.rol);
+      window.location.href = rutaSegunRol(
+        datos.usuario.perfil || datos.usuario.rol,
+        datos.usuario.especialidad,
+      );
     } catch (err) {
       // Muestra el mensaje de la API (credenciales, cuenta deshabilitada…)
       setError(mensajeDeError(err));

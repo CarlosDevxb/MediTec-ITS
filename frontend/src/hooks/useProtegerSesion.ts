@@ -21,7 +21,10 @@ export function useProtegerSesion(): void {
       return;
     }
 
-    const hogar = rutaSegunRol(sesion.usuario.rol, sesion.usuario.especialidad);
+    const hogar = rutaSegunRol(
+      sesion.usuario.perfil || sesion.usuario.rol,
+      sesion.usuario.especialidad,
+    );
     if (!window.location.pathname.startsWith(hogar)) {
       window.location.replace(hogar);
     }

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { verificarToken } from '../middleware/verificarToken';
 import { requerirRol } from '../middleware/requerirRol';
+import { requerirAccion } from '../middleware/requerirAccion';
 import * as controlador from '../controllers/catalogos.controller';
 
 /**
@@ -23,10 +24,10 @@ rutas.get('/', verificarToken, controlador.listarCatalogos);
 rutas.get('/:catalogo', verificarToken, controlador.listarValores);
 
 // La administración de catálogos es exclusiva del Administrador
-rutas.post('/:catalogo', verificarToken, requerirRol('Administrador'), controlador.crearValor);
+rutas.post('/:catalogo', verificarToken, requerirRol('Administrador'), requerirAccion('catalogos'), controlador.crearValor);
 // Antes que las rutas con :id, para que "consolidar" no se interprete como id
-rutas.post('/:catalogo/consolidar', verificarToken, requerirRol('Administrador'), controlador.consolidarValor);
-rutas.put('/:catalogo/:id', verificarToken, requerirRol('Administrador'), controlador.actualizarValor);
-rutas.delete('/:catalogo/:id', verificarToken, requerirRol('Administrador'), controlador.eliminarValor);
+rutas.post('/:catalogo/consolidar', verificarToken, requerirRol('Administrador'), requerirAccion('catalogos'), controlador.consolidarValor);
+rutas.put('/:catalogo/:id', verificarToken, requerirRol('Administrador'), requerirAccion('catalogos'), controlador.actualizarValor);
+rutas.delete('/:catalogo/:id', verificarToken, requerirRol('Administrador'), requerirAccion('catalogos'), controlador.eliminarValor);
 
 export default rutas;
