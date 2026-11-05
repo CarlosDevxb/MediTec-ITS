@@ -105,7 +105,7 @@ export default function MiPlan() {
   ];
 
   return (
-    <div className="entrada p-10 xl:p-12 max-w-6xl mx-auto font-sans">
+    <div className="entrada p-4 sm:p-6 lg:p-10 xl:p-12 max-w-6xl mx-auto font-sans">
       <PageHeader
         title="Mi plan alimenticio"
         subtitle="Tu plan vigente y tu avance de peso y talla"

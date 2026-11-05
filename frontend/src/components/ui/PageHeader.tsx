@@ -14,9 +14,9 @@ export interface PageHeaderProps {
 
 export default function PageHeader({ title, subtitle, meta }: PageHeaderProps) {
   return (
-    <header className="mb-10 flex flex-wrap justify-between items-end gap-4">
+    <header className="mb-6 sm:mb-10 flex flex-wrap justify-between items-end gap-4">
       <div>
-        <h2 className="text-4xl font-semibold tracking-tight text-gray-900">{title}</h2>
+        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-gray-900">{title}</h2>
         {subtitle && (
           <p className="text-gray-500 mt-2 text-base font-medium">{subtitle}</p>
         )}

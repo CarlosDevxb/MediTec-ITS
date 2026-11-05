@@ -111,7 +111,7 @@ export default function ResumenEnfermeria({ onNuevaCita, onNuevoPaciente, onNuev
   ];
 
   return (
-    <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
+    <div className="entrada p-4 sm:p-6 lg:p-10 xl:p-12 max-w-7xl mx-auto font-sans">
       {/* Saludo + identidad del personal (igual que el panel del doctor) */}
       <SaludoInicio
         nombre={nombre}

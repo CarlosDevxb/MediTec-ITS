@@ -191,7 +191,7 @@ export default function PlanesNutricion() {
   ];
 
   return (
-    <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
+    <div className="entrada p-4 sm:p-6 lg:p-10 xl:p-12 max-w-7xl mx-auto font-sans">
       <PageHeader
         title="Planes alimenticios"
         subtitle="Pacientes con plan de nutrición activo y su avance"

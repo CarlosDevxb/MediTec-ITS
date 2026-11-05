@@ -38,7 +38,7 @@ export default function StatCard({
         <Icon size={20} className="text-brand-600" />
         {label}
       </div>
-      <div className="text-5xl font-semibold tracking-tight text-gray-900 tabular-nums mb-1.5">
+      <div className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-gray-900 tabular-nums mb-1.5">
         {value}
       </div>
       {detail && (

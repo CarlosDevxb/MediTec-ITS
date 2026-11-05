@@ -114,7 +114,7 @@ export default function Atencion({ rol = 'medico', citaInicial = null }: Atencio
   /* ---------- Vista de éxito ---------- */
   if (consultaCreada) {
     return (
-      <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
+      <div className="entrada p-4 sm:p-6 lg:p-10 xl:p-12 max-w-7xl mx-auto font-sans">
         <PageHeader
           title="Consulta registrada"
           subtitle={`Atención de ${consultaCreada.paciente.nombre} · ${consultaCreada.fechaHora}`}
@@ -201,7 +201,7 @@ export default function Atencion({ rol = 'medico', citaInicial = null }: Atencio
 
   /* ---------- Flujo de captura ---------- */
   return (
-    <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
+    <div className="entrada p-4 sm:p-6 lg:p-10 xl:p-12 max-w-7xl mx-auto font-sans">
       <PageHeader
         title={
           rol === 'enfermeria'

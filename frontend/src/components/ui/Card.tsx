@@ -43,8 +43,8 @@ export default function Card({
       {hasHeader && (
         <div
           className={[
-            'flex items-start justify-between gap-4 px-7',
-            divided ? 'p-7 border-b border-gray-100' : 'pt-7 pb-5',
+            'flex items-start justify-between gap-4 px-4 sm:px-7',
+            divided ? 'p-4 sm:p-7 border-b border-gray-100' : 'pt-5 sm:pt-7 pb-4 sm:pb-5',
           ].join(' ')}
         >
           <div>
@@ -65,9 +65,9 @@ export default function Card({
           bodyClassName ||
           (hasHeader
             ? divided
-              ? 'p-7'
-              : 'px-7 pb-7'
-            : 'p-7')
+              ? 'p-4 sm:p-7'
+              : 'px-4 sm:px-7 pb-4 sm:pb-7'
+            : 'p-4 sm:p-7')
         }
       >
         {children}

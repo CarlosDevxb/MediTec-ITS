@@ -136,6 +136,12 @@ export default function Horarios() {
     tipo: 'exito' | 'error';
   } | null>(null);
   const [modoVista, setModoVista] = useState<'calendario' | 'lista'>('calendario');
+
+  // En pantallas angostas la lista se lee mejor que la semana completa
+  useEffect(() => {
+    const consulta = window.matchMedia('(max-width: 767px)');
+    if (consulta.matches) setModoVista('lista');
+  }, []);
   const { aviso, tipo, mostrar, cerrar } = useAviso();
 
   /* ---------- Carga desde la API ---------- */
@@ -467,7 +473,7 @@ export default function Horarios() {
   ];
 
   return (
-    <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
+    <div className="entrada p-4 sm:p-6 lg:p-10 xl:p-12 max-w-7xl mx-auto font-sans">
       <PageHeader
         title="Horarios"
         subtitle="Disponibilidad semanal del personal médico · lunes a viernes"
@@ -608,7 +614,10 @@ export default function Horarios() {
                   </div>
                 </div>
 
-                {/* Rejilla */}
+                {/* Rejilla (scroll horizontal en pantallas angostas) */}
+                <p className="md:hidden px-6 pt-4 text-xs text-gray-400">
+                  Desliza el calendario para ver toda la semana →
+                </p>
                 <div className="overflow-x-auto">
                   <div className="min-w-[880px] px-6 pt-5 pb-6">
                     {/* Nombres de los días */}

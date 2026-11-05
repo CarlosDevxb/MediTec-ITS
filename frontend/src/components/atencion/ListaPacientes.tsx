@@ -80,7 +80,7 @@ export default function ListaPacientes() {
 
   /* ---------- Lista de pacientes ---------- */
   return (
-    <div className="entrada p-10 xl:p-12 max-w-6xl mx-auto font-sans">
+    <div className="entrada p-4 sm:p-6 lg:p-10 xl:p-12 max-w-6xl mx-auto font-sans">
       <PageHeader title="Pacientes" subtitle="Consulta los expedientes de la clínica" />
 
       {error && (

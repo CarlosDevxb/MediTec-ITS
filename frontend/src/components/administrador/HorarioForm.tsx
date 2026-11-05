@@ -176,7 +176,7 @@ export default function HorarioForm({
       : '';
 
   return (
-    <div className="entrada p-10 xl:p-12 max-w-5xl mx-auto font-sans">
+    <div className="entrada p-4 sm:p-6 lg:p-10 xl:p-12 max-w-5xl mx-auto font-sans">
       <PageHeader
         title={esEdicion ? 'Editar turno' : 'Nuevo horario'}
         subtitle={
@@ -259,7 +259,7 @@ export default function HorarioForm({
                   <span className="block text-base font-semibold text-gray-700">
                     Días de la semana
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button variant="ghost" size="sm" onClick={marcarLaborales} type="button">
                       Lunes a viernes
                     </Button>

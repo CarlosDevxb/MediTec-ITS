@@ -304,7 +304,7 @@ export default function MisCitas({ expediente }: MisCitasProps) {
   };
 
   return (
-    <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
+    <div className="entrada p-4 sm:p-6 lg:p-10 xl:p-12 max-w-7xl mx-auto font-sans">
       <PageHeader
         title="Mis citas"
         subtitle="Agenda con Odontología y Nutrición: sesiones de 30 minutos con 30 de respiro"
