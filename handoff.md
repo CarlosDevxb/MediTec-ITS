@@ -160,11 +160,11 @@ por lo que puede recrearse sin más que dejar correr el script.
 - **Pruebas automatizadas** (hoy la verificación es manual + typecheck + build).
 - **Migraciones de esquema**: los cambios se aplican con `ALTER` documentados y
   `init.sql` actualizado; para producción conviene un sistema de migraciones.
-  Últimos cambios (para BD ya creadas): `ALTER TABLE roles ADD COLUMN perfil
-  ENUM('Administrador','Personal médico','Enfermería','Paciente') NOT NULL
-  DEFAULT 'Paciente'` + `UPDATE` de los roles base a su perfil, y `CREATE TABLE
-  rol_restricciones` (clave compuesta `roles_id_rol` + `accion`, borrado en
-  cascada).
+  Los scripts viven en `database/migraciones/` (uno por cambio, con la fecha en
+  el nombre) y se aplican a mano sobre BD ya creadas; las BD nuevas solo
+  necesitan `init.sql`. Migración vigente:
+  `2026-11_roles-perfil-y-restricciones.sql` (`roles.perfil` + tabla
+  `rol_restricciones`; ejecutar una sola vez y con `SET NAMES utf8mb4`).
 - **Endurecimiento del despliegue**: el servidor ya corre la app (despliegues
   automáticos), pero faltan HTTPS, secretos de producción, backups de
   `mysql_data`, aviso de privacidad y captura de consentimientos (checklist
