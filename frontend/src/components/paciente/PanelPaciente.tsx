@@ -138,7 +138,7 @@ export default function PanelPaciente() {
   if (expediente.cuestionario?.estatus !== 'Completado') {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="entrada p-10 xl:p-12 max-w-5xl mx-auto font-sans">
+        <div className="entrada p-4 sm:p-6 lg:p-10 xl:p-12 max-w-5xl mx-auto font-sans">
           <PageHeader
             title="Cuestionario de salud inicial"
             subtitle="Bienvenido(a): completa tu cuestionario para entrar a tu portal"

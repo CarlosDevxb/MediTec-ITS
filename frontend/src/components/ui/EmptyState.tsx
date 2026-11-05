@@ -23,7 +23,7 @@ export default function EmptyState({
   return (
     <div
       className={[
-        'p-12 flex flex-col items-center justify-center h-full text-gray-400',
+        'p-6 sm:p-12 flex flex-col items-center justify-center h-full text-gray-400',
         className,
       ]
         .filter(Boolean)

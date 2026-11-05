@@ -85,7 +85,7 @@ export default function AtencionEspecialista({
   if (citaInicial) {
     return (
       <div>
-        <div className="px-10 xl:px-12 max-w-7xl mx-auto">
+        <div className="px-4 sm:px-6 lg:px-10 xl:px-12 max-w-7xl mx-auto">
           <Button variant="ghost" icon={ArrowLeft} onClick={onElegirOtra}>
             Elegir otra cita
           </Button>
@@ -130,7 +130,7 @@ export default function AtencionEspecialista({
   ];
 
   return (
-    <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
+    <div className="entrada p-4 sm:p-6 lg:p-10 xl:p-12 max-w-7xl mx-auto font-sans">
       <PageHeader
         title="Atención"
         subtitle={

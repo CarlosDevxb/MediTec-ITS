@@ -199,7 +199,7 @@ export default function ImportadorExcel({
     }
 
     return (
-      <div className="entrada p-10 xl:p-12 max-w-6xl mx-auto font-sans">
+      <div className="entrada p-4 sm:p-6 lg:p-10 xl:p-12 max-w-6xl mx-auto font-sans">
         <PageHeader
           title="Resultado de la importación"
           subtitle={`${resultado.creados} creados · ${resultado.fallidos} con errores`}
@@ -289,7 +289,7 @@ export default function ImportadorExcel({
   ];
 
   return (
-    <div className="entrada p-10 xl:p-12 max-w-6xl mx-auto font-sans">
+    <div className="entrada p-4 sm:p-6 lg:p-10 xl:p-12 max-w-6xl mx-auto font-sans">
       <PageHeader title={titulo} subtitle={descripcion} />
 
       {aviso && <Aviso mensaje={aviso} tipo={tipo} onCerrar={cerrar} />}

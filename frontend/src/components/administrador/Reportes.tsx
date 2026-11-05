@@ -359,7 +359,7 @@ export default function Reportes() {
   };
 
   return (
-    <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
+    <div className="entrada p-4 sm:p-6 lg:p-10 xl:p-12 max-w-7xl mx-auto font-sans">
       <PageHeader
         title="Reportes"
         subtitle={REPORTES[reporte].descripcion}
@@ -371,7 +371,7 @@ export default function Reportes() {
             <Select
               value={reporte}
               onChange={(e) => setReporte(e.target.value as TipoReporte)}
-              className="w-72"
+              className="w-full sm:w-72"
               aria-label="Selecciona un reporte"
             >
               {(Object.keys(REPORTES) as TipoReporte[]).map((clave) => (
@@ -381,7 +381,7 @@ export default function Reportes() {
               ))}
             </Select>
             {reporte === 'actividad' && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <label htmlFor="periodo-desde" className="text-sm text-gray-500">
                   Del
                 </label>
@@ -391,7 +391,7 @@ export default function Reportes() {
                   value={desde}
                   max={hasta}
                   onChange={(e) => setDesde(e.target.value)}
-                  className="w-44"
+                  className="w-full sm:w-44"
                 />
                 <label htmlFor="periodo-hasta" className="text-sm text-gray-500">
                   al
@@ -402,7 +402,7 @@ export default function Reportes() {
                   value={hasta}
                   min={desde}
                   onChange={(e) => setHasta(e.target.value)}
-                  className="w-44"
+                  className="w-full sm:w-44"
                 />
               </div>
             )}

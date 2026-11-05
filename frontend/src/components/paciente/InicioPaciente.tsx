@@ -138,7 +138,7 @@ export default function InicioPaciente({
   ];
 
   return (
-    <div className="entrada p-10 xl:p-12 max-w-7xl mx-auto font-sans">
+    <div className="entrada p-4 sm:p-6 lg:p-10 xl:p-12 max-w-7xl mx-auto font-sans">
       {/* Saludo del paciente */}
       <SaludoInicio
         nombre={nombre}
@@ -199,7 +199,7 @@ export default function InicioPaciente({
             />
           </div>
 
-          <div className="flex items-center justify-between gap-2 mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Mis próximas citas</h2>
             <Button variant="ghost" icon={RefreshCw} onClick={() => void cargar()}>
               Actualizar

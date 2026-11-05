@@ -65,7 +65,7 @@ export default function MiInformacion({ expediente, onActualizado }: MiInformaci
   };
 
   return (
-    <div className="entrada p-10 xl:p-12 max-w-5xl mx-auto font-sans">
+    <div className="entrada p-4 sm:p-6 lg:p-10 xl:p-12 max-w-5xl mx-auto font-sans">
       <PageHeader
         title="Mi información"
         subtitle="Tus datos de contacto, tu contraseña y los datos de tu expediente"

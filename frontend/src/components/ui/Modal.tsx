@@ -72,7 +72,7 @@ export default function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-gray-900/40"
+      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 sm:p-6 overflow-y-auto bg-gray-900/40"
       onClick={onCerrar}
     >
       <div
@@ -82,10 +82,10 @@ export default function Modal({
         aria-label={titulo}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="entrada-modal w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-xl focus-visible:outline-none"
+        className="entrada-modal w-full max-w-md my-auto flex flex-col max-h-[90vh] bg-white rounded-2xl border border-gray-200 shadow-xl focus-visible:outline-none"
       >
         {/* Cabecera */}
-        <div className="flex items-start justify-between gap-4 px-7 pt-7 pb-5">
+        <div className="flex items-start justify-between gap-4 px-4 sm:px-7 pt-5 sm:pt-7 pb-4 shrink-0">
           <div className="flex items-start gap-3">
             {Icono && (
               <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700">
@@ -110,12 +110,16 @@ export default function Modal({
           </button>
         </div>
 
-        {/* Contenido opcional */}
-        {children && <div className="px-7 pb-2 text-base text-gray-700">{children}</div>}
+        {/* Contenido opcional (con scroll cuando desborda) */}
+        {children && (
+          <div className="px-4 sm:px-7 pb-2 text-base text-gray-700 overflow-y-auto">
+            {children}
+          </div>
+        )}
 
-        {/* Pie con acciones */}
+        {/* Pie con acciones (envuelve en pantallas angostas) */}
         {acciones && (
-          <div className="flex justify-end gap-3 px-7 pb-7 pt-4">
+          <div className="flex flex-wrap justify-end gap-3 px-4 sm:px-7 pb-5 pt-3 shrink-0">
             {acciones}
           </div>
         )}

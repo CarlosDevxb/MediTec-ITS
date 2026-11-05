@@ -50,14 +50,14 @@ export default function DataTable<T>({
   return (
     <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-base">
+        <table className="w-full text-sm sm:text-base">
           <thead>
             <tr className="bg-brand-50 text-gray-500 text-sm border-b border-gray-200">
               {columns.map((col) => (
                 <th
                   key={col.key}
                   className={[
-                    'px-7 py-3.5 font-semibold',
+                    'px-4 sm:px-7 py-3 sm:py-3.5 font-semibold',
                     ALIGN[col.align ?? 'left'],
                     col.className ?? '',
                   ]
@@ -93,7 +93,7 @@ export default function DataTable<T>({
                     <td
                       key={col.key}
                       className={[
-                        'px-7 py-4.5 text-gray-800',
+                        'px-4 sm:px-7 py-3.5 sm:py-4.5 text-gray-800',
                         ALIGN[col.align ?? 'left'],
                         col.className ?? '',
                       ]
