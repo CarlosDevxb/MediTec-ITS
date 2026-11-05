@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PERFILES } from '../config/permisos';
 
 /** Esquema para crear y editar un rol */
 export const esquemaRol = z.object({
@@ -13,6 +14,16 @@ export const esquemaRol = z.object({
     .max(255, 'La descripción no puede exceder 255 caracteres.')
     .optional()
     .or(z.literal('')),
+  /** Perfil base del que el rol hereda panel y permisos */
+  perfil: z.enum(PERFILES, { error: 'Selecciona un perfil base para el rol.' }),
+  /** Acciones que el rol NO hereda del perfil (ver config/permisos.ts) */
+  restricciones: z
+    .array(z.string().trim().min(1).max(50), {
+      error: 'Las restricciones deben ser una lista de acciones.',
+    })
+    .max(20, 'Un rol no puede tener más de 20 restricciones.')
+    .refine((lista) => new Set(lista).size === lista.length, 'Una acción no puede repetirse.')
+    .default([]),
 });
 
 export type DatosRol = z.infer<typeof esquemaRol>;

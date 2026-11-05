@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { verificarToken } from '../middleware/verificarToken';
 import { requerirRol } from '../middleware/requerirRol';
+import { requerirAccion } from '../middleware/requerirAccion';
 import { validar } from '../middleware/validar';
 import {
   esquemaCrearUsuario,
@@ -34,11 +35,16 @@ rutas.use(verificarToken, requerirRol('Administrador'));
 rutas.get('/', controlador.listarUsuarios);
 rutas.get('/:id', controlador.obtenerUsuario);
 
-rutas.post('/', validar(esquemaCrearUsuario), controlador.crearUsuario);
-rutas.post('/importar', validar(esquemaImportarFilas), controlador.importarUsuarios);
-rutas.put('/:id', validar(esquemaActualizarUsuario), controlador.actualizarUsuario);
-rutas.patch('/:id/estatus', validar(esquemaEstatus), controlador.cambiarEstatus);
-rutas.patch('/:id/contrasena', validar(esquemaNuevaContrasena), controlador.restablecerContrasena);
-rutas.delete('/:id', controlador.eliminarUsuario);
+rutas.post('/', requerirAccion('usuarios'), validar(esquemaCrearUsuario), controlador.crearUsuario);
+rutas.post('/importar', requerirAccion('usuarios'), validar(esquemaImportarFilas), controlador.importarUsuarios);
+rutas.put('/:id', requerirAccion('usuarios'), validar(esquemaActualizarUsuario), controlador.actualizarUsuario);
+rutas.patch('/:id/estatus', requerirAccion('usuarios'), validar(esquemaEstatus), controlador.cambiarEstatus);
+rutas.patch(
+  '/:id/contrasena',
+  requerirAccion('restablecer_contrasenas'),
+  validar(esquemaNuevaContrasena),
+  controlador.restablecerContrasena,
+);
+rutas.delete('/:id', requerirAccion('usuarios'), controlador.eliminarUsuario);
 
 export default rutas;

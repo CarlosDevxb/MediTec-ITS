@@ -8,10 +8,26 @@
 
 /** Roles que el sistema necesita para funcionar */
 export const ROLES_BASE = [
-  { nombre: 'Administrador', descripcion: 'Acceso total a la configuración del sistema' },
-  { nombre: 'Personal médico', descripcion: 'Registra consultas, diagnósticos y recetas' },
-  { nombre: 'Enfermería', descripcion: 'Captura signos vitales y apoya la atención' },
-  { nombre: 'Paciente', descripcion: 'Consulta su información y gestiona sus citas' },
+  {
+    nombre: 'Administrador',
+    descripcion: 'Acceso total a la configuración del sistema',
+    perfil: 'Administrador',
+  },
+  {
+    nombre: 'Personal médico',
+    descripcion: 'Registra consultas, diagnósticos y recetas',
+    perfil: 'Personal médico',
+  },
+  {
+    nombre: 'Enfermería',
+    descripcion: 'Captura signos vitales y apoya la atención',
+    perfil: 'Enfermería',
+  },
+  {
+    nombre: 'Paciente',
+    descripcion: 'Consulta su información y gestiona sus citas',
+    perfil: 'Paciente',
+  },
 ] as const;
 
 /** Roles cuyo personal requiere ficha en `personal_medico` (cédula y
@@ -41,6 +57,14 @@ export function esRolEnfermeria(nombreRol: string): boolean {
 }
 
 /**
+ * ¿La cuenta trabaja como enfermería? Lo decide el rol o su perfil heredado:
+ * un rol creado con perfil Enfermería (p. ej. "Recepción") también atiende.
+ */
+export function esDeEnfermeria(nombreRol: string, perfil = ''): boolean {
+  return nombreRol === ROL_ENFERMERIA || perfil === ROL_ENFERMERIA;
+}
+
+/**
  * Tipos de paciente que requieren carrera.
  *
  * Convención basada en el nombre, igual que `ROLES_CON_CEDULA`: el esquema no
@@ -51,14 +75,14 @@ export function esRolEnfermeria(nombreRol: string): boolean {
  */
 export const TIPOS_CON_CARRERA: readonly string[] = ['Alumno'];
 
-/** ¿El nombre de rol dado exige cédula profesional? */
-export function requiereCedula(nombreRol: string): boolean {
-  return ROLES_CON_CEDULA.includes(nombreRol);
+/** ¿El personal necesita cédula profesional? El rol o su perfil heredado */
+export function requiereCedula(nombreRol: string, perfil = ''): boolean {
+  return ROLES_CON_CEDULA.includes(nombreRol) || ROLES_CON_CEDULA.includes(perfil);
 }
 
-/** ¿El rol dado es el de paciente? */
-export function esRolPaciente(nombreRol: string): boolean {
-  return nombreRol === ROL_PACIENTE;
+/** ¿El rol (o su perfil heredado) abre expediente de paciente? */
+export function esRolPaciente(nombreRol: string, perfil = ''): boolean {
+  return nombreRol === ROL_PACIENTE || perfil === ROL_PACIENTE;
 }
 
 /** ¿El tipo de paciente dado requiere carrera? */

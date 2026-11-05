@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { verificarToken } from '../middleware/verificarToken';
 import { requerirRol } from '../middleware/requerirRol';
+import { requerirAccion } from '../middleware/requerirAccion';
 import { validar } from '../middleware/validar';
 import {
   esquemaCrearHorarios,
@@ -35,11 +36,11 @@ rutas.get(
   requerirRol('Administrador', 'Personal médico', 'Enfermería', 'Paciente'),
   controlador.listarHorarios,
 );
-rutas.post('/', requerirRol('Administrador'), validar(esquemaCrearHorarios), controlador.crearHorarios);
+rutas.post('/', requerirRol('Administrador'), requerirAccion('horarios'), validar(esquemaCrearHorarios), controlador.crearHorarios);
 // Antes que las rutas con :id, para que "turno" no se interprete como id
-rutas.put('/turno', requerirRol('Administrador'), validar(esquemaActualizarTurno), controlador.actualizarTurno);
-rutas.delete('/turno', requerirRol('Administrador'), validar(esquemaEliminarTurno), controlador.eliminarTurno);
-rutas.put('/:id', requerirRol('Administrador'), validar(esquemaActualizarHorario), controlador.actualizarHorario);
-rutas.delete('/:id', requerirRol('Administrador'), controlador.eliminarHorario);
+rutas.put('/turno', requerirRol('Administrador'), requerirAccion('horarios'), validar(esquemaActualizarTurno), controlador.actualizarTurno);
+rutas.delete('/turno', requerirRol('Administrador'), requerirAccion('eliminar_horarios'), validar(esquemaEliminarTurno), controlador.eliminarTurno);
+rutas.put('/:id', requerirRol('Administrador'), requerirAccion('horarios'), validar(esquemaActualizarHorario), controlador.actualizarHorario);
+rutas.delete('/:id', requerirRol('Administrador'), requerirAccion('eliminar_horarios'), controlador.eliminarHorario);
 
 export default rutas;

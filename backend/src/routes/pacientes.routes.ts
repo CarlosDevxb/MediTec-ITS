@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { verificarToken } from '../middleware/verificarToken';
 import { requerirRol } from '../middleware/requerirRol';
+import { requerirAccion } from '../middleware/requerirAccion';
 import { validar } from '../middleware/validar';
 import {
   esquemaCrearPaciente,
@@ -46,7 +47,7 @@ rutas.get(
   requerirRol(...PERSONAL_CLINICO, 'Paciente'),
   controlador.obtenerSeguimiento,
 );
-rutas.post('/', requerirRol('Administrador', 'Enfermería'), validar(esquemaCrearPaciente), controlador.crearPaciente);
+rutas.post('/', requerirRol('Administrador', 'Enfermería'), requerirAccion('pacientes'), validar(esquemaCrearPaciente), controlador.crearPaciente);
 rutas.patch(
   '/:id/expediente',
   requerirRol('Administrador', 'Enfermería', 'Paciente'),

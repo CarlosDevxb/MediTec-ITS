@@ -11,7 +11,7 @@ import type { SidebarSection } from '../layout/Sidebar';
 import AppShell from '../layout/AppShell';
 import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
-import { obtenerSesion, cerrarSesion, inicialesDe } from '../../services/sesion';
+import { obtenerSesion, cerrarSesion, inicialesDe, sinAccion } from '../../services/sesion';
 import { useProtegerSesion } from '../../hooks/useProtegerSesion';
 import Atencion from '../atencion/Atencion';
 import ConfiguracionPerfil from '../cuenta/ConfiguracionPerfil';
@@ -41,6 +41,13 @@ const MENU_ENFERMERIA: SidebarSection[] = [
   },
 ];
 
+/** Sección del menú → acción que puede ocultarla (rol con restricciones) */
+const ACCION_DE: Record<string, string> = {
+  'Nueva consulta': 'consultas',
+  Pacientes: 'pacientes',
+  Agenda: 'citas',
+};
+
 /* ============================================================
    PANEL DE ENFERMERÍA · Shell con las secciones de apoyo
    Ruta: /enfermeria (rol Enfermería)
@@ -54,12 +61,24 @@ export default function PanelEnfermeria() {
   // Redirige a cada usuario a su propio panel (según rol y especialidad)
   useProtegerSesion();
 
-  const [vista, setVista] = useState('Inicio');
+  // Secciones visibles según las restricciones del rol; la vista inicial es
+  // la primera que queda
+  const menu = MENU_ENFERMERIA.map((grupo) => ({
+    ...grupo,
+    items: grupo.items.filter((item) => !sinAccion(ACCION_DE[item.label] ?? '')),
+  })).filter((grupo) => grupo.items.length > 0);
+
+  const [vista, setVistaBase] = useState(menu[0]?.items[0]?.label ?? 'Inicio');
+  /** Cambia de sección ignorando las que el rol tiene restringidas */
+  const setVista = (destino: string) => {
+    if (sinAccion(ACCION_DE[destino] ?? '')) return;
+    setVistaBase(destino);
+  };
 
   return (
     <AppShell
       sidebarId="menu-enfermeria"
-      sections={MENU_ENFERMERIA}
+      sections={menu}
       activo={vista}
       onNavigate={setVista}
       onCerrarSesion={cerrarSesion}

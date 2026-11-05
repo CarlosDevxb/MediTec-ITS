@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { verificarToken } from '../middleware/verificarToken';
 import { requerirRol } from '../middleware/requerirRol';
+import { requerirAccion } from '../middleware/requerirAccion';
 import { validar } from '../middleware/validar';
 import {
   esquemaCrearMedicamento,
@@ -34,8 +35,8 @@ rutas.get(
   requerirRol('Administrador', 'Personal médico', 'Enfermería'),
   controlador.listarMedicamentos,
 );
-rutas.post('/', requerirRol('Administrador'), validar(esquemaCrearMedicamento), controlador.crearMedicamento);
-rutas.post('/importar', requerirRol('Administrador'), validar(esquemaImportarFilas), controlador.importarMedicamentos);
-rutas.put('/:id', requerirRol('Administrador'), validar(esquemaActualizarMedicamento), controlador.actualizarMedicamento);
+rutas.post('/', requerirRol('Administrador'), requerirAccion('medicamentos'), validar(esquemaCrearMedicamento), controlador.crearMedicamento);
+rutas.post('/importar', requerirRol('Administrador'), requerirAccion('medicamentos'), validar(esquemaImportarFilas), controlador.importarMedicamentos);
+rutas.put('/:id', requerirRol('Administrador'), requerirAccion('medicamentos'), validar(esquemaActualizarMedicamento), controlador.actualizarMedicamento);
 
 export default rutas;

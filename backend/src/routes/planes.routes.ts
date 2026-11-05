@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { verificarToken } from '../middleware/verificarToken';
 import { requerirRol } from '../middleware/requerirRol';
+import { requerirAccion } from '../middleware/requerirAccion';
 import { validar } from '../middleware/validar';
 import {
   esquemaCrearPlan,
@@ -30,11 +31,12 @@ const GESTION_PLANES = ['Administrador', 'Personal médico'] as const;
 
 rutas.get('/', requerirRol(...GESTION_PLANES, 'Paciente'), controlador.listarPlanes);
 rutas.get('/:id', requerirRol(...GESTION_PLANES, 'Paciente'), controlador.obtenerPlan);
-rutas.post('/', requerirRol(...GESTION_PLANES), validar(esquemaCrearPlan), controlador.crearPlan);
-rutas.put('/:id', requerirRol(...GESTION_PLANES), validar(esquemaActualizarPlan), controlador.actualizarPlan);
+rutas.post('/', requerirRol(...GESTION_PLANES), requerirAccion('planes'), validar(esquemaCrearPlan), controlador.crearPlan);
+rutas.put('/:id', requerirRol(...GESTION_PLANES), requerirAccion('planes'), validar(esquemaActualizarPlan), controlador.actualizarPlan);
 rutas.patch(
   '/:id/estatus',
   requerirRol(...GESTION_PLANES),
+  requerirAccion('planes'),
   validar(esquemaEstatusPlan),
   controlador.cambiarEstatus,
 );

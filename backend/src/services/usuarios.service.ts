@@ -3,7 +3,7 @@ import { generarContrasenaTemporal, hashearContrasena } from '../utils/contrasen
 import {
   requiereCedula,
   esRolPaciente,
-  esRolEnfermeria,
+  esDeEnfermeria,
   requiereCarrera,
   ESPECIALIDAD_ENFERMERIA,
 } from '../config/roles';
@@ -27,6 +27,8 @@ export interface Usuario {
   id: number;
   rolId: number;
   rol: string;
+  /** Perfil base heredado del rol (define panel y permisos) */
+  perfil: string;
   numeroControl: string;
   nombre: string;
   correo: string;
@@ -67,6 +69,7 @@ const COLUMNAS_USUARIO = `
   u.id_usuarios AS id,
   u.roles_id_rol AS rolId,
   r.nombre AS rol,
+  r.perfil AS perfil,
   u.numero_control AS numeroControl,
   u.nombre,
   u.correo,
@@ -90,6 +93,7 @@ function aUsuario(fila: Record<string, unknown>): Usuario {
     id: Number(fila['id']),
     rolId: Number(fila['rolId']),
     rol: String(fila['rol']),
+    perfil: String(fila['perfil'] ?? ''),
     numeroControl: String(fila['numeroControl']),
     nombre: String(fila['nombre']),
     correo: String(fila['correo']),
@@ -161,11 +165,15 @@ export async function buscarUsuario(id: number): Promise<Usuario | null> {
   return fila ? aUsuario(fila) : null;
 }
 
-/** Nombre del rol a partir de su id; `null` si no existe */
-async function nombreDeRol(rolId: number): Promise<string | null> {
-  const [filas] = await pool.query('SELECT nombre FROM roles WHERE id_rol = ? LIMIT 1', [rolId]);
+/** Nombre y perfil del rol a partir de su id; `null` si no existe */
+async function rolDe(rolId: number): Promise<{ nombre: string; perfil: string } | null> {
+  const [filas] = await pool.query('SELECT nombre, perfil FROM roles WHERE id_rol = ? LIMIT 1', [
+    rolId,
+  ]);
   const fila = (filas as Array<Record<string, unknown>>)[0];
-  return fila ? String(fila['nombre']) : null;
+  return fila
+    ? { nombre: String(fila['nombre']), perfil: String(fila['perfil'] ?? '') }
+    : null;
 }
 
 /** Nombre del tipo de paciente; `null` si no existe */
@@ -210,9 +218,9 @@ async function asegurarDatosLibres(
   }
 }
 
-/** Valida la cédula y la especialidad cuando el rol las exige */
-function validarCedula(nombreRol: string, datos: DatosUsuario): void {
-  if (!requiereCedula(nombreRol)) return;
+/** Valida la cédula y la especialidad cuando el rol (o su perfil) las exige */
+function validarCedula(nombreRol: string, perfil: string, datos: DatosUsuario): void {
+  if (!requiereCedula(nombreRol, perfil)) return;
 
   if (!datos.cedula?.trim()) {
     throw errorValidacion(
@@ -223,7 +231,7 @@ function validarCedula(nombreRol: string, datos: DatosUsuario): void {
 
   // La enfermería es un rol, no una especialidad del personal médico: su
   // especialidad es fija y no se elige
-  if (esRolEnfermeria(nombreRol)) return;
+  if (esDeEnfermeria(nombreRol, perfil)) return;
 
   const especialidad = datos.especialidad?.trim() ?? '';
   if (!especialidad) {
@@ -248,9 +256,11 @@ function validarCedula(nombreRol: string, datos: DatosUsuario): void {
   }
 }
 
-/** Especialidad que queda en la ficha de personal: la del rol Enfermería es fija */
-function especialidadDeFicha(nombreRol: string, datos: DatosUsuario): string {
-  return esRolEnfermeria(nombreRol) ? ESPECIALIDAD_ENFERMERIA : datos.especialidad?.trim() ?? '';
+/** Especialidad que queda en la ficha de personal: la de enfermería es fija */
+function especialidadDeFicha(nombreRol: string, perfil: string, datos: DatosUsuario): string {
+  return esDeEnfermeria(nombreRol, perfil)
+    ? ESPECIALIDAD_ENFERMERIA
+    : datos.especialidad?.trim() ?? '';
 }
 
 /**
@@ -259,12 +269,12 @@ function especialidadDeFicha(nombreRol: string, datos: DatosUsuario): string {
  * tipos que la requieren (ver `config/roles.ts`). Si el catálogo de tipos
  * está vacío se avisa explícitamente: sin tipos no se puede abrir expediente.
  */
-async function validarPaciente(nombreRol: string, datos: DatosUsuario): Promise<{
+async function validarPaciente(nombreRol: string, perfil: string, datos: DatosUsuario): Promise<{
   tipoId: number;
   carreraId: number | null;
   nombreTipo: string;
 } | null> {
-  if (!esRolPaciente(nombreRol)) return null;
+  if (!esRolPaciente(nombreRol, perfil)) return null;
 
   const tipoId = Number(datos.tipoPacienteId ?? 0);
   if (!tipoId) {
@@ -328,11 +338,12 @@ export async function crearUsuario(
   datos: DatosUsuario,
   contrasena: string,
 ): Promise<Usuario> {
-  const nombreRol = await nombreDeRol(datos.rolId);
-  if (!nombreRol) throw errorValidacion('El rol seleccionado no existe.');
+  const rol = await rolDe(datos.rolId);
+  if (!rol) throw errorValidacion('El rol seleccionado no existe.');
+  const nombreRol = rol.nombre;
 
-  validarCedula(nombreRol, datos);
-  const paciente = await validarPaciente(nombreRol, datos);
+  validarCedula(nombreRol, rol.perfil, datos);
+  const paciente = await validarPaciente(nombreRol, rol.perfil, datos);
   await asegurarDatosLibres(datos.numeroControl, datos.correo);
 
   const conexion = await pool.getConnection();
@@ -359,11 +370,11 @@ export async function crearUsuario(
     );
     const id = Number((resultado as { insertId: number }).insertId);
 
-    if (requiereCedula(nombreRol)) {
+    if (requiereCedula(nombreRol, rol.perfil)) {
       await conexion.query(
         `INSERT INTO personal_medico (usuarios_id_usuarios, cedula, especialidad)
          VALUES (?, ?, ?)`,
-        [id, datos.cedula?.trim() ?? '', especialidadDeFicha(nombreRol, datos)],
+        [id, datos.cedula?.trim() ?? '', especialidadDeFicha(nombreRol, rol.perfil, datos)],
       );
     }
 
@@ -401,11 +412,12 @@ export async function actualizarUsuario(
   const actual = await buscarUsuario(id);
   if (!actual) throw errorNoEncontrado('El usuario no existe.');
 
-  const nombreRol = await nombreDeRol(datos.rolId);
-  if (!nombreRol) throw errorValidacion('El rol seleccionado no existe.');
+  const rol = await rolDe(datos.rolId);
+  if (!rol) throw errorValidacion('El rol seleccionado no existe.');
+  const nombreRol = rol.nombre;
 
-  validarCedula(nombreRol, datos);
-  const paciente = await validarPaciente(nombreRol, datos);
+  validarCedula(nombreRol, rol.perfil, datos);
+  const paciente = await validarPaciente(nombreRol, rol.perfil, datos);
   await asegurarDatosLibres(datos.numeroControl, datos.correo, id);
 
   const teniaExpediente = actual.pacienteId != null;
@@ -454,12 +466,12 @@ export async function actualizarUsuario(
     );
 
     /* ---- Tabla hija: personal_medico ---- */
-    if (requiereCedula(nombreRol)) {
+    if (requiereCedula(nombreRol, rol.perfil)) {
       await conexion.query(
         `INSERT INTO personal_medico (usuarios_id_usuarios, cedula, especialidad)
          VALUES (?, ?, ?)
          ON DUPLICATE KEY UPDATE cedula = VALUES(cedula), especialidad = VALUES(especialidad)`,
-        [id, datos.cedula?.trim() ?? '', especialidadDeFicha(nombreRol, datos)],
+        [id, datos.cedula?.trim() ?? '', especialidadDeFicha(nombreRol, rol.perfil, datos)],
       );
     } else {
       await conexion.query('DELETE FROM personal_medico WHERE usuarios_id_usuarios = ?', [id]);

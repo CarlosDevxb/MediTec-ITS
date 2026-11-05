@@ -13,9 +13,12 @@ import { useAviso } from '../ui/useAviso';
 import { mensajeDeError } from '../../services/api';
 import {
   listarRoles,
+  listarAccionesPermisos,
   crearRol,
   actualizarRol,
   eliminarRol,
+  type AccionPermiso,
+  type DatosRol,
   type Rol,
 } from '../../services/administracion.service';
 import RolForm from './RolForm';
@@ -29,6 +32,7 @@ type Subvista = { modo: 'lista' } | { modo: 'alta' } | { modo: 'editar'; rol: Ro
 
 export default function Roles() {
   const [roles, setRoles] = useState<Rol[]>([]);
+  const [acciones, setAcciones] = useState<AccionPermiso[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -47,7 +51,10 @@ export default function Roles() {
     setCargando(true);
     setError(null);
     try {
-      setRoles(await listarRoles());
+      // Roles y catálogo de acciones juntos: el formulario necesita ambos
+      const [lista, catalogo] = await Promise.all([listarRoles(), listarAccionesPermisos()]);
+      setRoles(lista);
+      setAcciones(catalogo);
     } catch (e) {
       setError(mensajeDeError(e));
     } finally {
@@ -60,7 +67,7 @@ export default function Roles() {
   }, [cargar]);
 
   /* ---------- Guardado ---------- */
-  const guardarRol = async (datos: { nombre: string; descripcion: string }) => {
+  const guardarRol = async (datos: DatosRol) => {
     setGuardando(true);
     try {
       if (subvista.modo === 'editar') {
@@ -110,6 +117,7 @@ export default function Roles() {
       <RolForm
         modo={subvista.modo}
         rol={subvista.modo === 'editar' ? subvista.rol : undefined}
+        acciones={acciones}
         guardando={guardando}
         onCancelar={() => setSubvista({ modo: 'lista' })}
         onGuardar={guardarRol}
@@ -126,6 +134,29 @@ export default function Roles() {
           <p className="font-semibold text-gray-900">{rol.nombre}</p>
           <p className="text-sm text-gray-500">{rol.descripcion || 'Sin descripción'}</p>
         </div>
+      ),
+    },
+    {
+      key: 'perfil',
+      header: 'Perfil base',
+      className: 'w-44',
+      render: (rol) => (
+        <div>
+          <p className="text-gray-800">{rol.perfil}</p>
+          {rol.esBase && <p className="text-xs text-gray-400">rol del sistema</p>}
+        </div>
+      ),
+    },
+    {
+      key: 'restricciones',
+      header: 'Restricciones',
+      className: 'w-40',
+      render: (rol) => (
+        <span className="text-sm text-gray-700 tabular-nums">
+          {rol.restricciones.length === 0
+            ? 'Sin restricciones'
+            : `${rol.restricciones.length} ${rol.restricciones.length === 1 ? 'acción bloqueada' : 'acciones bloqueadas'}`}
+        </span>
       ),
     },
     {

@@ -8,6 +8,7 @@ import {
 } from '../utils/erroresHttp';
 import { fechaHoraTexto, fechaISO, horaCorta, hoyISO } from '../utils/fechas';
 import { alergiaEnConflicto } from '../utils/alergias';
+import { esDeEnfermeria } from '../config/roles';
 import { buscarPersonalPorUsuario } from './personal.service';
 import { buscarUsuario } from './usuarios.service';
 import { asegurarPacienteExiste } from './pacientes.service';
@@ -244,14 +245,14 @@ export async function crearConsulta(
     .toLowerCase();
   const esNutricion = especialidad.includes('nutri');
   const esOdontologia = especialidad.includes('odontolog');
-  const tipoConsulta =
-    cuenta?.rol === 'Enfermería'
-      ? 'Enfermería'
-      : esNutricion
-        ? 'Nutrición'
-        : esOdontologia
-          ? 'Odontología'
-          : 'Médica';
+  // La enfermería puede venir del rol o de un rol con perfil heredado
+  const tipoConsulta = esDeEnfermeria(cuenta?.rol ?? '', cuenta?.perfil ?? '')
+    ? 'Enfermería'
+    : esNutricion
+      ? 'Nutrición'
+      : esOdontologia
+        ? 'Odontología'
+        : 'Médica';
 
   // Nutrición y odontología atienden únicamente con cita agendada:
   // no existe la atención de llegada para sus consultas

@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { esquemaRol, detallesDeZod } from '../validaciones/roles.validacion';
+import { ACCIONES } from '../config/permisos';
 import { errorValidacion } from '../utils/erroresHttp';
 import { textoObligatorio } from '../utils/parametros';
 import * as servicio from '../services/roles.service';
@@ -31,6 +32,15 @@ export async function listarRoles(_req: Request, res: Response, next: NextFuncti
   try {
     const datos = await servicio.listarRoles();
     res.json({ datos });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** GET /api/roles/acciones · catálogo de acciones que se pueden restringir */
+export async function listarAcciones(_req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json({ datos: ACCIONES });
   } catch (error) {
     next(error);
   }

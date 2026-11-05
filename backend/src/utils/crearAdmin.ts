@@ -65,11 +65,11 @@ async function asegurarRoles(): Promise<Map<string, number>> {
     }
 
     const [resultado] = await pool.query(
-      'INSERT INTO roles (nombre, descripcion) VALUES (?, ?)',
-      [rol.nombre, rol.descripcion]
+      'INSERT INTO roles (nombre, descripcion, perfil) VALUES (?, ?, ?)',
+      [rol.nombre, rol.descripcion, rol.perfil]
     );
     ids.set(rol.nombre, Number((resultado as { insertId: number }).insertId));
-    console.log(`[crearAdmin] Rol creado: ${rol.nombre}`);
+    console.log(`[crearAdmin] Rol creado: ${rol.nombre} (perfil ${rol.perfil})`);
   }
 
   return ids;
