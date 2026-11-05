@@ -46,6 +46,22 @@ cd frontend && npm run dev            # Web en http://localhost:4321 (o astro de
 También aplica `frontend/AGENTS.md` (servidor Astro en segundo plano) si trabajas
 en la interfaz.
 
+## Trabajo en ramas (pull requests)
+
+Todo cambio entra por una rama y un PR: **nunca se hace push directo a `main`**.
+
+```bash
+git checkout main && git pull
+git checkout -b fix/<tema>     # o feat/<tema> para mejoras
+# ... cambios y verificación (regla 9) ...
+git push -u origin fix/<tema>
+# se abre el PR contra main en GitHub (Compare & pull request)
+```
+
+- Una rama = un tema; commits y títulos de PR en español.
+- Antes de abrir el PR: `typecheck` del backend, `tsc` y `build` del frontend y,
+  si aplica, la prueba de lo tocado (en caliente o por API).
+
 ## Reglas que aplican siempre
 
 1. **Código y comentarios en español**, incluidos los mensajes al cliente. La BD usa
