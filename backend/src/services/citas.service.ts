@@ -486,8 +486,13 @@ export interface DiaDisponible {
   horasLibres: number;
 }
 
-/** Rango máximo que se puede consultar de una vez (2 meses) */
-const MAXIMO_DIAS_CONSULTA = 62;
+/**
+ * Rango máximo que se puede consultar de una vez (3 meses).
+ *
+ * El cliente pide un poco menos (`DIAS_CONSULTA` en la interfaz) para que una
+ * consulta normal nunca toque este tope.
+ */
+const MAXIMO_DIAS_CONSULTA = 92;
 
 /** Turnos del personal en un día de la semana (1=Lunes … 7=Domingo) */
 async function turnosDeDia(personalMedicoId: number, dia: number) {
@@ -611,8 +616,8 @@ export function asegurarRangoConsultable(desde: string, hasta: string): void {
   const dias = Math.round((fin - inicio) / 86400000) + 1;
   if (dias > MAXIMO_DIAS_CONSULTA) {
     throw errorValidacion(
-      `El rango no puede exceder ${MAXIMO_DIAS_CONSULTA} días (se consultó de ${desde} a ${hasta}).`,
-      [{ campo: 'hasta', mensaje: `Consulta como máximo ${MAXIMO_DIAS_CONSULTA} días.` }],
+      `El rango de consulta es demasiado amplio (${dias} días de ${desde} a ${hasta}). Consulta como máximo ${MAXIMO_DIAS_CONSULTA} días por vez.`,
+      [{ campo: 'hasta', mensaje: `Reduce el rango a ${MAXIMO_DIAS_CONSULTA} días o menos.` }],
     );
   }
 }

@@ -120,6 +120,8 @@ export default function AgendaEspecialista({ onAtender }: AgendaEspecialistaProp
     return erroresServidor[campo] || undefined;
   };
   const hayErrores = Object.values(errores).some(Boolean);
+  /** El aviso de "completa los campos" solo se muestra si ya se intentó guardar */
+  const huboIntento = Object.values(tocado).some(Boolean);
   const marcarTocado = (campo: string) => setTocado((prev) => ({ ...prev, [campo]: true }));
 
   /* ---------- Alta de la cita ---------- */
@@ -288,15 +290,14 @@ export default function AgendaEspecialista({ onAtender }: AgendaEspecialistaProp
               />
             </div>
 
-            {(errorGeneral || hayErrores) && (
+            {(errorGeneral || (hayErrores && huboIntento)) && (
               <div
                 role="alert"
                 className="mt-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
               >
                 <CircleAlert size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
                 <span>
-                  {errorGeneral ||
-                    'Revisa los campos marcados antes de guardar: hay datos inválidos o incompletos.'}
+                  {errorGeneral || 'Completa los campos marcados antes de guardar.'}
                 </span>
               </div>
             )}

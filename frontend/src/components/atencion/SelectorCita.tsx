@@ -42,8 +42,14 @@ export interface SelectorCitaProps {
   excluirCitaId?: number;
 }
 
-/** Rango que se consulta de una vez (mismo tope que el servidor) */
-const DIAS_CONSULTA = 62;
+/**
+ * Días que se consultan de una vez (3 meses).
+ *
+ * Se queda por debajo del tope del servidor (`MAXIMO_DIAS_CONSULTA`, 92) para
+ * que una consulta normal nunca lo toque: el rango va de hoy a hoy + (esto - 1),
+ * es decir, exactamente estos días contando el de hoy.
+ */
+const DIAS_CONSULTA = 90;
 
 /** '2026-11-17' + 62 días → '2027-01-18' */
 function sumarDias(fecha: string, cantidad: number): string {
@@ -99,7 +105,13 @@ export default function SelectorCita({
     setCargandoDias(true);
     setError('');
 
-    obtenerDiasDisponibles(personalMedicoId, hoyISO(), sumarDias(hoyISO(), DIAS_CONSULTA), excluirCitaId)
+    obtenerDiasDisponibles(
+      personalMedicoId,
+      hoyISO(),
+      // Hoy cuenta como día del rango: se piden DIAS_CONSULTA en total
+      sumarDias(hoyISO(), DIAS_CONSULTA - 1),
+      excluirCitaId,
+    )
       .then((lista) => {
         if (!vigente) return;
         setDias(lista);
