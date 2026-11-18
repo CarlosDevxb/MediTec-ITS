@@ -15,26 +15,18 @@ import {
   listarCitas,
   crearCita,
   cambiarEstatusCita,
-  obtenerDisponibilidad,
   hoyISO,
   fechaCorta,
-  diaDeSemana,
-  rangosDeDia,
-  horasDisponiblesPara,
-  diasDisponiblesPara,
-  SEPARACION_MINIMA,
   type Cita,
   type ExpedientePaciente,
 } from '../../services/atencion.service';
 import {
   listarPersonalMedico,
-  listarHorarios,
-  nombreDeDia,
   type PersonalMedico,
-  type Horario,
 } from '../../services/operacion.service';
 import AgendaPorDia from '../atencion/AgendaPorDia';
 import ReagendarCita from '../atencion/ReagendarCita';
+import SelectorCita from '../atencion/SelectorCita';
 
 /* ============================================================
    MIS CITAS (PACIENTE) · El paciente agenda sus citas con el
@@ -69,7 +61,6 @@ export interface MisCitasProps {
 export default function MisCitas({ expediente }: MisCitasProps) {
   const [citas, setCitas] = useState<Cita[]>([]);
   const [especialistas, setEspecialistas] = useState<PersonalMedico[]>([]);
-  const [horarios, setHorarios] = useState<Horario[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -77,8 +68,6 @@ export default function MisCitas({ expediente }: MisCitasProps) {
 
   /* Alta de cita */
   const [especialistaId, setEspecialistaId] = useState('');
-  /** Horas ocupadas del especialista en la fecha elegida (de todos sus pacientes) */
-  const [ocupadas, setOcupadas] = useState<string[]>([]);
   const [fechaCita, setFechaCita] = useState(hoyISO());
   const [hora, setHora] = useState('');
   const [motivo, setMotivo] = useState('');
@@ -115,79 +104,14 @@ export default function MisCitas({ expediente }: MisCitasProps) {
     void cargar();
   }, [cargar]);
 
-  /* ---------- Disponibilidad del especialista elegido ---------- */
-  // Con un solo especialista el selector lo elige solo (ver hooks/):
-  // evita el campo que "se ve seleccionado" pero no lo está.
+  /* ---------- Disponibilidad del especialista elegido ----------
+     Con un solo especialista el selector lo elige solo (ver hooks/):
+     evita el campo que "se ve seleccionado" pero no lo está. */
   useOpcionUnica(especialistas, especialistaId, (id) => setEspecialistaId(String(id)));
 
-  useEffect(() => {
-    if (!especialistaId) {
-      setHorarios([]);
-      return;
-    }
-    let vigente = true;
-    listarHorarios({ personalMedicoId: Number(especialistaId) })
-      .then((lista) => {
-        if (vigente) setHorarios(lista);
-      })
-      .catch(() => {
-        if (vigente) setHorarios([]);
-      });
-    return () => {
-      vigente = false;
-    };
-  }, [especialistaId]);
-
-  /* Horas ocupadas del especialista (el endpoint no revela datos de pacientes) */
-  useEffect(() => {
-    if (!especialistaId || !fechaCita) {
-      setOcupadas([]);
-      return;
-    }
-    let vigente = true;
-    obtenerDisponibilidad(Number(especialistaId), fechaCita)
-      .then((datos) => {
-        if (vigente) setOcupadas(datos.horasOcupadas);
-      })
-      .catch(() => {
-        if (vigente) setOcupadas([]);
-      });
-    return () => {
-      vigente = false;
-    };
-  }, [especialistaId, fechaCita]);
-
-  const rangos = useMemo(() => rangosDeDia(horarios, fechaCita), [horarios, fechaCita]);
-  // Cada cita dura 30 minutos con 30 de respiro: horas cada 60 min
-  const horasDisponibles = useMemo(
-    () =>
-      horasDisponiblesPara(
-        rangos,
-        ocupadas.map((ocupada) => ({ hora: ocupada, estatus: 'Pendiente' })),
-        fechaCita,
-      ),
-    [rangos, ocupadas, fechaCita],
-  );
-  /** Solo se puede elegir fecha en los días con horario del especialista */
-  const fechasDisponibles = useMemo(
-    () => (especialistaId ? diasDisponiblesPara(horarios) : []),
-    [horarios, especialistaId],
-  );
-
-  useEffect(() => {
-    if (horasDisponibles.length > 0 && !horasDisponibles.includes(hora)) {
-      setHora(horasDisponibles[0] ?? '');
-    }
-    if (horasDisponibles.length === 0) setHora('');
-  }, [horasDisponibles, hora]);
-
-  useEffect(() => {
-    if (especialistaId && fechasDisponibles.length > 0 && !fechasDisponibles.includes(fechaCita)) {
-      setFechaCita(fechasDisponibles[0] ?? hoyISO());
-    }
-  }, [fechasDisponibles, fechaCita, especialistaId]);
-
-  /* ---------- Validación en tiempo real ---------- */
+  /* ---------- Validación en tiempo real ----------
+     El día y la hora los garantiza `SelectorCita` (la disponibilidad la
+     calcula el servidor): aquí solo se comprueba que haya elección. */
   const errores = useMemo(() => {
     const calculados: Record<string, string> = {};
     calculados.especialistaId = especialistaId
@@ -195,24 +119,17 @@ export default function MisCitas({ expediente }: MisCitasProps) {
       : 'Selecciona al especialista de Odontología o Nutrición.';
     calculados.fechaCita = !especialistaId
       ? 'Selecciona primero al especialista.'
-      : fechasDisponibles.length === 0
-        ? 'El especialista no tiene horario registrado.'
-        : !fechasDisponibles.includes(fechaCita)
-          ? 'Elige un día con horario de atención.'
-          : '';
-    calculados.hora =
-      rangos.length === 0
-        ? 'No hay horario de atención ese día.'
-        : !horasDisponibles.includes(hora)
-          ? 'Elige una hora disponible (las citas duran 30 min con 30 de respiro).'
-          : '';
+      : !fechaCita
+        ? 'Elige un día disponible.'
+        : '';
+    calculados.hora = !hora ? 'Elige una hora disponible.' : '';
     calculados.motivo = motivo.trim()
       ? motivo.trim().length > 255
         ? 'El motivo no puede exceder 255 caracteres.'
         : ''
       : 'Indica el motivo de la cita.';
     return calculados;
-  }, [especialistaId, fechaCita, hora, motivo, fechasDisponibles, rangos, horasDisponibles]);
+  }, [especialistaId, fechaCita, hora, motivo]);
 
   const errorVisible = (campo: string): string | undefined => {
     const propio = errores[campo];
@@ -220,6 +137,8 @@ export default function MisCitas({ expediente }: MisCitasProps) {
     return erroresServidor[campo] || undefined;
   };
   const hayErrores = Object.values(errores).some(Boolean);
+  /** El aviso de "completa los campos" solo se muestra si ya se intentó guardar */
+  const huboIntento = Object.values(tocado).some(Boolean);
   const marcarTocado = (campo: string) => setTocado((prev) => ({ ...prev, [campo]: true }));
 
   /* ---------- Alta de la cita ---------- */
@@ -353,61 +272,6 @@ export default function MisCitas({ expediente }: MisCitasProps) {
                   <option value="Emergencia">Emergencia</option>
                 </Select>
               </Field>
-              <Field
-                label="Fecha"
-                error={errorVisible('fechaCita')}
-                hint="Solo días con horario de atención del especialista."
-              >
-                <Select
-                  value={fechasDisponibles.includes(fechaCita) ? fechaCita : ''}
-                  disabled={!especialistaId || fechasDisponibles.length === 0}
-                  onChange={(e) => {
-                    setFechaCita(e.target.value);
-                    marcarTocado('fechaCita');
-                  }}
-                  onBlur={() => marcarTocado('fechaCita')}
-                  aria-invalid={errorVisible('fechaCita') ? true : undefined}
-                >
-                  <option value="">
-                    {!especialistaId
-                      ? 'Selecciona primero al especialista…'
-                      : fechasDisponibles.length === 0
-                        ? 'Sin días con horario…'
-                        : 'Selecciona un día…'}
-                  </option>
-                  {fechasDisponibles.map((fechaOpcion) => (
-                    <option key={fechaOpcion} value={fechaOpcion}>
-                      {nombreDeDia(diaDeSemana(fechaOpcion))} {fechaCorta(fechaOpcion)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field
-                label="Hora"
-                error={errorVisible('hora')}
-                hint={`Cada ${SEPARACION_MINIMA} minutos (sesión de 30 min + respiro).`}
-              >
-                <Select
-                  value={horasDisponibles.includes(hora) ? hora : ''}
-                  onChange={(e) => {
-                    setHora(e.target.value);
-                    marcarTocado('hora');
-                  }}
-                  onBlur={() => marcarTocado('hora')}
-                  aria-invalid={errorVisible('hora') ? true : undefined}
-                >
-                  <option value="">
-                    {horasDisponibles.length === 0
-                      ? 'Sin horas disponibles…'
-                      : 'Selecciona una hora…'}
-                  </option>
-                  {horasDisponibles.map((horaOpcion) => (
-                    <option key={horaOpcion} value={horaOpcion}>
-                      {horaOpcion}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
               <Field label="Motivo" className="md:col-span-2" error={errorVisible('motivo')}>
                 <Input
                   value={motivo}
@@ -423,44 +287,31 @@ export default function MisCitas({ expediente }: MisCitasProps) {
               </Field>
             </div>
 
-            {/* Disponibilidad del especialista y día elegidos */}
-            {especialistaId && (
-              <div className="mt-4">
-                {rangos.length > 0 ? (
-                  <>
-                    <p className="text-sm font-medium text-gray-600 mb-2">
-                      Horario de atención del especialista ese día:
-                    </p>
-                    <ul className="flex flex-wrap gap-2">
-                      {rangos.map((rango) => (
-                        <li key={`${rango.inicio}-${rango.fin}`}>
-                          <Badge status="confirmed">
-                            {rango.inicio} – {rango.fin}
-                          </Badge>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                ) : (
-                  <p
-                    role="alert"
-                    className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800"
-                  >
-                    El especialista no tiene horario registrado para ese día. Elige otro día.
-                  </p>
-                )}
-              </div>
-            )}
+            {/* Elección de día y hora: solo días útiles y huecos visibles */}
+            <div className="mt-5">
+              <SelectorCita
+                personalMedicoId={especialistaId ? Number(especialistaId) : null}
+                fecha={fechaCita}
+                hora={hora}
+                onFechaChange={(nueva) => {
+                  setFechaCita(nueva);
+                  marcarTocado('fechaCita');
+                }}
+                onHoraChange={(nueva) => {
+                  setHora(nueva);
+                  marcarTocado('hora');
+                }}
+              />
+            </div>
 
-            {(errorGeneral || hayErrores) && (
+            {(errorGeneral || (hayErrores && huboIntento)) && (
               <div
                 role="alert"
                 className="mt-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
               >
                 <CircleAlert size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
                 <span>
-                  {errorGeneral ||
-                    'Revisa los campos marcados antes de guardar: hay datos inválidos o incompletos.'}
+                  {errorGeneral || 'Completa los campos marcados antes de guardar.'}
                 </span>
               </div>
             )}

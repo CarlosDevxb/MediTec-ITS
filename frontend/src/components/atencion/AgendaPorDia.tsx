@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { CalendarClock, History } from 'lucide-react';
+import { CalendarClock, History, RefreshCw } from 'lucide-react';
 import Badge from '../ui/Badge';
 import { fechaCorta, hoyISO, type Cita } from '../../services/atencion.service';
 
@@ -79,6 +79,16 @@ function RenglonCita({
         <span className="block text-sm text-gray-500 tabular-nums truncate">
           {cita.numeroControl} · {cita.motivo}
         </span>
+        {/* El sistema movió esta cita por un cambio de horario */}
+        {cita.observacionCambio && (
+          <span
+            className="mt-1.5 inline-flex items-start gap-1.5 rounded bg-amber-50 border border-amber-200 px-2 py-1 text-xs text-amber-900"
+            title={cita.observacionCambio}
+          >
+            <RefreshCw size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
+            {cita.observacionCambio}
+          </span>
+        )}
       </span>
       <Badge status={ESTILOS_TIPO[cita.tipo] ?? 'neutral'}>{cita.tipo}</Badge>
       <Badge status={ESTILOS_ESTATUS[cita.estatus] ?? 'neutral'}>{cita.estatus}</Badge>

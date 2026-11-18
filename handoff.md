@@ -46,11 +46,11 @@ Arquitectura **rutas → controladores → servicios** (el SQL solo vive en
 | auth | `POST /login`, `GET/PATCH /auth/perfil` | Login con mensajes genéricos; perfil propio (teléfono/contraseña; el correo no se cambia) |
 | roles | CRUD + `GET /roles/acciones` | Cada rol declara un **perfil base** (Administrador, Personal médico, Enfermería o Paciente: define su panel y su identidad clínica) y elige de forma **explícita** las acciones que sí puede realizar (`rol_permisos`, sin herencia); los roles base del sistema conservan su juego completo y solo admiten editar su descripción |
 | usuarios · catálogos | CRUD | Incluye `POST /usuarios/importar` (Excel) y `PATCH /usuarios/:id/contrasena` (restablecer) |
-| horarios | CRUD + `GET` | L-V, sin duplicados exactos; alta múltiple y **turno completo** (`PUT/DELETE /horarios/turno`: todos sus días en una transacción); lectura abierta al personal y al paciente (disponibilidad) |
+| horarios | CRUD + `GET` | L-V, sin duplicados exactos; alta múltiple y **turno completo** (`PUT/DELETE /horarios/turno`: todos sus días en una transacción); lectura abierta al personal y al paciente (disponibilidad). **Al cambiar un turno se reubican las citas afectadas** (`POST /horarios/plan-reagendamiento` prevé el efecto sin aplicarlo) |
 | medicamentos | `GET/POST/PUT` + `POST /importar` | Sin DELETE: stock 0 = agotado (no disponible para consultas) |
 | personal-medico | `GET` | Al paciente solo se le expone nombre y especialidad |
 | pacientes | `GET`, `POST`, `PATCH /:id/expediente`, `POST /:id/cuestionario`, `GET /:id/seguimiento` | "Solo lo suyo" para el rol Paciente |
-| citas | `GET`, `GET /disponibilidad`, `POST`, `PUT /:id` (reagendar), `PATCH /:id/estatus` | Ciclo de estatus completo (ver decisiones) |
+| citas | `GET`, `GET /disponibilidad` y `/disponibilidad/dias`, `POST`, `PUT /:id` (reagendar), `PATCH /:id/estatus` | Ciclo de estatus completo (ver decisiones) |
 | consultas | `POST`, `GET`, `GET /:id` | La consulta se registra en transacción con auto-cita, signos, insumos y plan alimenticio |
 | planes | CRUD | Planes alimenticios (nutrición); el paciente consulta el suyo |
 
@@ -137,9 +137,16 @@ por lo que puede recrearse sin más que dejar correr el script.
 - **Reportes del admin**: el acceso a `GET /api/consultas` (base del reporte de
   Actividad de la enfermería) acepta también al rol Administrador.
 - **Reagendar citas** en las 3 agendas (enfermería, nutrición, odontología) y
-  del paciente: `PUT /api/citas/:id` + `GET /api/citas/disponibilidad` (horas
-  ocupadas del personal en una fecha, sin datos de pacientes) — corrige el bug
-  latente de mostrar horas ocupadas por citas de otros pacientes.
+  del paciente: `PUT /api/citas/:id` + disponibilidad con `excluirCitaId` (la
+  cita que se mueve no bloquea su propio hueco) — corrige el bug latente de
+  mostrar horas ocupadas por citas de otros pacientes.
+- **Selección de día y hora** (`atencion/SelectorCita.tsx`): chips de día solo
+  de los días con horario y al menos una hora libre, por semana y con
+  navegación « »; rejilla de horas donde se ven libres, ocupadas y pasadas. La
+  disponibilidad **la genera el servidor** (`GET /citas/disponibilidad` con
+  `slots` y motivo, y `/disponibilidad/dias` con el conteo de horas libres): la
+  interfaz solo dibuja y ya no reimplementa las reglas 30/60. `horarios` tiene
+  ahora índice `UNIQUE turno_unico` (persona + día + rango).
 - **Portabilidad de la BD**: columna `contrasena` (ASCII), sin `VISIBLE` y con
   charset explícito (ver decisión "BD portable").
 
@@ -236,11 +243,11 @@ push directo a `main`; ver AGENTS.md).
 ### Frontend (`frontend/src/`)
 | Archivo | Qué es |
 |---|---|
-| `services/atencion.service.ts` | Cliente API clínico + utilidades de agenda (días/horas disponibles) |
+| `services/atencion.service.ts` | Cliente API clínico (`obtenerDisponibilidad` y `obtenerDiasDisponibles` traen la rejilla ya calculada) |
 | `services/documentosPdf.ts` · `expedientePdf.ts` · `nutricionPdf.ts` | Base de PDFs con identidad + documentos clínicos |
 | `services/excel.service.ts` · `administracion.service.ts` · `operacion.service.ts` | Excel, administración, inventario/horarios |
 | `services/sesion.ts` · `auth.service.ts` | Sesión/JWT y `rutaSegunRol(rol, especialidad)` |
-| `components/atencion/*` | Piezas clínicas compartidas: `Atencion`, `AtencionForm`, `CuestionarioSalud`, `ExpedienteVista`, `FichaPaciente`, `DetalleConsulta`, `SelectorPaciente`, `AgendaPorDia`, `AgendaEspecialista`, `AtencionEspecialista`, `ReagendarCita` |
+| `components/atencion/*` | Piezas clínicas compartidas: `Atencion`, `AtencionForm`, `CuestionarioSalud`, `ExpedienteVista`, `FichaPaciente`, `DetalleConsulta`, `SelectorPaciente`, `SelectorCita`, `AgendaPorDia`, `AgendaEspecialista`, `AtencionEspecialista`, `ReagendarCita` |
 | `components/ui/*` | Design system (incluye `ModalResultado`, `EstadoVista`, `Aviso`) |
 | `components/{administrador,doctor,enfermeria,nutricion,odontologia,paciente,cuenta,layout}` | Los 6 portales + configuración de cuenta + shell |
 | `hooks/useProtegerSesion.ts` | Redirige a cada usuario a su panel (rol+especialidad) |

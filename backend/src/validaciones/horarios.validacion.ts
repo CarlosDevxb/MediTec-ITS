@@ -104,6 +104,26 @@ export const esquemaActualizarTurno = z
 /** Baja del turno completo: elimina todos sus días de una sola vez */
 export const esquemaEliminarTurno = z.object(identidadTurno).superRefine(validarRango);
 
+/**
+ * Operación de horario cuyo efecto sobre las citas se quiere prever antes de
+ * aplicarla (`POST /api/horarios/plan-reagendamiento`).
+ *
+ * Aquí solo se valida la forma: cada operación valida su propio contenido
+ * cuando se simula, con las mismas reglas que al aplicarla.
+ */
+export const esquemaOperacionHorario = z.object({
+  operacion: z.enum(['eliminarTurno', 'actualizarTurno', 'eliminarHorario'], {
+    error: 'Indica la operación de horario.',
+  }),
+  personalMedicoId: personalValido.optional(),
+  id: z.coerce.number().int().positive('Indica el horario.').optional(),
+  horaInicio: horaValida.optional(),
+  horaFin: horaValida.optional(),
+  nuevaHoraInicio: horaValida.optional(),
+  nuevaHoraFin: horaValida.optional(),
+  dias: diasTurno.optional(),
+});
+
 export type DatosHorarios = z.infer<typeof esquemaCrearHorarios>;
 export type DatosHorario = z.infer<typeof esquemaActualizarHorario>;
 export type DatosActualizarTurno = z.infer<typeof esquemaActualizarTurno>;

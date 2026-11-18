@@ -1,5 +1,4 @@
 import { apiFetch } from './api';
-import type { Horario } from './operacion.service';
 
 /* ============================================================
    ATENCIÓN · Cliente de la API clínica (expedientes, citas y
@@ -169,6 +168,11 @@ export interface Cita {
   tipo: string;
   /** 'Pendiente' | 'Confirmada' | 'Cancelada' | 'Completada' */
   estatus: string;
+  /**
+   * Aviso cuando el sistema movió la cita por un cambio de horario del
+   * especialista. Vacío si la cita no se ha movido.
+   */
+  observacionCambio?: string;
 }
 
 export interface DatosCita {
@@ -215,18 +219,71 @@ export function reagendarCita(id: number, datos: { fecha: string; hora: string }
   }).then((r) => r.datos);
 }
 
+/* ============================================================
+   DISPONIBILIDAD · los huecos que se pueden elegir
+
+   El servidor calcula la rejilla del día con las reglas de la
+   agenda (sesión de 30 min con 30 de respiro, dentro del turno y
+   sin pasadas). La interfaz solo dibuja estos datos: no los
+   recalcula, para que no haya dos versiones de las reglas.
+   ============================================================ */
+
+/** Un hueco de la rejilla del día */
+export interface SlotDisponibilidad {
+  /** Inicio del hueco, 'HH:mm' */
+  hora: string;
+  /** Si se puede elegir para una cita */
+  disponible: boolean;
+  /** Por qué no se puede elegir, o 'libre' */
+  motivo: 'libre' | 'ocupada' | 'pasada';
+}
+
+export interface DisponibilidadDia {
+  fecha: string;
+  personalMedicoId: number;
+  /** `false` cuando el personal no tiene turno ese día */
+  tieneHorario: boolean;
+  /** Rejilla del día: un hueco por cada 30 minutos dentro de los turnos */
+  slots: SlotDisponibilidad[];
+  /** Horas con cita no cancelada (sin datos de pacientes) */
+  horasOcupadas: string[];
+}
+
+/** Un día que sirve para agendar: tiene horario y al menos un hueco libre */
+export interface DiaDisponible {
+  fecha: string;
+  horasLibres: number;
+}
+
 /**
- * Horas ocupadas del personal en una fecha (sin datos de pacientes): la
- * interfaz las descarta al ofrecer los horarios libres para agendar o
- * reagendar.
+ * Disponibilidad de un día. `excluirCitaId` se usa al reagendar: la cita que
+ * se mueve no debe bloquear su propia hora ni su propio día.
  */
 export function obtenerDisponibilidad(
   personalMedicoId: number,
   fecha: string,
-): Promise<{ fecha: string; personalMedicoId: number; horasOcupadas: string[] }> {
-  return apiFetch<{ datos: { fecha: string; personalMedicoId: number; horasOcupadas: string[] } }>(
-    `/citas/disponibilidad?personalMedicoId=${personalMedicoId}&fecha=${fecha}`,
+  excluirCitaId?: number,
+): Promise<DisponibilidadDia> {
+  const excluir = excluirCitaId ? `&excluirCitaId=${excluirCitaId}` : '';
+  return apiFetch<{ datos: DisponibilidadDia }>(
+    `/citas/disponibilidad?personalMedicoId=${personalMedicoId}&fecha=${fecha}${excluir}`,
   ).then((r) => r.datos);
+}
+
+/**
+ * Días útiles del personal en un rango (máximo 62 días): los que tienen
+ * horario y al menos un hueco libre, con el número de horas disponibles.
+ */
+export function obtenerDiasDisponibles(
+  personalMedicoId: number,
+  desde: string,
+  hasta: string,
+  excluirCitaId?: number,
+): Promise<DiaDisponible[]> {
+  const excluir = excluirCitaId ? `&excluirCitaId=${excluirCitaId}` : '';
+  return apiFetch<{ datos: { dias: DiaDisponible[] } }>(
+    `/citas/disponibilidad/dias?personalMedicoId=${personalMedicoId}&desde=${desde}&hasta=${hasta}${excluir}`,
+  ).then((r) => r.datos.dias);
 }
 
 /* ---------------- Consultas ---------------- */
@@ -514,17 +571,6 @@ export function listarSeguimiento(
 export const DURACION_CITA = 30;
 export const SEPARACION_MINIMA = 60; // 30 de sesión + 30 de respiro
 
-/** "08:30" → 510 */
-function aMinutos(hora: string): number {
-  const [h, m] = hora.split(':').map(Number);
-  return (h ?? 0) * 60 + (m ?? 0);
-}
-
-/** 510 → "08:30" */
-function hhmm(minutos: number): string {
-  return `${String(Math.floor(minutos / 60)).padStart(2, '0')}:${String(minutos % 60).padStart(2, '0')}`;
-}
-
 /** Día de la semana de una fecha AAAA-MM-DD (1=Lunes … 7=Domingo) */
 export function diaDeSemana(fecha: string): number {
   const partes = fecha.split('-').map(Number);
@@ -532,73 +578,6 @@ export function diaDeSemana(fecha: string): number {
   const mes = partes[1] ?? 1;
   const dia = partes[2] ?? 1;
   return ((new Date(anio, mes - 1, dia).getDay() + 6) % 7) + 1;
-}
-
-/** Rangos de atención del personal para una fecha concreta */
-export function rangosDeDia(
-  horarios: Horario[],
-  fecha: string,
-): Array<{ inicio: string; fin: string }> {
-  const dia = diaDeSemana(fecha);
-  return horarios
-    .filter((horario) => horario.diaSemana === dia)
-    .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
-    .map((horario) => ({ inicio: horario.horaInicio, fin: horario.horaFin }));
-}
-
-/**
- * Horas de inicio disponibles dentro de los rangos de atención, respetando
- * la regla de agenda: cada cita dura `DURACION_CITA` minutos y después hay
- * `SEPARACION_MINIMA - DURACION_CITA` minutos de respiro (las citas quedan
- * cada 60 minutos). Las horas que chocan con las citas pasadas se descartan
- * y, si la fecha es hoy, también las horas que ya pasaron.
- */
-export function horasDisponiblesPara(
-  rangos: Array<{ inicio: string; fin: string }>,
-  citas: Array<{ hora: string; estatus: string }>,
-  fecha: string,
-): string[] {
-  const ocupadas = citas
-    .filter((cita) => cita.estatus !== 'Cancelada')
-    .map((cita) => aMinutos(cita.hora));
-  const esHoy = fecha === hoyISO();
-  const minutosAhora = new Date().getHours() * 60 + new Date().getMinutes();
-
-  const opciones: string[] = [];
-  for (const rango of rangos) {
-    let minutos = aMinutos(rango.inicio);
-    const limite = aMinutos(rango.fin);
-    while (minutos + DURACION_CITA <= limite) {
-      const libre = ocupadas.every(
-        (ocupada) => Math.abs(ocupada - minutos) >= SEPARACION_MINIMA,
-      );
-      const yaPaso = esHoy && minutos <= minutosAhora;
-      if (libre && !yaPaso) opciones.push(hhmm(minutos));
-      minutos += SEPARACION_MINIMA;
-    }
-  }
-  return [...new Set(opciones)];
-}
-
-/**
- * Próximos días con horario de atención registrado (para que solo se pueda
- * elegir fecha en los días en los que el personal realmente atiende).
- */
-export function diasDisponiblesPara(horarios: Horario[], cantidad = 30): string[] {
-  const diasConHorario = new Set(horarios.map((horario) => horario.diaSemana));
-  if (diasConHorario.size === 0) return [];
-
-  const dias: string[] = [];
-  const cursor = new Date();
-  // Se buscan los siguientes días hábiles (máximo 120 días hacia adelante)
-  for (let intento = 0; intento < 120 && dias.length < cantidad; intento++) {
-    const fecha = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(
-      cursor.getDate(),
-    ).padStart(2, '0')}`;
-    if (diasConHorario.has(diaDeSemana(fecha))) dias.push(fecha);
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return dias;
 }
 
 /** "2026-10-15" → "15 oct 2026" */

@@ -28,21 +28,15 @@ import {
   cambiarEstatusCita,
   hoyISO,
   fechaCorta,
-  diaDeSemana,
-  rangosDeDia,
-  horasDisponiblesPara,
-  diasDisponiblesPara,
   type Cita,
   type ExpedientePaciente,
 } from '../../services/atencion.service';
 import {
   listarPersonalMedico,
-  listarHorarios,
-  nombreDeDia,
   type PersonalMedico,
-  type Horario,
 } from '../../services/operacion.service';
 import SelectorPaciente from '../atencion/SelectorPaciente';
+import SelectorCita from '../atencion/SelectorCita';
 
 /* ============================================================
    AGENDA (ENFERMERÍA) · Registro de citas con el personal de
@@ -75,7 +69,7 @@ export default function AgendaEnfermeria() {
   const [paciente, setPaciente] = useState<ExpedientePaciente | null>(null);
   const [personalId, setPersonalId] = useState('');
   const [fechaCita, setFechaCita] = useState(hoyISO());
-  const [hora, setHora] = useState('09:00');
+  const [hora, setHora] = useState('');
   const [motivo, setMotivo] = useState('');
   const [tipo, setTipo] = useState<'Programada' | 'Emergencia'>('Programada');
   const [tocado, setTocado] = useState<Record<string, boolean>>({});
@@ -86,8 +80,7 @@ export default function AgendaEnfermeria() {
   /** Cita elegida para reagendar (cambio de fecha y hora) */
   const [citaAReagendar, setCitaAReagendar] = useState<Cita | null>(null);
   /** Disponibilidad del especialista (horarios registrados y citas ocupadas) */
-  const [horariosPersonal, setHorariosPersonal] = useState<Horario[]>([]);
-  const [citasDelDia, setCitasDelDia] = useState<Cita[]>([]);
+
 
   const { aviso, tipo: tipoAviso, mostrar, cerrar } = useAviso();
 
@@ -122,104 +115,29 @@ export default function AgendaEnfermeria() {
     void cargar();
   }, [cargar]);
 
-  /* ---------- Disponibilidad del especialista seleccionado ---------- */
-  useEffect(() => {
-    if (!personalId) {
-      setHorariosPersonal([]);
-      setCitasDelDia([]);
-      return;
-    }
-    let vigente = true;
-    Promise.all([
-      listarHorarios({ personalMedicoId: Number(personalId) }),
-      listarCitas({ fecha: fechaCita }),
-    ])
-      .then(([horarios, citas]) => {
-        if (!vigente) return;
-        setHorariosPersonal(horarios);
-        setCitasDelDia(citas);
-      })
-      .catch(() => {
-        if (!vigente) return;
-        setHorariosPersonal([]);
-        setCitasDelDia([]);
-      });
-    return () => {
-      vigente = false;
-    };
-  }, [personalId, fechaCita]);
-
-  /* Rangos de atención del día y horas libres (las ocupadas se descartan) */
-  const rangos = useMemo(
-    () => rangosDeDia(horariosPersonal, fechaCita),
-    [horariosPersonal, fechaCita],
-  );
-  const horasOcupadas = useMemo(
-    () =>
-      citasDelDia
-        .filter((cita) => cita.personalMedicoId === Number(personalId) && cita.estatus !== 'Cancelada')
-        .map((cita) => cita.hora),
-    [citasDelDia, personalId],
-  );
-  // Cada cita dura 30 minutos con 30 de respiro: las horas quedan cada 60 min
-  const horasDisponibles = useMemo(
-    () =>
-      horasDisponiblesPara(
-        rangos,
-        citasDelDia.filter((cita) => cita.personalMedicoId === Number(personalId)),
-        fechaCita,
-      ),
-    [rangos, citasDelDia, personalId, fechaCita],
-  );
-  /** Solo se puede elegir fecha en los días con horario del especialista */
-  const fechasDisponibles = useMemo(
-    () => (personalId ? diasDisponiblesPara(horariosPersonal) : []),
-    [horariosPersonal, personalId],
-  );
-
-  // Si la hora elegida deja de estar disponible, se selecciona la primera libre
-  useEffect(() => {
-    if (horasDisponibles.length > 0 && !horasDisponibles.includes(hora)) {
-      setHora(horasDisponibles[0] ?? '');
-    }
-    if (horasDisponibles.length === 0) setHora('');
-  }, [horasDisponibles, hora]);
-
-  // Si la fecha elegida no tiene horario del especialista, se cambia
-  useEffect(() => {
-    if (personalId && fechasDisponibles.length > 0 && !fechasDisponibles.includes(fechaCita)) {
-      setFechaCita(fechasDisponibles[0] ?? hoyISO());
-    }
-  }, [fechasDisponibles, fechaCita, personalId]);
-
-  /* ---------- Validación en tiempo real del alta ---------- */
+  /* ---------- Validación en tiempo real del alta ----------
+     El día y la hora los garantiza `SelectorCita` (la disponibilidad
+     la calcula el servidor): aquí solo se comprueba que haya llegado
+     alguna elección. */
   const errores = useMemo(() => {
     const calculados: Record<string, string> = {};
     calculados.paciente = paciente ? '' : 'Selecciona un paciente.';
     calculados.personalId = personalId
       ? ''
       : 'Selecciona a un especialista en Odontología o Nutrición.';
-    calculados.fechaCita = !fechaCita
-      ? 'Indica la fecha de la cita.'
-      : fechaCita < hoyISO()
-        ? 'La fecha no puede ser pasada.'
-        : '';
+    calculados.fechaCita = !fechaCita ? 'Elige un día disponible.' : '';
     calculados.hora = !personalId
       ? 'Selecciona al profesional para ver sus horarios.'
-      : rangos.length === 0
-        ? 'El personal no tiene horario registrado ese día.'
-        : !horasDisponibles.includes(hora)
-          ? horasOcupadas.includes(hora)
-            ? `La hora ${hora} ya está ocupada. Elige otra.`
-            : 'Elige una hora dentro del horario de atención.'
-          : '';
+      : !hora
+        ? 'Elige una hora disponible.'
+        : '';
     calculados.motivo = motivo.trim()
       ? motivo.trim().length > 255
         ? 'El motivo no puede exceder 255 caracteres.'
         : ''
       : 'Indica el motivo de la cita.';
     return calculados;
-  }, [paciente, personalId, fechaCita, hora, motivo, rangos, horasDisponibles, horasOcupadas]);
+  }, [paciente, personalId, fechaCita, hora, motivo]);
 
   const errorVisible = (campo: string): string | undefined => {
     const propio = errores[campo];
@@ -227,6 +145,8 @@ export default function AgendaEnfermeria() {
     return erroresServidor[campo] || undefined;
   };
   const hayErrores = Object.values(errores).some(Boolean);
+  /** El aviso de "completa los campos" solo se muestra si ya se intentó guardar */
+  const huboIntento = Object.values(tocado).some(Boolean);
   const marcarTocado = (campo: string) => setTocado((prev) => ({ ...prev, [campo]: true }));
 
   /* ---------- Alta de la cita ---------- */
@@ -392,61 +312,6 @@ export default function AgendaEnfermeria() {
                   <option value="Emergencia">Emergencia</option>
                 </Select>
               </Field>
-              <Field
-                label="Fecha"
-                error={errorVisible('fechaCita')}
-                hint="Solo días con horario de atención del especialista."
-              >
-                <Select
-                  value={fechasDisponibles.includes(fechaCita) ? fechaCita : ''}
-                  disabled={!personalId || fechasDisponibles.length === 0}
-                  onChange={(e) => {
-                    setFechaCita(e.target.value);
-                    marcarTocado('fechaCita');
-                  }}
-                  onBlur={() => marcarTocado('fechaCita')}
-                  aria-invalid={errorVisible('fechaCita') ? true : undefined}
-                >
-                  <option value="">
-                    {!personalId
-                      ? 'Selecciona primero al especialista…'
-                      : fechasDisponibles.length === 0
-                        ? 'Sin días con horario…'
-                        : 'Selecciona un día…'}
-                  </option>
-                  {fechasDisponibles.map((fechaOpcion) => (
-                    <option key={fechaOpcion} value={fechaOpcion}>
-                      {nombreDeDia(diaDeSemana(fechaOpcion))} {fechaCorta(fechaOpcion)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field
-                label="Hora"
-                error={errorVisible('hora')}
-                hint="Solo horas dentro del horario del especialista y sin cita ocupada."
-              >
-                <Select
-                  value={horasDisponibles.includes(hora) ? hora : ''}
-                  onChange={(e) => {
-                    setHora(e.target.value);
-                    marcarTocado('hora');
-                  }}
-                  onBlur={() => marcarTocado('hora')}
-                  aria-invalid={errorVisible('hora') ? true : undefined}
-                >
-                  <option value="">
-                    {horasDisponibles.length === 0
-                      ? 'Sin horas disponibles…'
-                      : 'Selecciona una hora…'}
-                  </option>
-                  {horasDisponibles.map((horaOpcion) => (
-                    <option key={horaOpcion} value={horaOpcion}>
-                      {horaOpcion}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
               <Field label="Motivo" className="md:col-span-2" error={errorVisible('motivo')}>
                 <Input
                   value={motivo}
@@ -462,50 +327,31 @@ export default function AgendaEnfermeria() {
               </Field>
             </div>
 
-            {/* Disponibilidad del especialista para el día elegido */}
-            {personalId && (
-              <div className="mt-4">
-                {rangos.length > 0 ? (
-                  <>
-                    <p className="text-sm font-medium text-gray-600 mb-2">
-                      Horario de atención {fechaCita}:
-                    </p>
-                    <ul className="flex flex-wrap gap-2">
-                      {rangos.map((rango) => (
-                        <li key={`${rango.inicio}-${rango.fin}`}>
-                          <Badge status="confirmed">
-                            {rango.inicio} – {rango.fin}
-                          </Badge>
-                        </li>
-                      ))}
-                      {horasOcupadas.length > 0 && (
-                        <li>
-                          <Badge status="pending">{horasOcupadas.length} hora(s) ocupada(s)</Badge>
-                        </li>
-                      )}
-                    </ul>
-                  </>
-                ) : (
-                  <p
-                    role="alert"
-                    className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800"
-                  >
-                    El especialista no tiene horario registrado para ese día. Elige otra fecha o
-                    registra su horario desde la sección Horarios del panel de administración.
-                  </p>
-                )}
-              </div>
-            )}
+            {/* Elección de día y hora: solo días útiles y huecos visibles */}
+            <div className="mt-5">
+              <SelectorCita
+                personalMedicoId={personalId ? Number(personalId) : null}
+                fecha={fechaCita}
+                hora={hora}
+                onFechaChange={(nueva) => {
+                  setFechaCita(nueva);
+                  marcarTocado('fechaCita');
+                }}
+                onHoraChange={(nueva) => {
+                  setHora(nueva);
+                  marcarTocado('hora');
+                }}
+              />
+            </div>
 
-            {(errorGeneral || hayErrores) && (
+            {(errorGeneral || (hayErrores && huboIntento)) && (
               <div
                 role="alert"
                 className="mt-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
               >
                 <CircleAlert size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
                 <span>
-                  {errorGeneral ||
-                    'Revisa los campos marcados antes de guardar: hay datos inválidos o incompletos.'}
+                  {errorGeneral || 'Completa los campos marcados antes de guardar.'}
                 </span>
               </div>
             )}

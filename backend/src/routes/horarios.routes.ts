@@ -8,6 +8,7 @@ import {
   esquemaActualizarHorario,
   esquemaActualizarTurno,
   esquemaEliminarTurno,
+  esquemaOperacionHorario,
 } from '../validaciones/horarios.validacion';
 import * as controlador from '../controllers/horarios.controller';
 
@@ -40,6 +41,9 @@ rutas.post('/', requerirRol('Administrador'), requerirAccion('horarios'), valida
 // Antes que las rutas con :id, para que "turno" no se interprete como id
 rutas.put('/turno', requerirRol('Administrador'), requerirAccion('horarios'), validar(esquemaActualizarTurno), controlador.actualizarTurno);
 rutas.delete('/turno', requerirRol('Administrador'), requerirAccion('eliminar_horarios'), validar(esquemaEliminarTurno), controlador.eliminarTurno);
+
+// Previsión del efecto sobre las citas: se simula el cambio y se revierte
+rutas.post('/plan-reagendamiento', requerirRol('Administrador'), requerirAccion('horarios'), validar(esquemaOperacionHorario), controlador.planReagendamiento);
 rutas.put('/:id', requerirRol('Administrador'), requerirAccion('horarios'), validar(esquemaActualizarHorario), controlador.actualizarHorario);
 rutas.delete('/:id', requerirRol('Administrador'), requerirAccion('eliminar_horarios'), controlador.eliminarHorario);
 

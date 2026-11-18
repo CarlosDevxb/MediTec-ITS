@@ -194,6 +194,9 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`cita` (
   `motivo` VARCHAR(255) NOT NULL,
   `tipo_cita` ENUM('Programada', 'Emergencia', 'Atención directa') NOT NULL DEFAULT 'Programada' COMMENT 'Atención directa = cita creada automáticamente al atender sin cita previa (doctor y enfermería)',
   `estatus` ENUM('Pendiente', 'Confirmada', 'Cancelada', 'Completada') NULL DEFAULT 'Pendiente',
+  -- Aviso que ve el paciente cuando el sistema mueve su cita por un cambio
+  -- de horario del especialista (se limpia al confirmar o cancelar la cita)
+  `observacion_cambio` VARCHAR(255) NULL DEFAULT NULL,
   PRIMARY KEY (`id_cita`),
   INDEX `personal_medico_id_personal_medico` (`personal_medico_id_personal_medico` ASC),
   INDEX `pacientes_id_paciente` (`pacientes_id_paciente` ASC),
@@ -282,6 +285,12 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`horarios` (
   `hora_fin` TIME NOT NULL,
   PRIMARY KEY (`id_horario`),
   INDEX `personal_medico_id_personal_medico` (`personal_medico_id_personal_medico` ASC),
+  -- Un turno no se repite: misma persona, mismo día y mismo rango.
+  -- Es la red de seguridad que duplica la validación de la aplicación
+  -- (`horarios.service.ts`). No se usa CHECK para que el script siga
+  -- corriendo en versiones ligeras de MySQL/MariaDB que no lo soportan;
+  -- que `hora_fin` sea posterior a `hora_inicio` lo garantiza el servicio.
+  UNIQUE INDEX `turno_unico` (`personal_medico_id_personal_medico`, `dia_semana`, `hora_inicio`, `hora_fin`),
   CONSTRAINT `horarios_ibfk_1`
     FOREIGN KEY (`personal_medico_id_personal_medico`) REFERENCES `meditec_its`.`personal_medico` (`id_personal_medico`)
     ON DELETE CASCADE ON UPDATE CASCADE)

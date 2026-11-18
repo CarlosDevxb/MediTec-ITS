@@ -31,6 +31,7 @@ rutas.use(verificarToken, requerirRol('Administrador', 'Personal médico', 'Enfe
 
 rutas.get('/', controlador.listarCitas);
 rutas.get('/disponibilidad', controlador.disponibilidad);
+rutas.get('/disponibilidad/dias', controlador.diasDisponibles);
 rutas.post('/', requerirAccion('citas'), validar(esquemaCrearCita), controlador.crearCita);
 rutas.put('/:id', requerirAccion('citas'), validar(esquemaReagendarCita), controlador.reagendar);
 rutas.patch('/:id/estatus', requerirAccion('citas'), validar(esquemaEstatusCita), controlador.cambiarEstatus);

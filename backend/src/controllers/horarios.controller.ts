@@ -69,13 +69,10 @@ export async function actualizarHorario(req: Request, res: Response, next: NextF
 export async function actualizarTurno(req: Request, res: Response, next: NextFunction) {
   try {
     const datos = req.body as DatosActualizarTurno;
-    const horarios = await servicio.actualizarTurno(datos);
+    const { horarios, plan } = await servicio.actualizarTurno(datos);
     res.json({
-      mensaje:
-        horarios.length === 1
-          ? 'Turno actualizado (1 día).'
-          : `Turno actualizado (${horarios.length} días).`,
-      datos: horarios,
+      mensaje: `${mensajeDeTurno(horarios.length)}${mensajeDeMovimientos(plan)}`,
+      datos: { horarios, plan },
     });
   } catch (error) {
     next(error);
@@ -86,10 +83,10 @@ export async function actualizarTurno(req: Request, res: Response, next: NextFun
 export async function eliminarTurno(req: Request, res: Response, next: NextFunction) {
   try {
     const datos = req.body as DatosEliminarTurno;
-    const eliminados = await servicio.eliminarTurno(datos);
+    const { horarios, plan } = await servicio.eliminarTurno(datos);
     res.json({
-      mensaje: `Turno de ${eliminados[0]?.personal ?? 'personal'} eliminado.`,
-      datos: eliminados,
+      mensaje: `Turno de ${horarios[0]?.personal ?? 'personal'} eliminado.${mensajeDeMovimientos(plan)}`,
+      datos: { horarios, plan },
     });
   } catch (error) {
     next(error);
@@ -100,9 +97,39 @@ export async function eliminarTurno(req: Request, res: Response, next: NextFunct
 export async function eliminarHorario(req: Request, res: Response, next: NextFunction) {
   try {
     const id = leerId(req.params.id);
-    const horario = await servicio.eliminarHorario(id);
-    res.json({ mensaje: `Turno de ${horario.personal} eliminado.` });
+    const { horario, plan } = await servicio.eliminarHorario(id);
+    res.json({
+      mensaje: `Turno de ${horario.personal} eliminado.${mensajeDeMovimientos(plan)}`,
+      datos: { horario, plan },
+    });
   } catch (error) {
     next(error);
   }
+}
+
+/**
+ * POST /api/horarios/plan-reagendamiento · qué haría un cambio de horario
+ * sobre las citas, sin aplicarlo (se simula y se revierte).
+ */
+export async function planReagendamiento(req: Request, res: Response, next: NextFunction) {
+  try {
+    const plan = await servicio.simularOperacion(req.body as servicio.OperacionHorario);
+    res.json({ datos: plan });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** "Turno actualizado (3 días)." */
+function mensajeDeTurno(dias: number): string {
+  return dias === 1 ? 'Turno actualizado (1 día).' : `Turno actualizado (${dias} días).`;
+}
+
+/** Sufijo del mensaje cuando el cambio movió citas automáticamente */
+function mensajeDeMovimientos(plan: { movimientos: unknown[] }): string {
+  const total = plan.movimientos.length;
+  if (total === 0) return ' Ninguna cita se movió.';
+  return total === 1
+    ? ' 1 cita pasó a estar pendiente de confirmación.'
+    : ` ${total} citas pasaron a estar pendientes de confirmación.`;
 }
