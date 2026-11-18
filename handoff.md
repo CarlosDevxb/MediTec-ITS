@@ -46,7 +46,7 @@ Arquitectura **rutas → controladores → servicios** (el SQL solo vive en
 | auth | `POST /login`, `GET/PATCH /auth/perfil` | Login con mensajes genéricos; perfil propio (teléfono/contraseña; el correo no se cambia) |
 | roles | CRUD + `GET /roles/acciones` | Cada rol declara un **perfil base** (Administrador, Personal médico, Enfermería o Paciente: define su panel y su identidad clínica) y elige de forma **explícita** las acciones que sí puede realizar (`rol_permisos`, sin herencia); los roles base del sistema conservan su juego completo y solo admiten editar su descripción |
 | usuarios · catálogos | CRUD | Incluye `POST /usuarios/importar` (Excel) y `PATCH /usuarios/:id/contrasena` (restablecer) |
-| horarios | CRUD + `GET` | L-V, sin duplicados exactos; alta múltiple y **turno completo** (`PUT/DELETE /horarios/turno`: todos sus días en una transacción); lectura abierta al personal y al paciente (disponibilidad) |
+| horarios | CRUD + `GET` | L-V, sin duplicados exactos; alta múltiple y **turno completo** (`PUT/DELETE /horarios/turno`: todos sus días en una transacción); lectura abierta al personal y al paciente (disponibilidad). **Al cambiar un turno se reubican las citas afectadas** (`POST /horarios/plan-reagendamiento` prevé el efecto sin aplicarlo) |
 | medicamentos | `GET/POST/PUT` + `POST /importar` | Sin DELETE: stock 0 = agotado (no disponible para consultas) |
 | personal-medico | `GET` | Al paciente solo se le expone nombre y especialidad |
 | pacientes | `GET`, `POST`, `PATCH /:id/expediente`, `POST /:id/cuestionario`, `GET /:id/seguimiento` | "Solo lo suyo" para el rol Paciente |

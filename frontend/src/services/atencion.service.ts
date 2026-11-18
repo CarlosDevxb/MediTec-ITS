@@ -168,6 +168,11 @@ export interface Cita {
   tipo: string;
   /** 'Pendiente' | 'Confirmada' | 'Cancelada' | 'Completada' */
   estatus: string;
+  /**
+   * Aviso cuando el sistema movió la cita por un cambio de horario del
+   * especialista. Vacío si la cita no se ha movido.
+   */
+  observacionCambio?: string;
 }
 
 export interface DatosCita {

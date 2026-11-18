@@ -227,7 +227,18 @@ agenda otra persona (enfermería) nace **Pendiente** hasta que el especialista l
 confirme —el panel le avisa de sus citas pendientes al entrar—. Solo se pueden
 marcar las **citas propias** (o las que gestiona Administrador/Enfermería) y los
 paneles muestran **solo las consultas propias** (el expediente del paciente sí
-conserva su historial completo). El **tipo de consulta lo determinan el rol y la
+conserva su historial completo).
+
+**Horarios y citas agendadas**: al **eliminar o editar un turno**, las citas
+futuras que quedarían fuera del horario resultante se reubican solas en el
+primer hueco libre del mismo especialista y quedan **Pendientes** de
+confirmación (`citas.service.ts` → `reagendarHuerfanas`, dentro de la misma
+transacción). Si alguna cita no tiene a dónde ir, **el cambio de horario no se
+aplica** y el servidor explica qué citas faltan por reagendar. El administrador
+ve el plan antes de confirmar (`POST /api/horarios/plan-reagendamiento`, que
+simula el cambio y lo revierte) en `PlanReagendamientoVista.tsx`; el paciente ve
+el aviso en su portal (`cita.observacion_cambio`, que se limpia al confirmar o
+cancelar la cita). El **tipo de consulta lo determinan el rol y la
 especialidad**: el personal médico captura diagnóstico y tratamiento (todo el
 inventario como insumo); enfermería captura su intervención y no puede usar
 medicamentos especiales (categoría del inventario en `medicamentos.categoria`,

@@ -7,6 +7,9 @@ import {
   HeartPulse,
   Syringe,
   CalendarRange,
+  CalendarClock,
+  Loader2,
+  Save,
   List,
   Users,
   Pencil,
@@ -37,12 +40,16 @@ import {
   eliminarTurno,
   agruparHorariosEnTurnos,
   listarPersonalMedico,
+  planReagendamiento,
   type Horario,
   type PersonalMedico,
   type TurnoHorario,
   type DatosHorarios,
   type DatosActualizarTurno,
+  type OperacionHorario,
+  type PlanReagendamiento,
 } from '../../services/operacion.service';
+import PlanReagendamientoVista from './PlanReagendamientoVista';
 import HorarioForm from './HorarioForm';
 
 /* ============================================================
@@ -129,6 +136,36 @@ export default function Horarios() {
   const [subvista, setSubvista] = useState<Subvista>({ modo: 'lista' });
   /** Turno pendiente de borrado (espera confirmación en el modal) */
   const [pendiente, setPendiente] = useState<TurnoHorario | null>(null);
+  /** Efecto del cambio sobre las citas (la API lo calcula simulándolo) */
+  const [plan, setPlan] = useState<PlanReagendamiento | null>(null);
+  const [cargandoPlan, setCargandoPlan] = useState(false);
+  /** Edición con citas que se moverían: se confirma antes de aplicarla */
+  const [edicionPendiente, setEdicionPendiente] = useState<DatosActualizarTurno | null>(null);
+
+  /* Previsión del efecto sobre las citas, para mostrarla antes de confirmar */
+  const preverEfecto = useCallback(async (operacion: OperacionHorario) => {
+    setCargandoPlan(true);
+    setPlan(null);
+    try {
+      setPlan(await planReagendamiento(operacion));
+    } catch {
+      // Sin previsión no se bloquea la acción: el servidor revalida al aplicar
+      setPlan(null);
+    } finally {
+      setCargandoPlan(false);
+    }
+  }, []);
+
+  // Al abrir la confirmación de borrado se calcula qué pasaría con las citas
+  useEffect(() => {
+    if (!pendiente) return;
+    void preverEfecto({
+      operacion: 'eliminarTurno',
+      personalMedicoId: pendiente.personalMedicoId,
+      horaInicio: pendiente.horaInicio,
+      horaFin: pendiente.horaFin,
+    });
+  }, [pendiente, preverEfecto]);
   /** Resultado visible de la última acción (modal de confirmación) */
   const [resultado, setResultado] = useState<{
     titulo: string;
@@ -174,17 +211,14 @@ export default function Horarios() {
     try {
       if (subvista.modo === 'editar') {
         const datosTurno = datos as DatosActualizarTurno;
-        const diasNuevos = await actualizarTurno(datosTurno);
-        const idsAnteriores = new Set(subvista.turno.horarios.map((h) => h.id));
-        setHorarios((prev) =>
-          [...prev.filter((h) => !idsAnteriores.has(h.id)), ...diasNuevos].sort(
-            (a, b) =>
-              a.diaSemana - b.diaSemana || aMinutos(a.horaInicio) - aMinutos(b.horaInicio),
-          ),
-        );
-        mostrar(
-          `Turno de ${subvista.turno.personal} actualizado (${datosTurno.nuevaHoraInicio}–${datosTurno.nuevaHoraFin} · ${diasEnTexto(datosTurno.dias)}).`,
-        );
+        // Si el cambio movería citas, se muestra el plan y se confirma antes
+        const previsto = await planReagendamiento({ operacion: 'actualizarTurno', ...datosTurno });
+        if (previsto.movimientos.length > 0) {
+          setPlan(previsto);
+          setEdicionPendiente(datosTurno);
+          return;
+        }
+        await aplicarEdicion(datosTurno);
       } else {
         const creados = await crearHorarios(datos as DatosHorarios);
         setHorarios((prev) =>
@@ -197,8 +231,8 @@ export default function Horarios() {
             creados.map((h) => h.diaSemana),
           )}).`,
         );
+        setSubvista({ modo: 'lista' });
       }
-      setSubvista({ modo: 'lista' });
     } catch (error) {
       // El formulario pinta el error en su campo o como resumen
       throw error;
@@ -207,12 +241,36 @@ export default function Horarios() {
     }
   };
 
+  /** Aplica la edición del turno (tras confirmar el plan, si lo hubo) */
+  const aplicarEdicion = async (datosTurno: DatosActualizarTurno) => {
+    const { horarios: diasNuevos, plan: resultado } = await actualizarTurno(datosTurno);
+    const idsAnteriores = new Set(subvista.modo === 'editar' ? subvista.turno.horarios.map((h) => h.id) : []);
+    setHorarios((prev) =>
+      [...prev.filter((h) => !idsAnteriores.has(h.id)), ...diasNuevos].sort(
+        (a, b) => a.diaSemana - b.diaSemana || aMinutos(a.horaInicio) - aMinutos(b.horaInicio),
+      ),
+    );
+    setResultado({
+      titulo: 'Turno actualizado',
+      mensaje:
+        `El turno de ${subvista.modo === 'editar' ? subvista.turno.personal : 'personal'} ` +
+        `(${datosTurno.nuevaHoraInicio}–${datosTurno.nuevaHoraFin} · ${diasEnTexto(datosTurno.dias)}) quedó guardado.` +
+        (resultado.movimientos.length > 0
+          ? ` ${resultado.movimientos.length} cita(s) pasaron a estar pendientes de confirmación.`
+          : ' Ninguna cita se movió.'),
+      tipo: 'exito',
+    });
+    setEdicionPendiente(null);
+    setPlan(null);
+    setSubvista({ modo: 'lista' });
+  };
+
   /* ---------- Borrado del turno completo (tras confirmar en el modal) ---------- */
   const ejecutarPendiente = async () => {
     if (!pendiente) return;
     setGuardando(true);
     try {
-      await eliminarTurno({
+      const { plan: resultado } = await eliminarTurno({
         personalMedicoId: pendiente.personalMedicoId,
         horaInicio: pendiente.horaInicio,
         horaFin: pendiente.horaFin,
@@ -221,14 +279,20 @@ export default function Horarios() {
       setHorarios((prev) => prev.filter((h) => !ids.has(h.id)));
       setResultado({
         titulo: 'Turno eliminado',
-        mensaje: `El turno de ${pendiente.personal} (${pendiente.horaInicio} a ${pendiente.horaFin} · ${diasEnTexto(pendiente.dias)}) ya no aparece en el calendario.`,
+        mensaje:
+          `El turno de ${pendiente.personal} (${pendiente.horaInicio} a ${pendiente.horaFin} · ${diasEnTexto(pendiente.dias)}) ya no aparece en el calendario.` +
+          (resultado.movimientos.length > 0
+            ? ` ${resultado.movimientos.length} cita(s) se reubicaron en el primer hueco libre y quedaron pendientes de confirmación.`
+            : ' Ninguna cita se movió.'),
         tipo: 'exito',
       });
       setPendiente(null);
+      setPlan(null);
       setSubvista({ modo: 'lista' });
     } catch (e) {
       mostrar(mensajeDeError(e), 'error');
       setPendiente(null);
+      setPlan(null);
     } finally {
       setGuardando(false);
     }
@@ -272,16 +336,27 @@ export default function Horarios() {
         pendiente.dias,
       )}) dejará de aparecer en el calendario: se quitan todos sus días de una sola vez.`}
       icono={CircleAlert}
-      onCerrar={() => setPendiente(null)}
+      onCerrar={() => {
+        setPendiente(null);
+        setPlan(null);
+      }}
       acciones={
         <>
-          <Button variant="secondary" onClick={() => setPendiente(null)} disabled={guardando}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setPendiente(null);
+              setPlan(null);
+            }}
+            disabled={guardando}
+          >
             Cancelar
           </Button>
           <Button
             variant="danger"
             icon={Trash2}
             loading={guardando}
+            disabled={guardando || cargandoPlan || (plan?.sinHueco.length ?? 0) > 0}
             onClick={() => void ejecutarPendiente()}
           >
             Eliminar turno
@@ -289,9 +364,61 @@ export default function Horarios() {
         </>
       }
     >
-      <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
-        Si solo cambiaron las horas o los días, edita el turno en lugar de eliminarlo.
-      </p>
+      <div className="space-y-4">
+        {/* Qué pasará con las citas agendadas */}
+        {cargandoPlan ? (
+          <p className="flex items-center gap-2 rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600" role="status">
+            <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+            Revisando las citas agendadas de este turno…
+          </p>
+        ) : (
+          plan && <PlanReagendamientoVista plan={plan} modo="previo" />
+        )}
+
+        <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
+          Si solo cambiaron las horas o los días, edita el turno en lugar de eliminarlo.
+        </p>
+      </div>
+    </Modal>
+  ) : null;
+
+  /** Confirmación de la edición cuando el cambio movería citas */
+  const modalEdicion = edicionPendiente ? (
+    <Modal
+      titulo="El cambio moverá citas agendadas"
+      descripcion="Este turno tiene citas que quedarían fuera del nuevo horario. Revisa dónde se reubicarían antes de aplicar."
+      icono={CalendarClock}
+      onCerrar={() => {
+        setEdicionPendiente(null);
+        setPlan(null);
+      }}
+      acciones={
+        <>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setEdicionPendiente(null);
+              setPlan(null);
+            }}
+            disabled={guardando}
+          >
+            Volver a editar
+          </Button>
+          <Button
+            icon={Save}
+            loading={guardando}
+            disabled={guardando || (plan?.sinHueco.length ?? 0) > 0}
+            onClick={() => {
+              setGuardando(true);
+              void aplicarEdicion(edicionPendiente).finally(() => setGuardando(false));
+            }}
+          >
+            Aplicar y mover citas
+          </Button>
+        </>
+      }
+    >
+      {plan && <PlanReagendamientoVista plan={plan} modo="previo" />}
     </Modal>
   ) : null;
 
@@ -323,6 +450,7 @@ export default function Horarios() {
           }
         />
         {modalBorrado}
+        {modalEdicion}
         {modalResultado}
       </>
     );
@@ -800,6 +928,9 @@ export default function Horarios() {
 
       {/* Confirmación de borrado del turno */}
       {modalBorrado}
+
+      {/* Confirmación de la edición cuando el cambio movería citas */}
+      {modalEdicion}
 
       {/* Confirmación visible de la última acción */}
       {modalResultado}

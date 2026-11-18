@@ -160,20 +160,78 @@ export interface DatosActualizarTurno extends IdentidadTurno {
   dias: number[];
 }
 
-/** Edita un turno completo (todos sus días) en una sola transacción */
-export function actualizarTurno(datos: DatosActualizarTurno): Promise<Horario[]> {
-  return apiFetch<{ datos: Horario[] }>('/horarios/turno', {
+/* ============================================================
+   REAGENDAMIENTO AUTOMÁTICO · el efecto de un cambio de horario
+
+   Al borrar o editar un turno, el servidor reubica las citas que
+   quedan fuera del horario resultante en el primer hueco libre del
+   mismo especialista (y las deja en Pendiente). Si alguna no tiene
+   a dónde ir, el cambio no se aplica.
+   ============================================================ */
+
+/** Una cita que el sistema movería a otro día u hora */
+export interface MovimientoCita {
+  citaId: number;
+  paciente: string;
+  numeroControl: string;
+  motivo: string;
+  fechaAnterior: string;
+  horaAnterior: string;
+  fechaNueva: string;
+  horaNueva: string;
+}
+
+/** Una cita que quedaría sin hueco disponible: impide aplicar el cambio */
+export interface CitaSinHueco {
+  citaId: number;
+  paciente: string;
+  numeroControl: string;
+  motivo: string;
+  fecha: string;
+  hora: string;
+}
+
+export interface PlanReagendamiento {
+  movimientos: MovimientoCita[];
+  sinHueco: CitaSinHueco[];
+}
+
+/** Operación de horario cuyo efecto se quiere prever */
+export type OperacionHorario =
+  | ({ operacion: 'eliminarTurno' } & IdentidadTurno)
+  | ({ operacion: 'actualizarTurno' } & DatosActualizarTurno)
+  | { operacion: 'eliminarHorario'; id: number };
+
+/**
+ * Qué haría un cambio de horario sobre las citas, **sin aplicarlo**: el
+ * servidor simula el cambio y lo revierte. Es el plan que se muestra antes
+ * de confirmar.
+ */
+export function planReagendamiento(operacion: OperacionHorario): Promise<PlanReagendamiento> {
+  return apiFetch<{ datos: PlanReagendamiento }>('/horarios/plan-reagendamiento', {
+    method: 'POST',
+    body: JSON.stringify(operacion),
+  }).then((r) => r.datos);
+}
+
+/** Edita un turno completo (todos sus días) y reubica las citas afectadas */
+export function actualizarTurno(
+  datos: DatosActualizarTurno,
+): Promise<{ horarios: Horario[]; plan: PlanReagendamiento }> {
+  return apiFetch<{ datos: { horarios: Horario[]; plan: PlanReagendamiento } }>('/horarios/turno', {
     method: 'PUT',
     body: JSON.stringify(datos),
   }).then((r) => r.datos);
 }
 
-/** Elimina un turno completo (todos sus días) en una sola transacción */
-export function eliminarTurno(datos: IdentidadTurno): Promise<void> {
-  return apiFetch<unknown>('/horarios/turno', {
+/** Elimina un turno completo (todos sus días) y reubica las citas afectadas */
+export function eliminarTurno(
+  datos: IdentidadTurno,
+): Promise<{ horarios: Horario[]; plan: PlanReagendamiento }> {
+  return apiFetch<{ datos: { horarios: Horario[]; plan: PlanReagendamiento } }>('/horarios/turno', {
     method: 'DELETE',
     body: JSON.stringify(datos),
-  }).then(() => undefined);
+  }).then((r) => r.datos);
 }
 
 /** Días en lenguaje natural: "lunes, martes y miércoles" */

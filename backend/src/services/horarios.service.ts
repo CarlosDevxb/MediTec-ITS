@@ -1,5 +1,6 @@
+import type { PoolConnection } from 'mysql2/promise';
 import pool from '../db/pool';
-import { errorConflicto, errorNoEncontrado } from '../utils/erroresHttp';
+import { errorConflicto, errorNoEncontrado, errorValidacion } from '../utils/erroresHttp';
 import {
   NOMBRES_DIA,
   type DatosHorarios,
@@ -8,6 +9,7 @@ import {
   type DatosEliminarTurno,
 } from '../validaciones/horarios.validacion';
 import { asegurarPersonalActivo } from './personal.service';
+import { reagendarHuerfanas, type PlanReagendamiento } from './citas.service';
 
 /**
  * Capa de datos de los horarios del personal (tabla `horarios`).
@@ -168,12 +170,22 @@ export async function actualizarHorario(id: number, datos: DatosHorario): Promis
 }
 
 /** Elimina un turno del calendario */
-export async function eliminarHorario(id: number): Promise<Horario> {
+export async function eliminarHorario(
+  id: number,
+  opciones?: { simulacion?: boolean },
+): Promise<{ horario: Horario; plan: PlanReagendamiento }> {
   const actual = await buscarHorario(id);
   if (!actual) throw errorNoEncontrado('El turno no existe.');
 
-  await pool.query('DELETE FROM horarios WHERE id_horario = ?', [id]);
-  return actual;
+  const plan = await ejecutarCambioConPlan(
+    actual.personalMedicoId,
+    async (conexion) => {
+      await conexion.query('DELETE FROM horarios WHERE id_horario = ?', [id]);
+    },
+    opciones,
+  );
+
+  return { horario: actual, plan };
 }
 
 /**
@@ -234,7 +246,39 @@ async function buscarTurno(
  * nuevas si el turno se movió. Así la edición de un bloque es atómica: o se
  * aplica entera o no se aplica nada.
  */
-export async function actualizarTurno(datos: DatosActualizarTurno): Promise<Horario[]> {
+/**
+ * Ejecuta un cambio de horario dentro de una transacción y reubica las citas
+ * que quedan fuera del horario resultante.
+ *
+ * Si `simulacion` es verdadero, el cambio se aplica y se revierte: sirve para
+ * calcular el plan que se muestra antes de confirmar, y garantiza que el plan
+ * sea exactamente lo que haría el cambio real.
+ */
+async function ejecutarCambioConPlan(
+  personalMedicoId: number,
+  aplicarCambio: (conexion: PoolConnection) => Promise<void>,
+  { simulacion = false }: { simulacion?: boolean } = {},
+): Promise<PlanReagendamiento> {
+  const conexion = await pool.getConnection();
+  try {
+    await conexion.beginTransaction();
+    await aplicarCambio(conexion);
+    const plan = await reagendarHuerfanas(conexion, personalMedicoId);
+    if (simulacion) await conexion.rollback();
+    else await conexion.commit();
+    return plan;
+  } catch (error) {
+    await conexion.rollback();
+    throw error;
+  } finally {
+    conexion.release();
+  }
+}
+
+export async function actualizarTurno(
+  datos: DatosActualizarTurno,
+  opciones?: { simulacion?: boolean },
+): Promise<{ horarios: Horario[]; plan: PlanReagendamiento }> {
   await asegurarPersonalActivo(datos.personalMedicoId);
 
   const actuales = await buscarTurno(datos.personalMedicoId, datos.horaInicio, datos.horaFin);
@@ -252,42 +296,89 @@ export async function actualizarTurno(datos: DatosActualizarTurno): Promise<Hora
     );
   }
 
-  const conexion = await pool.getConnection();
-  try {
-    await conexion.beginTransaction();
-    await conexion.query(
-      `DELETE FROM horarios
-        WHERE personal_medico_id_personal_medico = ?
-          AND hora_inicio = ? AND hora_fin = ?`,
-      [datos.personalMedicoId, datos.horaInicio, datos.horaFin],
-    );
-    for (const dia of datos.dias) {
+  const plan = await ejecutarCambioConPlan(
+    datos.personalMedicoId,
+    async (conexion) => {
       await conexion.query(
-        'INSERT INTO horarios (personal_medico_id_personal_medico, dia_semana, hora_inicio, hora_fin) VALUES (?, ?, ?, ?)',
-        [datos.personalMedicoId, dia, datos.nuevaHoraInicio, datos.nuevaHoraFin],
+        `DELETE FROM horarios
+          WHERE personal_medico_id_personal_medico = ?
+            AND hora_inicio = ? AND hora_fin = ?`,
+        [datos.personalMedicoId, datos.horaInicio, datos.horaFin],
       );
-    }
-    await conexion.commit();
-  } catch (error) {
-    await conexion.rollback();
-    throw error;
-  } finally {
-    conexion.release();
-  }
+      for (const dia of datos.dias) {
+        await conexion.query(
+          'INSERT INTO horarios (personal_medico_id_personal_medico, dia_semana, hora_inicio, hora_fin) VALUES (?, ?, ?, ?)',
+          [datos.personalMedicoId, dia, datos.nuevaHoraInicio, datos.nuevaHoraFin],
+        );
+      }
+    },
+    opciones,
+  );
 
-  return buscarTurno(datos.personalMedicoId, datos.nuevaHoraInicio, datos.nuevaHoraFin);
+  return {
+    horarios: await buscarTurno(datos.personalMedicoId, datos.nuevaHoraInicio, datos.nuevaHoraFin),
+    plan,
+  };
 }
 
-/** Elimina un turno completo (todos sus días) de una sola vez */
-export async function eliminarTurno(datos: DatosEliminarTurno): Promise<Horario[]> {
+/**
+ * Elimina un turno completo (todos sus días) de una sola vez.
+ * Las citas que quedan sin horario se reubican en el primer hueco libre.
+ */
+export async function eliminarTurno(
+  datos: DatosEliminarTurno,
+  opciones?: { simulacion?: boolean },
+): Promise<{ horarios: Horario[]; plan: PlanReagendamiento }> {
   const actuales = await buscarTurno(datos.personalMedicoId, datos.horaInicio, datos.horaFin);
   if (actuales.length === 0) throw errorNoEncontrado('El turno no existe.');
 
-  await pool.query(
-    `DELETE FROM horarios
-      WHERE personal_medico_id_personal_medico = ?
-        AND hora_inicio = ? AND hora_fin = ?`,
-    [datos.personalMedicoId, datos.horaInicio, datos.horaFin],
+  const plan = await ejecutarCambioConPlan(
+    datos.personalMedicoId,
+    async (conexion) => {
+      await conexion.query(
+        `DELETE FROM horarios
+          WHERE personal_medico_id_personal_medico = ?
+            AND hora_inicio = ? AND hora_fin = ?`,
+        [datos.personalMedicoId, datos.horaInicio, datos.horaFin],
+      );
+    },
+    opciones,
   );
-  return actuales;
+
+  return { horarios: actuales, plan };
+}
+
+/* ============================================================
+   SIMULACIÓN · plan de reagendamiento antes de confirmar
+
+   Aplica el cambio y lo revierte, así el plan que se muestra es
+   exactamente lo que haría el cambio real (no hay dos versiones
+   del cálculo).
+   ============================================================ */
+
+/** Operación de horario cuyo efecto sobre las citas se quiere prever */
+export type OperacionHorario =
+  | ({ operacion: 'eliminarTurno' } & DatosEliminarTurno)
+  | ({ operacion: 'actualizarTurno' } & DatosActualizarTurno)
+  | { operacion: 'eliminarHorario'; id: number };
+
+export async function simularOperacion(
+  operacion: OperacionHorario,
+): Promise<PlanReagendamiento> {
+  switch (operacion.operacion) {
+    case 'eliminarTurno': {
+      const { plan } = await eliminarTurno(operacion, { simulacion: true });
+      return plan;
+    }
+    case 'actualizarTurno': {
+      const { plan } = await actualizarTurno(operacion, { simulacion: true });
+      return plan;
+    }
+    case 'eliminarHorario': {
+      const { plan } = await eliminarHorario(operacion.id, { simulacion: true });
+      return plan;
+    }
+    default:
+      throw errorValidacion('Operación de horario no reconocida.');
+  }
 }
