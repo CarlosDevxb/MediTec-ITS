@@ -238,7 +238,9 @@ aplica** y el servidor explica qué citas faltan por reagendar. El administrador
 ve el plan antes de confirmar (`POST /api/horarios/plan-reagendamiento`, que
 simula el cambio y lo revierte) en `PlanReagendamientoVista.tsx`; el paciente ve
 el aviso en su portal (`cita.observacion_cambio`, que se limpia al confirmar o
-cancelar la cita). El **tipo de consulta lo determinan el rol y la
+cancelar la cita).
+
+El **tipo de consulta lo determinan el rol y la
 especialidad**: el personal médico captura diagnóstico y tratamiento (todo el
 inventario como insumo); enfermería captura su intervención y no puede usar
 medicamentos especiales (categoría del inventario en `medicamentos.categoria`,
