@@ -429,18 +429,192 @@ export async function reagendarCita(
 /**
  * Horas ocupadas del personal en una fecha (citas no canceladas), para que la
  * interfaz ofrezca solo los horarios libres. No incluye datos de pacientes.
+ *
+ * `excluirCitaId` sirve al reagendar: la cita que se está moviendo no debe
+ * bloquear su propia hora ni su propio día.
  */
 export async function horasOcupadasDe(
   personalMedicoId: number,
   fecha: string,
+  excluirCitaId?: number,
 ): Promise<string[]> {
   await cancelarCitasVencidas();
   const [filas] = await pool.query(
     `SELECT hora FROM cita
-      WHERE personal_medico_id_personal_medico = ? AND fecha = ? AND estatus <> 'Cancelada'`,
-    [personalMedicoId, fecha],
+      WHERE personal_medico_id_personal_medico = ? AND fecha = ? AND estatus <> 'Cancelada'
+        AND id_cita <> ?`,
+    [personalMedicoId, fecha, excluirCitaId ?? 0],
   );
   return (filas as Array<Record<string, unknown>>).map((fila) => horaCorta(fila['hora']));
+}
+
+/* ============================================================
+   DISPONIBILIDAD · generación de las horas que se pueden elegir
+
+   Aquí vive la única versión de las reglas de la agenda (sesión de
+   30 min con 30 de respiro, dentro del turno y sin pasadas). La
+   interfaz solo pinta lo que devuelve este servicio: no recalcula.
+   ============================================================ */
+
+/** Un hueco de la rejilla del día */
+export interface SlotDisponibilidad {
+  /** Inicio del hueco, 'HH:mm' */
+  hora: string;
+  /** Si se puede elegir para una cita */
+  disponible: boolean;
+  /** Por qué no se puede elegir, o 'libre' */
+  motivo: 'libre' | 'ocupada' | 'pasada';
+}
+
+export interface DisponibilidadDia {
+  fecha: string;
+  personalMedicoId: number;
+  /** `false` cuando el personal no tiene turno ese día */
+  tieneHorario: boolean;
+  /**
+   * Rejilla del día: un hueco por cada ${DURACION_CITA} minutos dentro de los
+   * turnos del personal. Vacía si no hay turno.
+   */
+  slots: SlotDisponibilidad[];
+  /** Horas con cita no cancelada (compatibilidad; sin datos de pacientes) */
+  horasOcupadas: string[];
+}
+
+export interface DiaDisponible {
+  fecha: string;
+  /** Cuántos huecos libres quedan ese día (mínimo 1: solo entran días útiles) */
+  horasLibres: number;
+}
+
+/** Rango máximo que se puede consultar de una vez (2 meses) */
+const MAXIMO_DIAS_CONSULTA = 62;
+
+/** Turnos del personal en un día de la semana (1=Lunes … 7=Domingo) */
+async function turnosDeDia(personalMedicoId: number, dia: number) {
+  const [filas] = await pool.query(
+    `SELECT hora_inicio, hora_fin
+       FROM horarios
+      WHERE personal_medico_id_personal_medico = ? AND dia_semana = ?
+      ORDER BY hora_inicio ASC`,
+    [personalMedicoId, dia],
+  );
+  return (filas as Array<Record<string, unknown>>).map((fila) => ({
+    inicio: horaCorta(fila['hora_inicio']),
+    fin: horaCorta(fila['hora_fin']),
+  }));
+}
+
+/**
+ * Genera la rejilla de huecos de un día y marca cuáles se pueden elegir.
+ *
+ * Un hueco es elegible si cabe la sesión completa dentro del turno, si no hay
+ * ninguna cita a menos de `SEPARACION_MINIMA` minutos (la regla simétrica: la
+ * sesión y su respiro) y si todavía no pasó.
+ */
+function generarSlots(
+  turnos: Array<{ inicio: string; fin: string }>,
+  horasOcupadas: string[],
+  fecha: string,
+): SlotDisponibilidad[] {
+  const slots: SlotDisponibilidad[] = [];
+  const ahora = new Date();
+  const minutosAhora = ahora.getHours() * 60 + ahora.getMinutes();
+  const esHoy = fecha === hoyISO();
+  const vistos = new Set<string>();
+
+  for (const turno of turnos) {
+    const fin = aMinutos(turno.fin);
+    // El hueco se ancla al inicio del turno y avanza en pasos de una sesión
+    for (let minuto = aMinutos(turno.inicio); minuto + DURACION_CITA <= fin; minuto += SEPARACION_MINIMA) {
+      const hora = hhmm(minuto);
+      if (vistos.has(hora)) continue;
+      vistos.add(hora);
+
+      const choca = horasOcupadas.some(
+        (ocupada) => Math.abs(aMinutos(ocupada) - minuto) < SEPARACION_MINIMA,
+      );
+      const paso = esHoy && minuto <= minutosAhora;
+
+      slots.push({
+        hora,
+        disponible: !choca && !paso,
+        motivo: choca ? 'ocupada' : paso ? 'pasada' : 'libre',
+      });
+    }
+  }
+
+  return slots.sort((a, b) => a.hora.localeCompare(b.hora));
+}
+
+/**
+ * Disponibilidad de un día: los huecos que se pueden elegir, con el motivo de
+ * los que no. Es lo que dibuja el selector de día y hora de toda la aplicación.
+ */
+export async function disponibilidadDe(
+  personalMedicoId: number,
+  fecha: string,
+  excluirCitaId?: number,
+): Promise<DisponibilidadDia> {
+  await cancelarCitasVencidas();
+
+  const turnos = await turnosDeDia(personalMedicoId, diaDeSemana(fecha));
+  const horasOcupadas = await horasOcupadasDe(personalMedicoId, fecha, excluirCitaId);
+
+  return {
+    fecha,
+    personalMedicoId,
+    tieneHorario: turnos.length > 0,
+    slots: generarSlots(turnos, horasOcupadas, fecha),
+    horasOcupadas,
+  };
+}
+
+/**
+ * Días útiles del personal dentro de un rango: solo los que tienen horario y
+ * al menos un hueco libre. Es la fuente del selector de días.
+ */
+export async function diasDisponibles(
+  personalMedicoId: number,
+  desde: string,
+  hasta: string,
+  excluirCitaId?: number,
+): Promise<DiaDisponible[]> {
+  const dias: DiaDisponible[] = [];
+
+  for (let dia = new Date(`${desde}T12:00:00`); ; dia.setDate(dia.getDate() + 1)) {
+    const fecha = fechaISO(dia);
+    if (fecha > hasta) break;
+
+    const disponibilidad = await disponibilidadDe(personalMedicoId, fecha, excluirCitaId);
+    const horasLibres = disponibilidad.slots.filter((slot) => slot.disponible).length;
+    if (horasLibres > 0) {
+      dias.push({ fecha, horasLibres });
+    }
+  }
+
+  return dias;
+}
+
+/**
+ * Valida el rango de consulta de los días disponibles.
+ * Se hace aquí y no en Zod porque la regla de tope es de negocio.
+ */
+export function asegurarRangoConsultable(desde: string, hasta: string): void {
+  if (desde > hasta) {
+    throw errorValidacion('El rango de fechas no es válido.', [
+      { campo: 'hasta', mensaje: 'La fecha final debe ser igual o posterior a la inicial.' },
+    ]);
+  }
+
+  const inicio = new Date(`${desde}T12:00:00`).getTime();
+  const fin = new Date(`${hasta}T12:00:00`).getTime();
+  const dias = Math.round((fin - inicio) / 86400000) + 1;
+  if (dias > MAXIMO_DIAS_CONSULTA) {
+    throw errorValidacion(
+      `El rango no puede exceder ${MAXIMO_DIAS_CONSULTA} días (se consultó de ${desde} a ${hasta}).`,
+      [{ campo: 'hasta', mensaje: `Consulta como máximo ${MAXIMO_DIAS_CONSULTA} días.` }],
+    );
+  }
 }
 
 /**

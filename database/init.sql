@@ -282,6 +282,12 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`horarios` (
   `hora_fin` TIME NOT NULL,
   PRIMARY KEY (`id_horario`),
   INDEX `personal_medico_id_personal_medico` (`personal_medico_id_personal_medico` ASC),
+  -- Un turno no se repite: misma persona, mismo día y mismo rango.
+  -- Es la red de seguridad que duplica la validación de la aplicación
+  -- (`horarios.service.ts`). No se usa CHECK para que el script siga
+  -- corriendo en versiones ligeras de MySQL/MariaDB que no lo soportan;
+  -- que `hora_fin` sea posterior a `hora_inicio` lo garantiza el servicio.
+  UNIQUE INDEX `turno_unico` (`personal_medico_id_personal_medico`, `dia_semana`, `hora_inicio`, `hora_fin`),
   CONSTRAINT `horarios_ibfk_1`
     FOREIGN KEY (`personal_medico_id_personal_medico`) REFERENCES `meditec_its`.`personal_medico` (`id_personal_medico`)
     ON DELETE CASCADE ON UPDATE CASCADE)

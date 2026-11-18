@@ -188,8 +188,17 @@ consulta a su cita); reagendar, confirmar y cancelar aplican a las citas por
 venir. **Reagendar** (`atencion/ReagendarCita.tsx`, `PUT /api/citas/:id`)
 cambia fecha y hora respetando las reglas de la agenda; quien no es el propio
 especialista deja la cita en **Pendiente** para que vuelva a confirmarse. La
-disponibilidad se consulta con `GET /api/citas/disponibilidad` (horas ocupadas
-del personal en una fecha, sin datos de pacientes).
+disponibilidad se consulta con `GET /api/citas/disponibilidad` (rejilla de
+huecos del día con el motivo de los que no se pueden elegir) y
+`GET /api/citas/disponibilidad/dias` (días útiles de un rango); ambas aceptan
+`excluirCitaId` al reagendar y **no incluyen datos de pacientes**.
+
+**Selección de día y hora** (`atencion/SelectorCita.tsx`, usado por las cuatro
+agendas y por reagendar): chips de día **solo de los días que sí sirven** (con
+horario y al menos una hora libre), agrupados por semana con navegación « »;
+debajo, rejilla de horas donde se ven los huecos libres, los ocupados y los ya
+pasados. La disponibilidad **la calcula el servidor**: la interfaz solo dibuja
+lo que recibe y no reimplementa las reglas.
 
 Portal del paciente (`/paciente`, rol Paciente): **Inicio** (saludo, próximas
 citas y accesos), **Mis citas** (agenda con Odontología y Nutrición respetando

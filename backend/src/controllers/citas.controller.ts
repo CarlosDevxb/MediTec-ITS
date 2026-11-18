@@ -81,8 +81,11 @@ export async function reagendar(req: Request, res: Response, next: NextFunction)
 
 /**
  * GET /api/citas/disponibilidad?personalMedicoId=N&fecha=AAAA-MM-DD
- * Horas ocupadas del personal en esa fecha (sin datos de pacientes), para
- * ofrecer en la interfaz solo los horarios libres al agendar o reagendar.
+ *
+ * Devuelve los huecos del día con el motivo de los que no se pueden elegir
+ * (ocupada o pasada). Es la única fuente de la disponibilidad: la interfaz
+ * dibuja estos slots y no recalcula las reglas. Nunca incluye datos de
+ * pacientes.
  */
 export async function disponibilidad(req: Request, res: Response, next: NextFunction) {
   try {
@@ -91,13 +94,63 @@ export async function disponibilidad(req: Request, res: Response, next: NextFunc
     if (!Number.isInteger(personalMedicoId) || personalMedicoId <= 0) {
       throw errorValidacion('Indica al profesional de la salud.');
     }
-    if (!fecha) throw errorValidacion('Indica la fecha.');
+    if (!esFecha(fecha)) throw errorValidacion('Indica la fecha.');
 
-    const horasOcupadas = await servicio.horasOcupadasDe(personalMedicoId, fecha);
-    res.json({ datos: { fecha, personalMedicoId, horasOcupadas } });
+    const datos = await servicio.disponibilidadDe(
+      personalMedicoId,
+      fecha as string,
+      excluirCitaIdDe(req),
+    );
+    res.json({ datos });
   } catch (error) {
     next(error);
   }
+}
+
+/**
+ * GET /api/citas/disponibilidad/dias?personalMedicoId=N&desde=&hasta=
+ *
+ * Días útiles del personal en un rango: los que tienen horario y al menos un
+ * hueco libre, con el número de horas disponibles de cada uno.
+ */
+export async function diasDisponibles(req: Request, res: Response, next: NextFunction) {
+  try {
+    const personalMedicoId = Number(req.query['personalMedicoId'] ?? 0);
+    const desde = textoDe(req.query['desde'] as string | undefined);
+    const hasta = textoDe(req.query['hasta'] as string | undefined);
+
+    if (!Number.isInteger(personalMedicoId) || personalMedicoId <= 0) {
+      throw errorValidacion('Indica al profesional de la salud.');
+    }
+    if (!esFecha(desde) || !esFecha(hasta)) {
+      throw errorValidacion('Indica el rango de fechas.');
+    }
+    servicio.asegurarRangoConsultable(desde as string, hasta as string);
+
+    const dias = await servicio.diasDisponibles(
+      personalMedicoId,
+      desde as string,
+      hasta as string,
+      excluirCitaIdDe(req),
+    );
+    res.json({ datos: { personalMedicoId, desde, hasta, dias } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Cita a ignorar en el cálculo de disponibilidad (al reagendar): se pasa como
+ * `excluirCitaId` y solo se acepta si es un entero positivo.
+ */
+function excluirCitaIdDe(req: Request): number | undefined {
+  const valor = Number(req.query['excluirCitaId'] ?? 0);
+  return Number.isInteger(valor) && valor > 0 ? valor : undefined;
+}
+
+/** ¿La cadena es una fecha real en formato AAAA-MM-DD? */
+function esFecha(valor: string | undefined): boolean {
+  return Boolean(valor && /^\d{4}-\d{2}-\d{2}$/.test(valor));
 }
 
 /** PATCH /api/citas/:id/estatus */

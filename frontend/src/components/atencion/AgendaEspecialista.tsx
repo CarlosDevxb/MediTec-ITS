@@ -29,16 +29,12 @@ import {
   cambiarEstatusCita,
   hoyISO,
   fechaCorta,
-  diaDeSemana,
-  rangosDeDia,
-  horasDisponiblesPara,
-  diasDisponiblesPara,
-  SEPARACION_MINIMA,
   type Cita,
   type ExpedientePaciente,
 } from '../../services/atencion.service';
-import { listarHorarios, nombreDeDia, type Horario } from '../../services/operacion.service';
+
 import SelectorPaciente from './SelectorPaciente';
+import SelectorCita from './SelectorCita';
 
 /* ============================================================
    AGENDA (NUTRICIÓN) · Citas de la nutrióloga con sus reglas:
@@ -57,7 +53,7 @@ export default function AgendaEspecialista({ onAtender }: AgendaEspecialistaProp
   const [citas, setCitas] = useState<Cita[]>([]);
   /** Ficha de personal de la nutrióloga en sesión */
   const [personalMedicoId, setPersonalMedicoId] = useState<number | null>(null);
-  const [horarios, setHorarios] = useState<Horario[]>([]);
+
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -83,16 +79,12 @@ export default function AgendaEspecialista({ onAtender }: AgendaEspecialistaProp
     setCargando(true);
     setError('');
     try {
-      const [perfil, lista, listaHorarios] = await Promise.all([
+      const [perfil, lista] = await Promise.all([
         obtenerPerfil().catch(() => null),
         listarCitas(),
-        listarHorarios(),
       ]);
       const miFicha = perfil?.personalMedicoId ?? null;
       setPersonalMedicoId(miFicha);
-      setHorarios(
-        miFicha ? listaHorarios.filter((horario) => horario.personalMedicoId === miFicha) : [],
-      );
       setCitas(miFicha ? lista.filter((cita) => cita.personalMedicoId === miFicha) : lista);
     } catch (e) {
       setError(mensajeDeError(e));
@@ -105,59 +97,22 @@ export default function AgendaEspecialista({ onAtender }: AgendaEspecialistaProp
     void cargar();
   }, [cargar]);
 
-  /* ---------- Disponibilidad para la fecha del alta ---------- */
-  const citasDelDia = useMemo(
-    () =>
-      citas.filter(
-        (cita) => cita.fecha === fechaCita && cita.estatus !== 'Cancelada',
-      ),
-    [citas, fechaCita],
-  );
-  const rangos = useMemo(() => rangosDeDia(horarios, fechaCita), [horarios, fechaCita]);
-  // Cada cita dura 30 minutos con 30 de respiro: horas cada 60 min
-  const horasDisponibles = useMemo(
-    () => horasDisponiblesPara(rangos, citasDelDia, fechaCita),
-    [rangos, citasDelDia, fechaCita],
-  );
-  /** Solo se puede elegir fecha en los días con horario de atención */
-  const fechasDisponibles = useMemo(() => diasDisponiblesPara(horarios), [horarios]);
-
-  useEffect(() => {
-    if (horasDisponibles.length > 0 && !horasDisponibles.includes(hora)) {
-      setHora(horasDisponibles[0] ?? '');
-    }
-    if (horasDisponibles.length === 0) setHora('');
-  }, [horasDisponibles, hora]);
-
-  // Si la fecha elegida deja de estar disponible, se selecciona la primera
-  useEffect(() => {
-    if (fechasDisponibles.length > 0 && !fechasDisponibles.includes(fechaCita)) {
-      setFechaCita(fechasDisponibles[0] ?? hoyISO());
-    }
-  }, [fechasDisponibles, fechaCita]);
-
-  /* ---------- Validación en tiempo real del alta ---------- */
+  /* ---------- Validación en tiempo real del alta ----------
+     El día y la hora los garantiza `SelectorCita`: siempre deja una
+     elección válida o avisa de que no hay huecos. Aquí solo se
+     comprueba que haya llegado alguna. */
   const errores = useMemo(() => {
     const calculados: Record<string, string> = {};
     calculados.paciente = paciente ? '' : 'Selecciona un paciente.';
-    calculados.fechaCita = !fechaCita
-      ? 'Indica la fecha de la cita.'
-      : fechaCita < hoyISO()
-        ? 'La fecha no puede ser pasada.'
-        : '';
-    calculados.hora =
-      rangos.length === 0
-        ? 'No tienes horario registrado ese día.'
-        : !horasDisponibles.includes(hora)
-          ? 'Elige una hora disponible (las citas duran 30 min con 30 de respiro).'
-          : '';
+    calculados.fechaCita = !fechaCita ? 'Elige un día disponible.' : '';
+    calculados.hora = !hora ? 'Elige una hora disponible.' : '';
     calculados.motivo = motivo.trim()
       ? motivo.trim().length > 255
         ? 'El motivo no puede exceder 255 caracteres.'
         : ''
       : 'Indica el motivo de la cita.';
     return calculados;
-  }, [paciente, fechaCita, hora, motivo, rangos, horasDisponibles]);
+  }, [paciente, fechaCita, hora, motivo]);
 
   const errorVisible = (campo: string): string | undefined => {
     const propio = errores[campo];
@@ -301,58 +256,6 @@ export default function AgendaEspecialista({ onAtender }: AgendaEspecialistaProp
                   <option value="Emergencia">Emergencia</option>
                 </Select>
               </Field>
-              <Field
-                label="Fecha"
-                error={errorVisible('fechaCita')}
-                hint="Solo días con horario de atención registrado."
-              >
-                <Select
-                  value={fechasDisponibles.includes(fechaCita) ? fechaCita : ''}
-                  onChange={(e) => {
-                    setFechaCita(e.target.value);
-                    marcarTocado('fechaCita');
-                  }}
-                  onBlur={() => marcarTocado('fechaCita')}
-                  aria-invalid={errorVisible('fechaCita') ? true : undefined}
-                >
-                  <option value="">
-                    {fechasDisponibles.length === 0
-                      ? 'Sin días con horario…'
-                      : 'Selecciona un día…'}
-                  </option>
-                  {fechasDisponibles.map((fechaOpcion) => (
-                    <option key={fechaOpcion} value={fechaOpcion}>
-                      {nombreDeDia(diaDeSemana(fechaOpcion))} {fechaCorta(fechaOpcion)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field
-                label="Hora"
-                error={errorVisible('hora')}
-                hint={`Cada ${SEPARACION_MINIMA} minutos (sesión de 30 min + respiro).`}
-              >
-                <Select
-                  value={horasDisponibles.includes(hora) ? hora : ''}
-                  onChange={(e) => {
-                    setHora(e.target.value);
-                    marcarTocado('hora');
-                  }}
-                  onBlur={() => marcarTocado('hora')}
-                  aria-invalid={errorVisible('hora') ? true : undefined}
-                >
-                  <option value="">
-                    {horasDisponibles.length === 0
-                      ? 'Sin horas disponibles…'
-                      : 'Selecciona una hora…'}
-                  </option>
-                  {horasDisponibles.map((horaOpcion) => (
-                    <option key={horaOpcion} value={horaOpcion}>
-                      {horaOpcion}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
               <Field label="Motivo" error={errorVisible('motivo')}>
                 <Input
                   value={motivo}
@@ -368,35 +271,21 @@ export default function AgendaEspecialista({ onAtender }: AgendaEspecialistaProp
               </Field>
             </div>
 
-            {/* Disponibilidad del día elegido */}
-            <div className="mt-4">
-              {rangos.length > 0 ? (
-                <>
-                  <p className="text-sm font-medium text-gray-600 mb-2">Tu horario de ese día:</p>
-                  <ul className="flex flex-wrap gap-2">
-                    {rangos.map((rango) => (
-                      <li key={`${rango.inicio}-${rango.fin}`}>
-                        <Badge status="confirmed">
-                          {rango.inicio} – {rango.fin}
-                        </Badge>
-                      </li>
-                    ))}
-                    {citasDelDia.length > 0 && (
-                      <li>
-                        <Badge status="pending">{citasDelDia.length} cita(s) ocupada(s)</Badge>
-                      </li>
-                    )}
-                  </ul>
-                </>
-              ) : (
-                <p
-                  role="alert"
-                  className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800"
-                >
-                  No tienes horario registrado para ese día. Regístralo desde la sección Horarios
-                  del panel de administración.
-                </p>
-              )}
+            {/* Elección de día y hora: solo días útiles y huecos visibles */}
+            <div className="mt-5">
+              <SelectorCita
+                personalMedicoId={personalMedicoId}
+                fecha={fechaCita}
+                hora={hora}
+                onFechaChange={(nueva) => {
+                  setFechaCita(nueva);
+                  marcarTocado('fechaCita');
+                }}
+                onHoraChange={(nueva) => {
+                  setHora(nueva);
+                  marcarTocado('hora');
+                }}
+              />
             </div>
 
             {(errorGeneral || hayErrores) && (
