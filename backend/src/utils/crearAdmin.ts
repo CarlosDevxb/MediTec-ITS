@@ -1,6 +1,7 @@
 import pool from '../db/pool';
 import { hashearContrasena, generarContrasenaTemporal } from './contrasenas';
 import { ROLES_BASE } from '../config/roles';
+import { accionesDe, type Perfil } from '../config/permisos';
 
 /* ============================================================
    UTILIDAD · crearAdmin.ts
@@ -61,6 +62,7 @@ async function asegurarRoles(): Promise<Map<string, number>> {
 
     if (existente) {
       ids.set(rol.nombre, Number(existente.id_rol));
+      await asegurarPermisos(Number(existente.id_rol), rol.perfil);
       continue;
     }
 
@@ -68,11 +70,26 @@ async function asegurarRoles(): Promise<Map<string, number>> {
       'INSERT INTO roles (nombre, descripcion, perfil) VALUES (?, ?, ?)',
       [rol.nombre, rol.descripcion, rol.perfil]
     );
-    ids.set(rol.nombre, Number((resultado as { insertId: number }).insertId));
+    const rolId = Number((resultado as { insertId: number }).insertId);
+    ids.set(rol.nombre, rolId);
     console.log(`[crearAdmin] Rol creado: ${rol.nombre} (perfil ${rol.perfil})`);
+    await asegurarPermisos(rolId, rol.perfil);
   }
 
   return ids;
+}
+
+/**
+ * Siembra los permisos completos del perfil para un rol base (idempotente):
+ * los roles del sistema conservan siempre su juego completo de acciones.
+ */
+async function asegurarPermisos(rolId: number, perfil: Perfil): Promise<void> {
+  for (const accion of accionesDe(perfil)) {
+    await pool.query('INSERT IGNORE INTO rol_permisos (roles_id_rol, accion) VALUES (?, ?)', [
+      rolId,
+      accion.id,
+    ]);
+  }
 }
 
 /** Siembra los tipos de paciente mínimos del catálogo (idempotente) */

@@ -1,18 +1,20 @@
 /**
- * Permisos del sistema por perfil de rol.
+ * Permisos del sistema por panel de rol.
  *
  * Un rol declara un **perfil base** (Administrador, Personal médico,
- * Enfermería o Paciente): de él hereda su panel y todas las acciones de esta
- * lista. Sobre esa herencia, el rol puede llevar **restricciones** puntuales
- * (tabla `rol_restricciones`): acciones que NO hereda. Un rol sin
- * restricciones puede exactamente lo mismo que su perfil.
+ * Enfermería o Paciente) que define su panel y su identidad clínica, y
+ * elige de forma **explícita** las acciones que SÍ puede realizar (tabla
+ * `rol_permisos`): no hay herencia. Un rol sin permisos no puede hacer nada
+ * fuera de su cuenta (inicio y configuración propia).
  *
- * Esta lista es la fuente de verdad: el servidor exige cada acción en sus
- * endpoints sensibles (middleware `requerirAccion`) y la interfaz oculta las
- * secciones que la restricción desactiva.
+ * Cada acción pertenece a uno o varios perfiles: eso indica en qué panel
+ * vive su interfaz y valida que el rol no tenga permisos sin pantalla donde
+ * ejercerlos. Esta lista es la fuente de verdad: el servidor exige cada
+ * acción en sus endpoints sensibles (middleware `requerirAccion`) y la
+ * interfaz solo monta las secciones concedidas.
  */
 
-/** Perfiles base: definen el panel y el conjunto de acciones heredables */
+/** Perfiles base: definen el panel, la identidad clínica y el alcance de las acciones */
 export const PERFILES = [
   'Administrador',
   'Personal médico',
@@ -22,19 +24,19 @@ export const PERFILES = [
 
 export type Perfil = (typeof PERFILES)[number];
 
-/** Acción restringible: una capacidad concreta del sistema */
+/** Acción con permiso propio: una capacidad concreta del sistema */
 export interface AccionPermiso {
-  /** Clave que se guarda en `rol_restricciones.accion` */
+  /** Clave que se guarda en `rol_permisos.accion` */
   id: string;
   /** Nombre mostrado en la interfaz */
   etiqueta: string;
-  /** Qué pierde el rol al restringirla */
+  /** Qué permite hacer al rol */
   descripcion: string;
-  /** Perfiles que heredan esta acción */
+  /** Perfiles en cuyos paneles vive esta acción */
   perfiles: readonly Perfil[];
 }
 
-/** Catálogo de acciones restringibles (agrupadas por perfil en la interfaz) */
+/** Catálogo de acciones con permiso propio (agrupadas por perfil en la interfaz) */
 export const ACCIONES: readonly AccionPermiso[] = [
   /* ---- Perfil Administrador ---- */
   {
@@ -124,12 +126,12 @@ export function esPerfil(valor: string): valor is Perfil {
   return (PERFILES as readonly string[]).includes(valor);
 }
 
-/** Acciones heredables de un perfil */
+/** Acciones disponibles en un perfil (las que el rol puede tener) */
 export function accionesDe(perfil: Perfil): AccionPermiso[] {
   return ACCIONES.filter((accion) => accion.perfiles.includes(perfil));
 }
 
-/** ¿El perfil hereda esta acción? */
+/** ¿El perfil puede ejercer esta acción? */
 export function elPerfilTieneAccion(perfil: string, accion: string): boolean {
   return esPerfil(perfil) && accionesDe(perfil).some((a) => a.id === accion);
 }

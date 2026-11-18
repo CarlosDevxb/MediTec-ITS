@@ -99,7 +99,14 @@ const COLUMNAS_EXPORTAR = [
 ];
 
 /** Roles que exigen cédula y especialidad (igual que en el alta manual) */
-const ROLES_CON_CEDULA = ['Personal médico', 'Enfermería'];
+/**
+ * Perfiles base que exigen cédula profesional. El criterio es el **perfil del
+ * rol**, no su nombre (mismo criterio que el servidor y el formulario).
+ */
+const PERFILES_CON_CEDULA = ['Personal médico', 'Enfermería'];
+
+/** Perfil que además abre expediente en la tabla `pacientes` */
+const PERFIL_PACIENTE = 'Paciente';
 
 export default function Usuarios() {
   /** Sesión abierta: nunca se actúa sobre la propia cuenta desde aquí */
@@ -297,11 +304,15 @@ export default function Usuarios() {
       avisos.push('Falta el rol.');
     } else if (roles.length > 0 && !roles.some((r) => r.nombre.toLowerCase() === rol.toLowerCase())) {
       avisos.push(`El rol "${rol}" no existe en el sistema.`);
-    } else if (ROLES_CON_CEDULA.some((r) => r.toLowerCase() === rol.toLowerCase())) {
-      if (!texto('cedula')) avisos.push('Falta la cédula (obligatoria para ese rol).');
-      if (!texto('especialidad')) avisos.push('Falta la especialidad (obligatoria para ese rol).');
-    } else if (rol.toLowerCase() === 'paciente' && !texto('tipoPaciente')) {
-      avisos.push('Falta el tipo de paciente (obligatorio para Paciente).');
+    } else {
+      // Lo que exige el rol se decide por su perfil base, no por su nombre
+      const perfil = roles.find((r) => r.nombre.toLowerCase() === rol.toLowerCase())?.perfil ?? '';
+      if (PERFILES_CON_CEDULA.includes(perfil)) {
+        if (!texto('cedula')) avisos.push('Falta la cédula (obligatoria para ese rol).');
+        if (!texto('especialidad')) avisos.push('Falta la especialidad (obligatoria para ese rol).');
+      } else if (perfil === PERFIL_PACIENTE && !texto('tipoPaciente')) {
+        avisos.push('Falta el tipo de paciente (obligatorio para este rol).');
+      }
     }
 
     if (texto('contrasena') && texto('contrasena').length < 8) {

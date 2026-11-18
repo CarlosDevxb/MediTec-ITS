@@ -13,22 +13,22 @@ export interface Rol {
   id: number;
   nombre: string;
   descripcion: string;
-  /** Perfil base heredado (define el panel y los permisos del rol) */
+  /** Perfil base del rol (define el panel y la identidad clínica) */
   perfil: string;
-  /** Acciones que NO hereda del perfil */
-  restricciones: string[];
+  /** Acciones concedidas al rol (permisos explícitos) */
+  permisos: string[];
   /** true para los roles base del sistema (solo se edita su descripción) */
   esBase: boolean;
   /** Cuántas cuentas de usuario tienen este rol */
   usuarios: number;
 }
 
-/** Acción que se puede restringir en un rol (catálogo del servidor) */
+/** Acción con permiso propio (catálogo del servidor) */
 export interface AccionPermiso {
   id: string;
   etiqueta: string;
   descripcion: string;
-  /** Perfiles que heredan esta acción */
+  /** Perfiles en cuyos paneles vive esta acción */
   perfiles: string[];
 }
 
@@ -37,14 +37,14 @@ export interface DatosRol {
   nombre: string;
   descripcion: string;
   perfil: string;
-  restricciones: string[];
+  permisos: string[];
 }
 
 export function listarRoles(): Promise<Rol[]> {
   return apiFetch<{ datos: Rol[] }>('/roles').then((r) => r.datos);
 }
 
-/** Catálogo de acciones restringibles (para el formulario del rol) */
+/** Catálogo de acciones con permiso propio (para el formulario del rol) */
 export function listarAccionesPermisos(): Promise<AccionPermiso[]> {
   return apiFetch<{ datos: AccionPermiso[] }>('/roles/acciones').then((r) => r.datos);
 }

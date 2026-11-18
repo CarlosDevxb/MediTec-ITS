@@ -14,7 +14,7 @@ import PageHeader from '../ui/PageHeader';
 import Button from '../ui/Button';
 import ModalResultado from '../ui/ModalResultado';
 import EmptyState from '../ui/EmptyState';
-import { obtenerSesion, cerrarSesion, inicialesDe, sinAccion } from '../../services/sesion';
+import { obtenerSesion, cerrarSesion, inicialesDe, conAccion } from '../../services/sesion';
 import { useProtegerSesion } from '../../hooks/useProtegerSesion';
 import { obtenerPerfil } from '../../services/auth.service';
 import {
@@ -45,7 +45,7 @@ const MENU_PACIENTE: SidebarSection[] = [
   },
 ];
 
-/** Sección del menú → acción que puede ocultarla (rol con restricciones) */
+/** Sección del menú → permiso que la hace visible (si no lo tiene, se oculta) */
 const ACCION_DE: Record<string, string> = {
   'Mis citas': 'citas',
 };
@@ -70,17 +70,17 @@ export default function PanelPaciente() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
 
-  // Secciones visibles según las restricciones del rol; la vista inicial es
+  // Secciones visibles según los permisos concedidos al rol; la vista inicial es
   // la primera que queda
   const menu = MENU_PACIENTE.map((grupo) => ({
     ...grupo,
-    items: grupo.items.filter((item) => !sinAccion(ACCION_DE[item.label] ?? '')),
+    items: grupo.items.filter((item) => !ACCION_DE[item.label] || conAccion(ACCION_DE[item.label])),
   })).filter((grupo) => grupo.items.length > 0);
 
   const [vista, setVistaBase] = useState(menu[0]?.items[0]?.label ?? 'Inicio');
-  /** Cambia de sección ignorando las que el rol tiene restringidas */
+  /** Cambia de sección ignorando las que el rol no tiene concedidas */
   const setVista = (destino: string) => {
-    if (sinAccion(ACCION_DE[destino] ?? '')) return;
+    if (ACCION_DE[destino] && !conAccion(ACCION_DE[destino])) return;
     setVistaBase(destino);
   };
   /** Confirmación del cuestionario guardado (entrada al portal) */

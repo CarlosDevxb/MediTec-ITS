@@ -12,11 +12,11 @@ import type { AccionPermiso, DatosRol, Rol } from '../../services/administracion
    Conectado a POST/PUT /api/roles
 
    Todo rol declara un **perfil base** (Administrador, Personal
-   médico, Enfermería o Paciente): de él hereda su panel y todos
-   sus permisos. Sobre esa herencia se pueden marcar
-   **restricciones**: acciones concretas que el rol NO podrá
-   realizar. Los roles base del sistema solo se editan en su
-   descripción: son la referencia de permisos.
+   médico, Enfermería o Paciente) que define su panel y su
+   identidad clínica, y elige de forma **explícita** las acciones
+   que SÍ puede realizar (permisos, sin herencia). Los roles base
+   del sistema solo se editan en su descripción: conservan su
+   juego completo de permisos.
    ============================================================ */
 
 /** Perfiles base del sistema (mismo catálogo que backend/src/config/permisos.ts) */
@@ -43,28 +43,28 @@ export default function RolForm({
   const [nombre, setNombre] = useState(rol?.nombre ?? '');
   const [descripcion, setDescripcion] = useState(rol?.descripcion ?? '');
   const [perfil, setPerfil] = useState(rol?.perfil ?? '');
-  const [restricciones, setRestricciones] = useState<string[]>(rol?.restricciones ?? []);
+  const [permisos, setPermisos] = useState<string[]>(rol?.permisos ?? []);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [errorGeneral, setErrorGeneral] = useState('');
 
   /** Los roles base del sistema conservan sus permisos completos */
   const esBase = rol?.esBase ?? false;
 
-  /** Acciones heredables del perfil elegido */
+  /** Acciones disponibles en el perfil elegido */
   const accionesDelPerfil = acciones.filter((accion) => accion.perfiles.includes(perfil));
 
   const cambiarPerfil = (nuevo: string) => {
     setPerfil(nuevo);
-    // Las restricciones que ya no pertenecen al perfil se descartan
+    // Los permisos que ya no pertenecen al perfil se descartan
     const validas = acciones
       .filter((accion) => accion.perfiles.includes(nuevo))
       .map((accion) => accion.id);
-    setRestricciones((prev) => prev.filter((id) => validas.includes(id)));
+    setPermisos((prev) => prev.filter((id) => validas.includes(id)));
   };
 
-  const alternarRestriccion = (id: string) => {
-    setRestricciones((prev) =>
-      prev.includes(id) ? prev.filter((restriccion) => restriccion !== id) : [...prev, id],
+  const alternarPermiso = (id: string) => {
+    setPermisos((prev) =>
+      prev.includes(id) ? prev.filter((permiso) => permiso !== id) : [...prev, id],
     );
   };
 
@@ -87,6 +87,9 @@ export default function RolForm({
     if (!perfil) {
       nuevos.perfil = 'Selecciona el perfil base del rol.';
     }
+    if (!esBase && perfil && permisos.length === 0) {
+      nuevos.permisos = 'Selecciona al menos una acción para el rol.';
+    }
     setErrores(nuevos);
     if (Object.keys(nuevos).length > 0) return;
 
@@ -95,7 +98,7 @@ export default function RolForm({
         nombre: nombre.trim(),
         descripcion: descripcion.trim(),
         perfil,
-        restricciones: esBase ? [] : restricciones,
+        permisos,
       });
       setErrores({});
     } catch (error) {
@@ -168,53 +171,80 @@ export default function RolForm({
           </div>
         </Card>
 
-        {/* Restricciones: acciones que el rol NO hereda del perfil */}
-        <Card title="Acciones a restringir">
+        {/* Permisos: acciones que el rol SÍ puede realizar (sin herencia) */}
+        <Card title="Permisos del rol">
           {esBase ? (
             <p className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-600">
-              "{rol?.nombre}" es un rol del sistema: hereda todos los permisos de su perfil y no
-              acepta restricciones. Su nombre y perfil tampoco se modifican.
+              "{rol?.nombre}" es un rol del sistema: conserva su juego completo de permisos y no
+              se modifica. Su nombre y perfil tampoco cambian.
             </p>
           ) : !perfil ? (
             <p className="flex items-start gap-2.5 rounded-lg bg-brand-50 border border-brand-200 px-4 py-3 text-sm text-brand-800">
               <CircleAlert size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
               Elige primero el perfil base: sus acciones aparecerán aquí para que marques las que
-              este rol no podrá realizar.
+              este rol podrá realizar.
             </p>
           ) : (
             <>
-              <p className="text-sm text-gray-500 mb-4">
-                El rol hereda <strong>todo</strong> lo de su perfil {perfil}. Marca solo las
-                acciones que <strong>no</strong> podrá realizar (quedan bloqueadas en el servidor y
-                ocultas en su panel).
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                <p className="text-sm text-gray-500">
+                  Marca las acciones que este rol <strong>podrá realizar</strong> en el panel de{' '}
+                  {perfil}. Nada se hereda: lo que no marques queda bloqueado en el servidor y
+                  oculto en su panel.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    disabled={guardando}
+                    onClick={() => setPermisos(accionesDelPerfil.map((accion) => accion.id))}
+                  >
+                    Marcar todas
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    disabled={guardando}
+                    onClick={() => setPermisos([])}
+                  >
+                    Quitar todas
+                  </Button>
+                </div>
+              </div>
+              {errores.permisos && (
+                <p className="mb-3 text-xs text-red-600 font-medium" role="alert">
+                  {errores.permisos}
+                </p>
+              )}
               <ul className="space-y-2">
                 {accionesDelPerfil.map((accion) => {
-                  const marcada = restricciones.includes(accion.id);
+                  const marcado = permisos.includes(accion.id);
                   return (
                     <li key={accion.id}>
                       <label
                         className={[
                           'flex items-start gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors',
                           'focus-within:ring-2 focus-within:ring-brand-600/40',
-                          marcada
-                            ? 'border-red-200 bg-red-50'
+                          marcado
+                            ? 'border-brand-300 bg-brand-50/60'
                             : 'border-gray-200 bg-white hover:border-brand-300',
                         ].join(' ')}
                       >
                         <input
                           type="checkbox"
-                          checked={marcada}
-                          onChange={() => alternarRestriccion(accion.id)}
+                          checked={marcado}
+                          onChange={() => alternarPermiso(accion.id)}
                           disabled={guardando}
-                          className="mt-1 h-4 w-4 accent-red-600"
+                          className="mt-1 h-4 w-4 accent-brand-700"
                         />
                         <span>
                           <span className="block text-sm font-semibold text-gray-900">
                             {accion.etiqueta}
-                            {marcada && (
-                              <span className="ml-2 text-xs font-medium text-red-600">
-                                restringida
+                            {marcado && (
+                              <span className="ml-2 text-xs font-medium text-brand-700">
+                                concedida
                               </span>
                             )}
                           </span>

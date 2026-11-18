@@ -16,10 +16,10 @@ export interface UsuarioLogin {
   contrasenaHash: string;
   estatus: number;
   rol: string;
-  /** Perfil base heredado del rol (define panel y permisos) */
+  /** Perfil base del rol (define panel e identidad clínica) */
   perfil: string;
-  /** Acciones que el rol NO hereda de su perfil (restricciones) */
-  restricciones: string[];
+  /** Acciones concedidas al rol (permisos explícitos) */
+  permisos: string[];
   /** Especialidad del personal médico (puede no existir) */
   especialidad: string | null;
 }
@@ -33,8 +33,8 @@ export async function buscarUsuarioPorControl(numeroControl: string): Promise<Us
   const [filas] = await pool.query(
     `SELECT u.*, r.nombre AS rol, r.perfil AS perfil,
             (SELECT GROUP_CONCAT(accion)
-               FROM rol_restricciones rr
-              WHERE rr.roles_id_rol = r.id_rol) AS restricciones,
+               FROM rol_permisos rp
+              WHERE rp.roles_id_rol = r.id_rol) AS permisos,
             pm.especialidad AS especialidad
        FROM usuarios u
        JOIN roles r ON r.id_rol = u.roles_id_rol
@@ -56,8 +56,8 @@ export async function buscarUsuarioPorControl(numeroControl: string): Promise<Us
     estatus: Number(registro.estatus),
     rol: String(registro.rol),
     perfil: String(registro.perfil ?? registro['rol'] ?? ''),
-    restricciones: registro['restricciones']
-      ? String(registro['restricciones']).split(',').filter(Boolean)
+    permisos: registro['permisos']
+      ? String(registro['permisos']).split(',').filter(Boolean)
       : [],
     especialidad:
       registro['especialidad'] != null ? String(registro['especialidad']) : null,

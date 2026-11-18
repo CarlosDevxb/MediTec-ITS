@@ -24,12 +24,12 @@ CREATE TABLE IF NOT EXISTS `meditec_its`.`roles` (
   PRIMARY KEY (`id_rol`))
 ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 
--- Acciones que un rol NO hereda de su perfil (restricciones puntuales)
-CREATE TABLE IF NOT EXISTS `meditec_its`.`rol_restricciones` (
+-- Acciones que un rol SÍ puede realizar (permisos explícitos, sin herencia)
+CREATE TABLE IF NOT EXISTS `meditec_its`.`rol_permisos` (
   `roles_id_rol` INT UNSIGNED NOT NULL,
-  `accion` VARCHAR(50) NOT NULL COMMENT 'Clave de la acción restringida (ver backend/src/config/permisos.ts)',
+  `accion` VARCHAR(50) NOT NULL COMMENT 'Clave de la acción permitida (ver backend/src/config/permisos.ts)',
   PRIMARY KEY (`roles_id_rol`, `accion`),
-  CONSTRAINT `fk_rol_restricciones_rol`
+  CONSTRAINT `fk_rol_permisos_rol`
     FOREIGN KEY (`roles_id_rol`) REFERENCES `meditec_its`.`roles` (`id_rol`)
     ON DELETE CASCADE ON UPDATE CASCADE)
 ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;

@@ -148,14 +148,14 @@ export default function Roles() {
       ),
     },
     {
-      key: 'restricciones',
-      header: 'Restricciones',
+      key: 'permisos',
+      header: 'Permisos',
       className: 'w-40',
       render: (rol) => (
         <span className="text-sm text-gray-700 tabular-nums">
-          {rol.restricciones.length === 0
-            ? 'Sin restricciones'
-            : `${rol.restricciones.length} ${rol.restricciones.length === 1 ? 'acción bloqueada' : 'acciones bloqueadas'}`}
+          {rol.permisos.length === 0
+            ? 'Sin permisos'
+            : `${rol.permisos.length} ${rol.permisos.length === 1 ? 'acción concedida' : 'acciones concedidas'}`}
         </span>
       ),
     },
