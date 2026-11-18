@@ -14,14 +14,14 @@ export const esquemaRol = z.object({
     .max(255, 'La descripción no puede exceder 255 caracteres.')
     .optional()
     .or(z.literal('')),
-  /** Perfil base del que el rol hereda panel y permisos */
+  /** Perfil base del rol (define el panel y la identidad clínica) */
   perfil: z.enum(PERFILES, { error: 'Selecciona un perfil base para el rol.' }),
-  /** Acciones que el rol NO hereda del perfil (ver config/permisos.ts) */
-  restricciones: z
+  /** Acciones concedidas al rol (permisos explícitos, ver config/permisos.ts) */
+  permisos: z
     .array(z.string().trim().min(1).max(50), {
-      error: 'Las restricciones deben ser una lista de acciones.',
+      error: 'Los permisos deben ser una lista de acciones.',
     })
-    .max(20, 'Un rol no puede tener más de 20 restricciones.')
+    .max(20, 'Un rol no puede tener más de 20 permisos.')
     .refine((lista) => new Set(lista).size === lista.length, 'Una acción no puede repetirse.')
     .default([]),
 });

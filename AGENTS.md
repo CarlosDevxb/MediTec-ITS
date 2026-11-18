@@ -74,17 +74,23 @@ git push -u origin fix/<tema>
    Componentes disponibles: `Button`, `Card`, `DataTable<T>`, `Badge`, `Input` (+ `Field`,
    `Textarea`, `Select`, `PasswordInput`), `PageHeader`, `StatCard`, `EmptyState`,
    `IconButton`, `Aviso`/`useAviso`, `Modal`, `ModalResultado` y `EstadoVista`.
-5. **Cumple `ESPECIFICACIONES.md`**: toda acción confirma su resultado (aviso o modal)
+5. **Las reglas por rol se deciden por su PERFIL BASE, nunca por su nombre.**
+   Los roles se crean sobre un perfil (Administrador, Personal médico, Enfermería
+   o Paciente) y heredan su comportamiento: un rol llamado "Estudiante externo"
+   con perfil Paciente **sí** abre expediente y **sí** pide tipo de paciente.
+   Coincide con `backend/src/config/roles.ts` (`esRolPaciente`, `requiereCedula`,
+   `esDeEnfermeria`). Comparar por nombre rompe los roles creados por el usuario.
+6. **Cumple `ESPECIFICACIONES.md`**: toda acción confirma su resultado (aviso o modal)
    y ninguna vista aparece de golpe (animación `entrada` / `entrada-modal`).
-6. **Accesibilidad obligatoria**: foco visible, estados con texto además de color,
+7. **Accesibilidad obligatoria**: foco visible, estados con texto además de color,
    `label` en todo campo.
-7. **Sin datos personales reales** en código, pruebas ni commits; sin credenciales
+8. **Sin datos personales reales** en código, pruebas ni commits; sin credenciales
    reales en el repositorio.
-8. **No rompas el login**: sus mensajes genéricos y el orden de validación son
+9. **No rompas el login**: sus mensajes genéricos y el orden de validación son
    deliberados (ver `seguridad-clinica`).
-9. Verifica tu trabajo: `cd backend && npm run typecheck` y compila la pantalla
+10. Verifica tu trabajo: `cd backend && npm run typecheck` y compila la pantalla
    afectada.
-10. **La BD debe ser portable**: identificadores en **ASCII** (sin ñ ni acentos
+11. **La BD debe ser portable**: identificadores en **ASCII** (sin ñ ni acentos
     en nombres de columnas) y sin directivas `VISIBLE` en `init.sql`; el script
     debe correr también en MariaDB o MySQL ligeros. Los valores (ENUM, textos)
     sí van en español y con acentos.
@@ -120,11 +126,12 @@ misma transacción (`utils/alergias.ts`, mismo criterio en
 `frontend/src/services/atencion.service.ts`; la comparación es por nombre
 normalizado, así que no detecta sinónimos como paracetamol/acetaminofén). La
 **enfermería es un rol**, no una especialidad del personal médico: su
-especialidad es fija y no se ofrece al dar de alta personal. Los roles heredan
-un **perfil base** (Administrador, Personal médico, Enfermería o Paciente):
-reciben su panel y sus permisos y pueden llevar **restricciones** de acciones
-(catálogo en `backend/src/config/permisos.ts`, tabla `rol_restricciones`); los
-roles base del sistema solo admiten editar su descripción.
+especialidad es fija y no se ofrece al dar de alta personal. Cada rol declara
+su **perfil base** (Administrador, Personal médico, Enfermería o Paciente:
+define su panel y su identidad clínica) y elige de forma **explícita** las
+acciones que sí puede realizar (catálogo en `backend/src/config/permisos.ts`,
+tabla `rol_permisos`, sin herencia); los roles base del sistema conservan su
+juego completo y solo admiten editar su descripción.
 
 **Paneles por rol:** `/doctor` (Personal médico) y `/enfermeria` (Enfermería;
 Recepción entra aquí de forma provisional). Los componentes clínicos

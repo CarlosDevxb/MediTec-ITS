@@ -44,7 +44,7 @@ Arquitectura **rutas → controladores → servicios** (el SQL solo vive en
 | Módulo | Endpoints | Notas |
 |---|---|---|
 | auth | `POST /login`, `GET/PATCH /auth/perfil` | Login con mensajes genéricos; perfil propio (teléfono/contraseña; el correo no se cambia) |
-| roles | CRUD + `GET /roles/acciones` | Cada rol hereda un **perfil base** (Administrador, Personal médico, Enfermería o Paciente: define su panel y sus permisos) y puede llevar **restricciones** de acciones (`rol_restricciones`); los roles base del sistema solo admiten editar su descripción |
+| roles | CRUD + `GET /roles/acciones` | Cada rol declara un **perfil base** (Administrador, Personal médico, Enfermería o Paciente: define su panel y su identidad clínica) y elige de forma **explícita** las acciones que sí puede realizar (`rol_permisos`, sin herencia); los roles base del sistema conservan su juego completo y solo admiten editar su descripción |
 | usuarios · catálogos | CRUD | Incluye `POST /usuarios/importar` (Excel) y `PATCH /usuarios/:id/contrasena` (restablecer) |
 | horarios | CRUD + `GET` | L-V, sin duplicados exactos; alta múltiple y **turno completo** (`PUT/DELETE /horarios/turno`: todos sus días en una transacción); lectura abierta al personal y al paciente (disponibilidad) |
 | medicamentos | `GET/POST/PUT` + `POST /importar` | Sin DELETE: stock 0 = agotado (no disponible para consultas) |
@@ -160,11 +160,13 @@ por lo que puede recrearse sin más que dejar correr el script.
 - **Pruebas automatizadas** (hoy la verificación es manual + typecheck + build).
 - **Migraciones de esquema**: los cambios se aplican con `ALTER` documentados y
   `init.sql` actualizado; para producción conviene un sistema de migraciones.
-  Últimos cambios (para BD ya creadas): `ALTER TABLE roles ADD COLUMN perfil
-  ENUM('Administrador','Personal médico','Enfermería','Paciente') NOT NULL
-  DEFAULT 'Paciente'` + `UPDATE` de los roles base a su perfil, y `CREATE TABLE
-  rol_restricciones` (clave compuesta `roles_id_rol` + `accion`, borrado en
-  cascada).
+  Los scripts viven en `database/migraciones/` (uno por cambio, con la fecha en
+  el nombre; se ejecutan una sola vez y con `SET NAMES utf8mb4`) y las BD
+  nuevas solo necesitan `init.sql`. Migraciones vigentes, en orden:
+  `2026-11_roles-perfil-y-restricciones.sql` (`roles.perfil` + tabla
+  `rol_restricciones`) y `2026-11_permisos-explicitos.sql` (crea
+  `rol_permisos`, convierte los roles existentes con permisos explícitos y
+  elimina `rol_restricciones`).
 - **Endurecimiento del despliegue**: el servidor ya corre la app (despliegues
   automáticos), pero faltan HTTPS, secretos de producción, backups de
   `mysql_data`, aviso de privacidad y captura de consentimientos (checklist
@@ -188,7 +190,7 @@ push directo a `main`; ver AGENTS.md).
 |---|---|
 | Datos | Ningún dato de negocio entra por SQL directo: todo pasa por la interfaz |
 | API | Rutas → controladores → servicios; SQL solo en servicios; Zod en toda entrada; JSON camelCase / BD snake_case |
-| Roles | 5 roles fijos (Administrador, Personal médico, Enfermería, Recepción, Paciente) + **la especialidad del personal médico decide su portal** (viaja en el JWT del login). La **enfermería es un rol**, no una especialidad del personal médico: su especialidad es fija ('Enfermería') y no se ofrece como opción al dar de alta personal. Cada rol declara un **perfil base** del que hereda panel y permisos y puede llevar **restricciones** de acciones; los roles base del sistema no se restringen ni se renombran |
+| Roles | 5 roles fijos (Administrador, Personal médico, Enfermería, Recepción, Paciente) + **la especialidad del personal médico decide su portal** (viaja en el JWT del login). La **enfermería es un rol**, no una especialidad del personal médico: su especialidad es fija ('Enfermería') y no se ofrece como opción al dar de alta personal. Cada rol declara su **perfil base** (panel e identidad clínica) y **elige sus permisos de forma explícita** (`rol_permisos`, sin herencia: un permiso no marcado queda bloqueado en el servidor y oculto en su panel); los roles base conservan su juego completo y solo admiten editar descripción |
 | Horarios | Un turno = personal + rango de horas + sus días (una fila por día en la BD, **un bloque en la interfaz**); se crea, edita y elimina como bloque completo |
 | Consulta→cita | Toda consulta deriva de una cita (`cita_id_cita` UNIQUE); auto-cita `Atención directa` para llegadas; nutrición/odontología exigen cita |
 | Tipos de consulta | ENUM `tipo_consulta` derivado del rol+especialidad; cada tipo captura campos distintos |

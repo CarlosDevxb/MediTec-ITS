@@ -8,7 +8,7 @@ import * as controlador from '../controllers/roles.controller';
  * Rutas de roles.
  *
  *   GET    /api/roles/acciones → catálogo de acciones restringibles
- *   GET    /api/roles          → listado con perfil, restricciones y cuentas
+ *   GET    /api/roles          → listado con perfil, permisos y cuentas
  *   POST   /api/roles          → alta        (Administrador, acción 'roles')
  *   PUT    /api/roles/:id      → edición      (Administrador, acción 'roles')
  *   DELETE /api/roles/:id      → baja         (Administrador, acción 'roles')

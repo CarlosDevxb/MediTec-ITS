@@ -30,14 +30,23 @@ import {
    El servidor vuelve a validar todo: aquí es comodidad de captura.
    ============================================================ */
 
-/** Roles cuyo personal necesita cédula (regla de presentación en el cliente) */
-const ROLES_CON_CEDULA = ['Personal médico', 'Enfermería'];
+/**
+ * Perfiles base que exigen cédula profesional.
+ *
+ * ⚠️ El criterio es el **perfil base del rol**, no su nombre: un rol creado
+ * sobre el perfil Personal médico (p. ej. "Pediatra externo") también exige
+ * cédula. Debe coincidir con `backend/src/config/roles.ts`.
+ */
+const PERFILES_CON_CEDULA = ['Personal médico', 'Enfermería'];
 
-/** Rol que además abre un expediente en la tabla `pacientes` */
-const ROL_PACIENTE = 'Paciente';
+/** Perfil que además abre un expediente en la tabla `pacientes` */
+const PERFIL_PACIENTE = 'Paciente';
 
-/** Rol del personal de enfermería */
-const ROL_ENFERMERIA = 'Enfermería';
+/** Perfil del personal de enfermería */
+const PERFIL_ENFERMERIA = 'Enfermería';
+
+/** Perfil del personal médico */
+const PERFIL_MEDICO = 'Personal médico';
 
 /**
  * Especialidades del personal médico. 'Enfermería' no aparece aquí: la
@@ -102,10 +111,14 @@ export default function UsuarioForm({
   const [errorCatalogos, setErrorCatalogos] = useState('');
 
   const rolSeleccionado = roles.find((r) => r.id === rolId);
-  const esPersonal = ROLES_CON_CEDULA.includes(rolSeleccionado?.nombre ?? '');
-  const esPaciente = (rolSeleccionado?.nombre ?? '') === ROL_PACIENTE;
-  const esRolEnfermeria = (rolSeleccionado?.nombre ?? '') === ROL_ENFERMERIA;
-  const esPersonalMedico = (rolSeleccionado?.nombre ?? '') === 'Personal médico';
+  // Todo lo que depende del rol se decide por su **perfil base**: así los
+  // roles creados sobre un perfil (p. ej. "Estudiante externo" con perfil
+  // Paciente) muestran y envían los mismos campos que su perfil original.
+  const perfil = rolSeleccionado?.perfil ?? '';
+  const esPersonal = PERFILES_CON_CEDULA.includes(perfil);
+  const esPaciente = perfil === PERFIL_PACIENTE;
+  const esRolEnfermeria = perfil === PERFIL_ENFERMERIA;
+  const esPersonalMedico = perfil === PERFIL_MEDICO;
 
   // La enfermería es un rol: su especialidad es fija y no se elige. Al pasar
   // a personal médico se limpia si traía la especialidad de enfermería.
@@ -123,6 +136,27 @@ export default function UsuarioForm({
   const requiereCarrera = TIPOS_CON_CARRERA.includes(tipoSeleccionado?.nombre ?? '');
   const hayTipos = tiposPaciente.length > 0;
   const hayCarreras = carreras.length > 0;
+
+  /** Campos con input en pantalla ahora mismo (para no esconder errores) */
+  const camposVisibles = useMemo(() => {
+    const visibles = new Set([
+      'nombre', 'numeroControl', 'correo', 'telefono', 'fechaNacimiento',
+      'genero', 'rolId', 'estatus',
+    ]);
+    if (esPersonal) {
+      visibles.add('cedula');
+      visibles.add('especialidad');
+    }
+    if (esPaciente) {
+      visibles.add('tipoPacienteId');
+      visibles.add('carreraId');
+    }
+    if (modo === 'alta') {
+      visibles.add('contrasena');
+      visibles.add('confirmarContrasena');
+    }
+    return visibles;
+  }, [esPersonal, esPaciente, modo]);
 
   useEffect(() => {
     let vigente = true;
@@ -187,11 +221,11 @@ export default function UsuarioForm({
       : '';
 
   /* ---------- Selectores: opción única y rol Paciente ---------- */
-  /** El rol Paciente se bloquea si no hay tipos de paciente registrados
-   *  (sin tipo no se abre expediente). Una cuenta que ya es Paciente
-   *  conserva su rol para no bloquear la edición. */
+  /** Un rol con perfil Paciente se bloquea si no hay tipos de paciente
+   *  registrados (sin tipo no se abre expediente). Una cuenta que ya es
+   *  Paciente conserva su rol para no bloquear la edición. */
   const rolPacienteBloqueado = (rol: Rol): boolean =>
-    rol.nombre === ROL_PACIENTE && !hayTipos && usuario?.rolId !== rol.id;
+    rol.perfil === PERFIL_PACIENTE && !hayTipos && usuario?.rolId !== rol.id;
 
   const rolesDisponibles = useMemo(
     () => roles.filter((rol) => !rolPacienteBloqueado(rol)),
@@ -307,11 +341,27 @@ export default function UsuarioForm({
       setErrores({});
     } catch (error) {
       const porCampo = detallesDe(error);
-      if (Object.keys(porCampo).length > 0) {
-        setErrores(porCampo);
-      } else {
-        setErrorGeneral(mensajeDeError(error));
+
+      /* Un error de un campo que el formulario no está mostrando no puede
+         ir a un sitio invisible: se presenta arriba. Así una respuesta del
+         servidor nunca se queda sin explicar (por ejemplo, si llega un
+         requerimiento de un campo que hoy no se está renderizando). */
+      const visibles: Record<string, string> = {};
+      const ocultos: string[] = [];
+      for (const [campo, mensaje] of Object.entries(porCampo)) {
+        if (camposVisibles.has(campo)) visibles[campo] = mensaje;
+        else ocultos.push(mensaje);
       }
+
+      if (Object.keys(visibles).length > 0) setErrores(visibles);
+      // Un error sin campos concretos también debe verse: nunca respuesta en silencio
+      setErrorGeneral(
+        ocultos.length > 0
+          ? ocultos.join(' ')
+          : Object.keys(porCampo).length === 0
+            ? mensajeDeError(error)
+            : '',
+      );
     }
   };
 

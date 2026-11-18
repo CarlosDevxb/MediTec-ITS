@@ -421,7 +421,9 @@ export async function actualizarUsuario(
   await asegurarDatosLibres(datos.numeroControl, datos.correo, id);
 
   const teniaExpediente = actual.pacienteId != null;
-  const tendraExpediente = esRolPaciente(nombreRol);
+  // Con el perfil, no con el nombre: un rol creado sobre el perfil Paciente
+  // también abre expediente
+  const tendraExpediente = esRolPaciente(nombreRol, rol.perfil);
 
   if (teniaExpediente && !tendraExpediente) {
     throw errorConflicto(
